@@ -1,0 +1,30 @@
+\section{\Lbase}
+
+\Lbase is a simple language consisting of sequentially ordered statements with method calls. Notably, it has support for uniqueness and borrowing, but not for classes or lambdas. The intent here is to study the mechanism of borrowing when threaded through method calls.
+
+\subsection{Syntax}
+\begin{bnf}
+  P ::= | $\overline{M}$  : Programs ;;
+  M ::=
+    | $m(\overline{x_f \Colon \alpha_f\beta}) \Colon \alpha_f \{ \Begin_m \Semi s \Semi \Return_m e \}$  : Method Definitions
+    | $m(\overline{x_f \Colon \alpha_f\beta}) \Colon \alpha_f$  : Method Declarations
+    ;;
+  $\alpha_f$ ::= | $\Unique$ | $\Aliased$ ;;
+  $\beta$ ::= | $\cdot$ | $\Borrowed$ ;;
+  $p$ ::=
+    | $x$ : Variable Access
+    | $p.f$ : Subfield Access
+    ;;
+  $e$ ::=
+    | $\Null$
+    | $p$
+    | $m(\overline{p})$
+    ;;
+  s ::=
+    | $\Var x$
+    | $p = e$
+    | $s_1 \Semi s_2$
+    | $\If p_1 == p_2 \Then s_1 \Else s_2$
+    | $m(\overline{p})$
+    ;;
+\end{bnf}
