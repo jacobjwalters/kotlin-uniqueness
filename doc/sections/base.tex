@@ -1,30 +1,43 @@
 \section{\Lbase}
 
-\Lbase is a simple language consisting of sequentially ordered statements with method calls. Notably, it has support for uniqueness and borrowing, but not for classes or lambdas. The intent here is to study the mechanism of borrowing when threaded through method calls.
+\Lbase is a simple typed language consisting of sequentially ordered statements with method calls. There are no modes, no classes, and no lambdas (or other methods of capturing).
 
 \subsection{Syntax}
-\begin{bnf}
-  P ::= | $\overline{M}$  : Programs ;;
-  M ::=
-    | $m(\overline{x_f \Colon \alpha_f\beta}) \Colon \alpha_f \{ \Begin_m \Semi s \Semi \Return_m e \}$  : Method Definitions
-    | $m(\overline{x_f \Colon \alpha_f\beta}) \Colon \alpha_f$  : Method Declarations
+\begin{bnfgrammar}
+  P ::=
+    | $\overline{M}$  : Programs
     ;;
-  $\alpha_f$ ::= | $\Unique$ | $\Aliased$ ;;
-  $\beta$ ::= | $\cdot$ | $\Borrowed$ ;;
-  $p$ ::=
-    | $x$ : Variable Access
-    | $p.f$ : Subfield Access
+  M ::=
+    | $m(\overline{x \Colon \tau}) \Colon \sigma \{ \Begin \Semi s \Semi \Return \, e \}$  : Method Definitions
+    | $m(\overline{x \Colon \tau}) \Colon \sigma$  : Method Declarations
+    ;;
+  $\tau$, $\sigma$ ::=
+    | $\Nat$ : Naturals
+    | $\Bool$ : Booleans
     ;;
   $e$ ::=
     | $\Null$
-    | $p$
-    | $m(\overline{p})$
+    | $x$  : Variable Access
+    | $m(\overline{e})$  : Method Call
+    | $\True$
+    | $\False$
+    | $n \in \mathbb{N}$ : Natural Numbers
     ;;
-  s ::=
-    | $\Var x$
-    | $p = e$
-    | $s_1 \Semi s_2$
-    | $\If p_1 == p_2 \Then s_1 \Else s_2$
-    | $m(\overline{p})$
+  $s$ ::=
+    | $\Var x$  : (Mutable) Variable Declaration
+    | $x = e$  : Variable Assignment/Mutation
+    | $s_1 \Semi s_2$  : Statement Sequencing
+    | $\If e \Then s_1 \Else s_2$
+    | $m(\overline{e})$  : Method Call
     ;;
-\end{bnf}
+\end{bnfgrammar}
+
+Overlined elements denote n-ary lists of such elements. $x$ and $m$ represent infinte sets of variable and method names respectively.
+
+Non-forgetful differences from the system described by \textcite{protopapa2024VerifyingKotlinCode} are:
+\begin{itemize}
+\item Our system is typed (and has $\Nat$ and $\Bool$ as ground types)
+\item ITE tests an arbitrary boolean expression, rather than direct equality on patterns.
+\end{itemize}
+
+For brevity's sake, we define $\Var x = e$ as $\Var x \Semi x = e$. Additionally, we assume usual boolean/arithmetic operators are defined as method call expressions.
