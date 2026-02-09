@@ -1,0 +1,57 @@
+\documentclass[a4paper]{article}
+
+% About
+\title{CHANGEME}
+\author{Jacob Walters}
+
+% LaTeX defaults work arounds
+\usepackage[utf8]{inputenc}
+\usepackage{textgreek}  % Allow Greek letters directly (important for citations!)
+\usepackage{caption}
+\usepackage{hyperref}
+\hypersetup{
+    breaklinks,
+    colorlinks,
+    citecolor=black,
+    filecolor=black,
+    linkcolor=black,
+    urlcolor=blue
+}
+
+% Prelude
+\usepackage{amsmath,amsfonts,amssymb}  % maths symbols and fonts
+\usepackage{kpfonts}  % nice text font
+\usepackage{todonotes}
+\usepackage{float} % force positioning
+
+% To-dos, questions, and comments
+\newcommand{\jtodo}[1]{\todo[inline,color=blue!40]{JW: TODO: #1}}  
+\newcommand{\jq}[1]{\todo[inline,color=blue!40]{JW: #1}}
+\newcommand{\jc}[1]{\todo[inline,color=blue!40]{JW: #1}}
+
+% Rhetorical and definitional emphasis
+\newcommand{\remph}{\emph}
+\newcommand{\demph}{\emph}
+
+% Relevent packages
+
+% Bibliography
+\usepackage[
+  style=alphabetic,
+  sorting=ynt
+]{biblatex}
+\addbibresource{refs.bib}
+
+% Local definitions
+\input{defs}
+
+\begin{document}
+\maketitle
+\tableofcontents
+%\todotoc\listoftodos
+
+\include{sections/CHANGEME}
+
+\printbibliography[heading=bibintoc]
+
+\end{document}

@@ -1,0 +1,30 @@
+name: Build LaTeX document
+
+on:
+  workflow_dispatch:
+  push:
+    paths: ./**.tex
+
+jobs:
+  build_latex:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      
+    steps:
+      - name: Set Up Git Repository
+        uses: actions/checkout@v4
+        
+      - name: Compile LaTeX Document
+        uses: xu-cheng/latex-action@v3
+        with:
+          root_file: main.tex
+
+      - name: Create Release
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: "main.pdf"
+          body: "PDF generated from main.tex"
+          commit: "main"
+          tag: "latest"
+          allowUpdates: true

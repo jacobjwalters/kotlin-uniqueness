@@ -1,0 +1,20 @@
+# macOS
+**/.DS_Store
+
+# Editor cruft
+**/*.*~
+
+# LaTeX build outputs
+**/*.aux
+**/*.fdb_latexmk
+**/*.fls
+**/*.log
+**/*.out
+**/*.pdf
+**/*.toc
+**/*.bbl*
+**/*.bcf*
+**/*.blg
+**/*.dvi
+**/*.run.xml
+**/*.tdo
