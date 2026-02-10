@@ -58,9 +58,8 @@ Statements in \Lbase may alter their context, particular for variable declaratio
 \subsubsection{Well Formed Contexts}
 We introduce a judgement $\Gamma \ctx$, to denote well formed contexts (WFCs). WFCs are defined inductively:
 \[
-  \inference[CtxEmp]{}{\cdot \ctx}
-
-  \inference[CtxExt]{\Gamma \ctx & x \ni \Gamma}{\Gamma, x : \tau \ctx}
+  \inferrule[CtxEmp]{ }{\cdot \ctx}
+  \inferrule[CtxExt]{\Gamma \ctx \\ x \ni \Gamma}{\Gamma, x : \tau \ctx}
 \]
 
 $x \ni \Gamma$ is bookkeeping for ensuring all names are distinct, and isn't strictly needed. Membership checking and lookup are defined in the usual way.
@@ -68,8 +67,8 @@ $x \ni \Gamma$ is bookkeeping for ensuring all names are distinct, and isn't str
 
 We need a removal operator acting on the context, to remove local variables when leaving a scope. We define removal inductively:
 \[
-  \inference[RemoveEmp]{}{\cdot \setminus x = \cdot}
-  \inference[RemoveVar]{}{\Gamma, x : \tau \setminus x = \Gamma}
-  \inference[RemoveRec]{}{\Gamma, y : \tau \setminus x = \Gamma \setminus x, y : \tau}
+  \inferrule[RemoveEmp]{ }{\cdot \setminus x = \cdot}
+  \inferrule[RemoveVar]{ }{\Gamma, x : \tau \setminus x = \Gamma}
+  \inferrule[RemoveRec]{ }{\Gamma, y : \tau \setminus x = \Gamma \setminus x, y : \tau}
 \]
 \jq{If we want shadowing, how should we deal with removal? With the above approach, we have no way of knowing which variables are declared in the local scope, and which are needed outside of the scope. My gut feeling is that we need a notion of stack frame in the context.}
