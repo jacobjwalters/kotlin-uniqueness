@@ -72,3 +72,20 @@ We need a removal operator acting on the context, to remove local variables when
   \inferrule[RemoveRec]{ }{\Gamma, y : \tau \setminus x = \Gamma \setminus x, y : \tau}
 \]
 \jq{If we want shadowing, how should we deal with removal? With the above approach, we have no way of knowing which variables are declared in the local scope, and which are needed outside of the scope. My gut feeling is that we need a notion of stack frame in the context.}
+
+\subsubsection{Type System}
+Typing expressions is straightforward. We use the standard $\Gamma \vdash e : \tau$ judgement form.
+
+\jtodo{Expression types}
+
+Typing statements is more involved. Since statments may update their context, we use a ``small-step'' typing judgement form $\Gamma \vdash s \dashv \Gamma'$, where $\Gamma$ represents the context before the statement runs, and $\Gamma'$ represents the context after the statement runs.
+
+\[
+  \inferrule[VarDecl]{x \ni \Gamma}{\Gamma \vdash \Var x : \tau \dashv \Gamma, x : \tau}
+  \inferrule[VarAssign]{\Gamma, x : \tau \vdash e : \tau}{\Gamma, x : \tau \vdash x = e \dashv \Gamma, x : \tau}
+  \inferrule[Seq]{\Gamma \vdash s_1 \dashv \Gamma' \\ \Gamma' \vdash s_2 \dashv \Gamma''}{\Gamma \vdash s_1 \Semi s_2 \dashv \Gamma'' }
+  \inferrule[IfStmt]{\Gamma \vdash s_1 \dashv \Gamma' \\ \Gamma \vdash s_2 \dashv \Gamma'}{\Gamma \vdash \If e \Then s_1 \Else s_2 \dashv \Gamma'}
+  \inferrule[CallStmt]{ }{ }
+\]
+\jtodo{Return and method call}
+\jc{IfStmt is very restrictive; we should check with Komi to see exactly what we want here, especially since classes will make things a lot more complicated. Likely we will need some unification over contexts here for the branches.}
