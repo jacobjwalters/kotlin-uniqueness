@@ -3,7 +3,7 @@
 \Lbase is a simple typed language consisting of sequentially ordered statements with method calls. There are no modes, no classes, and no lambdas (or other methods of capturing).
 
 \subsection{Syntax}
-\begin{bnfgrammar}
+\begin{bnf}
   P ::=
     | $\overline{M}$  : Programs
     ;;
@@ -31,7 +31,7 @@
     | $\Return e$  : Early Return
     | $m(\overline{e})$  : Method Call
     ;;
-\end{bnfgrammar}
+\end{bnf}
 
 Overlined elements denote n-ary lists of such elements. $x$ and $m$ represent infinte sets of variable and method names respectively.
 
