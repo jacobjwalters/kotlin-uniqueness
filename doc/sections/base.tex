@@ -65,6 +65,7 @@ We introduce a judgement $\Gamma \ctx$, to denote well formed contexts (WFCs). W
 $x \ni \Gamma$ is bookkeeping for ensuring all names are distinct, and isn't strictly needed. Membership checking and lookup are defined in the usual way.
 \jq{Do we want to allow name reuse (and thus shadowing)? How will this interact with borrowing later on?}
 
+\subsubsection{Removal}
 We need a removal operator acting on the context, to remove local variables when leaving a scope. We define removal inductively:
 \[
   \inferrule[RemoveEmp]{ }{\cdot \setminus x = \cdot}
@@ -73,7 +74,7 @@ We need a removal operator acting on the context, to remove local variables when
 \]
 \jq{If we want shadowing, how should we deal with removal? With the above approach, we have no way of knowing which variables are declared in the local scope, and which are needed outside of the scope. My gut feeling is that we need a notion of stack frame in the context.}
 
-\subsubsection{Type System}
+\subsection{Type System}
 Typing expressions is straightforward. We use the standard $\Gamma \vdash e : \tau$ judgement form.
 
 \jtodo{Expression types}
