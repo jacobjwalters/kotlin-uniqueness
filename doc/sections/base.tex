@@ -24,7 +24,7 @@
     | $n \in \mathbb{N}$ : Natural Numbers
     ;;
   $s$ ::=
-    | $\Var x$  : (Mutable) Variable Declaration
+    | $\Var x : \tau$  : (Mutable) Variable Declaration
     | $x = e$  : Variable Assignment/Mutation
     | $s_1 \Semi s_2$  : Statement Sequencing
     | $\If e \Then s_1 \Else s_2$
@@ -41,7 +41,7 @@ Non-forgetful differences from the system described by \textcite{protopapa2024Ve
 \item ITE tests an arbitrary boolean expression, rather than direct equality on patterns.
 \end{itemize}
 
-For brevity's sake, we define $\Var x = e$ as $\Var x \Semi x = e$. Additionally, we assume usual boolean/arithmetic operators are defined as method call expressions.
+For brevity's sake, we define $\Var x : \tau = e$ as $\Var x : \tau \Semi x = e$. Additionally, we assume usual boolean/arithmetic operators are defined as method call expressions.
 
 \subsection{Typing Contexts}
 Typing contexts (hereafter contexts) in \Lbase are (rightwards-growing) lists of variable names and their associated types. The grammar for contexts is as follows:
