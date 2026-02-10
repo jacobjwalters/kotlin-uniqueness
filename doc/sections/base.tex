@@ -24,7 +24,7 @@
     | $n \in \mathbb{N}$ : Natural Numbers
     ;;
   $s$ ::=
-    | $\Var x : \tau$  : (Mutable) Variable Declaration
+    | $\Var x \Colon \tau$  : (Mutable) Variable Declaration
     | $x = e$  : Variable Assignment/Mutation
     | $s_1 \Semi s_2$  : Statement Sequencing
     | $\If e \Then s_1 \Else s_2$
@@ -47,9 +47,9 @@ For brevity's sake, we define $\Var x : \tau = e$ as $\Var x : \tau \Semi x = e$
 Typing contexts (hereafter contexts) in \Lbase are (rightwards-growing) lists of variable names and their associated types. The grammar for contexts is as follows:
 
 \begin{bnf}
-  \Gamma ::=
+  $\Gamma$ ::=
     | $\cdot$ : Empty
-    | $\Gamma, x : \tau$ : Extension
+    | $\Gamma, x \Colon \tau$ : Extension
     ;;
 \end{bnf}
 
