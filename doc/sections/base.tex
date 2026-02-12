@@ -33,6 +33,8 @@
     ;;
 \end{bnf}
 
+\jq{Do we want loops?}
+
 Overlined elements denote n-ary lists of such elements. $x$ and $m$ represent infinte sets of variable and method names respectively. Methods are all defined top-level, and may be (mutually) recursive.
 \jtodo{Confirm with Komi: do we want (mutual) recursion?}
 
@@ -47,7 +49,7 @@ For brevity's sake, we define $\Var x : \tau = e$ as $\Var x : \tau \Semi x = e$
 \subsection{Typing Contexts}
 Morally, typing contexts (hereafter contexts) in \Lbase{} are (rightwards-growing) lists of names and their associated types, split into ``stack frames'' to denote the scopes in which variables are introduced. In particular, we have a (global) list of methods and associated method types\footnote{Since we don't have object-level function types, a method type is a list of argument types, paired with a return type, writ $m : (\tau_1, \tau_2, ...): \sigma$}, paired with a list of either variables names and their associated types, or stack frame delimiters.
 
-In this working note, stack frame delimiters will be displayed as $\square$. Additionally, since method declarations are top level, we omit them from our treatment of contexts, and assume that the expression/statement theories are parameterised by a particular context of methods and method types.
+In this working note, stack frame delimiters will be displayed as $\square$, and if associated with a method, are annotated by that method's return type. Additionally, since method declarations are top level, we omit them from our treatment of contexts, and assume that the expression/statement theories are parameterised by a particular context of methods and method types.
 
 The grammar for contexts is as follows:
 
@@ -55,10 +57,11 @@ The grammar for contexts is as follows:
   $\Gamma$ ::=
     | $\cdot$ : Empty
     | $\Gamma, x \Colon \tau$ : Variable Extension
-    | $\Gamma, \square$ : Stack Frame Delimiter
+    | $\Gamma, \square_\tau$ : Stack Frame Delimiter
     ;;
 \end{bnf}
 
+New stack frames are introduced when calling a method, and when entering a branch of an if statement.
 
 \subsubsection{Well Formed Contexts}
 We introduce a judgement $\Gamma \ctx$ to denote well formed contexts (WFCs). WFCs are defined inductively:
@@ -88,9 +91,9 @@ We need a removal operator acting on the context, to remove local variables when
 When leaving a scope, we drop all bindings introduced after the current stack frame. To do this, we define a recursive function $\drop$:
 
 \begin{alignat*}{2}
-  &\drop(\cdot)            &&= \cdot \\
-  &\drop(\Gamma, \square)  &&= \Gamma \\
-  &\drop(\Gamma, x : \tau) &&= \drop(\Gamma)
+  &\drop(\cdot)                 &&= \cdot \\
+  &\drop(\Gamma, \square_\tau)  &&= \Gamma, \square_\tau \\
+  &\drop(\Gamma, x : \tau)      &&= \drop(\Gamma)
 \end{alignat*}
 
 \jq{Is this going to get weird if we add exceptions?}
@@ -103,15 +106,32 @@ Typing expressions is straightforward. We use the standard $\Gamma \vdash e : \t
 Typing statements is more involved. Since statments may update their context, we use a ``small-step'' typing judgement form $\Gamma \vdash s \dashv \Gamma'$, where $\Gamma$ represents the context before the statement runs, and $\Gamma'$ represents the context after the statement runs.
 
 \begin{mathpar}
-  \ir{VarDecl}{x \notin \Gamma}{\Gamma \vdash \Var x : \tau \dashv \Gamma, x : \tau}
+  \ir{VarDecl}{x \notin \Gamma}{\Gamma \vdash{} \Var x : \tau \dashv \Gamma, x : \tau}
 
   \ir{VarAssign}{\Gamma, x : \tau \vdash e : \tau}{\Gamma, x : \tau \vdash x = e \dashv \Gamma, x : \tau}
 
   \ir{Seq}{\Gamma \vdash s_1 \dashv \Gamma' \\ \Gamma' \vdash s_2 \dashv \Gamma''}{\Gamma \vdash s_1 \Semi s_2 \dashv \Gamma'' }
 
-  \ir{IfStmt}{\Gamma \vdash s_1 \dashv \Gamma' \\ \Gamma \vdash s_2 \dashv \Gamma'}{\Gamma \vdash \If e \Then s_1 \Else s_2 \dashv \Gamma'}
+  \ir{IfStmt}{\Gamma \vdash e \Colon \Bool \\ \Gamma \vdash s_1 \dashv \Gamma' \\ \Gamma \vdash s_2 \dashv \Gamma'}{\Gamma \vdash{} \If e \Then s_1 \Else s_2 \dashv \Gamma'}
 
-  \ir{CallStmt}{ }{\Gamma \vdash m(e_1, e_2, ...) \dashv \Gamma'}
+  \ir{Return}{\drop(\Gamma) = \Gamma', \square_\tau \\ \Gamma \vdash e \Colon \tau}{\Gamma \vdash{} \Return e \dashv \Gamma'}
+
+  \ir{CallStmt}{m \Colon (\tau_1, \tau_2, ...): \sigma \\ \Gamma \vdash e_1 \Colon \tau_1 \\ \Gamma \vdash e_2 \Colon \tau_2 \\ \dots}{\Gamma \vdash m(e_1, e_2, ...) \dashv \Gamma}
 \end{mathpar}
-\jtodo{Return and method call}
 \jc{IfStmt is very restrictive; we should check with Komi to see exactly what we want here, especially since classes will make things a lot more complicated. Likely we will need some unification over contexts here for the branches.}
+
+Variable declarations extend the context with a fresh variable.
+
+Variable assigment requires that the variable we're assigning to is available in the context. Note that $e$ has access to $x$ in its context; this allows self mutation (such as $x = x + 1$).
+
+Sequencing threads the context produced as the output of the first statement into the input of the second statement.
+
+If statements require that both branches produce the same resultant context. This may be subject to change.
+
+Return drops the current stack frame, checks the expression matches the expected type, then produces the context in which the method was originally called.
+
+Method call statements may have an effect on the heap at run time, but at compile time they have no effect on the context, so in this case we merely have to check the argument types.
+
+\bigskip
+
+Consider carefully a method with the body $\Return{} \Null \Semi \Return 1$. We obviously shouldn't allow $\Return 1$ to execute in the parent call frame; in fact, it shouldn't execute at all, and should be seen as unreachable code.

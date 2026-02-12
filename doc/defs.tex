@@ -7,7 +7,7 @@
 
 % Contexts
 \newcommand{\ctx}{\:\:\mathrm{ctx}}
-\newcommand{\drop}{\mathsf{drop}}
+\newcommand{\drop}{\mathrm{drop}}
 
 % Types
 \newcommand{\Nat}{\mathsf{Nat}}
@@ -15,7 +15,7 @@
 
 % Terms
 \newcommand{\Begin}{\mathsf{begin}}
-\newcommand{\Return}{\mathsf{return}}
+\newcommand{\Return}[1][]{\mathrel\mathsf{return_{#1}}}
 \newcommand{\Unique}{\mathrel\mathsf{unique}}
 \newcommand{\Aliased}{\mathrel\mathsf{aliased}}
 \newcommand{\Borrowed}{\mathrel\mathsf{borrowed}}
