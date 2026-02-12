@@ -8,8 +8,8 @@
     | $\overline{M}$  : Programs
     ;;
   M ::=
-    | $m(\overline{x \Colon \tau}) \Colon \sigma \{ \Begin \Semi s \Semi \Return \, e \}$  : Method Definitions
-    | $m(\overline{x \Colon \tau}) \Colon \sigma$  : Method Declarations
+    | $m(\overline{x : \tau}) : \sigma \{ \Begin \Semi s \Semi \Return \, e \}$  : Method Definitions
+    | $m(\overline{x : \tau}) : \sigma$  : Method Declarations
     ;;
   $\tau$, $\sigma$ ::=
     | $\Nat$ : Naturals
@@ -24,7 +24,7 @@
     | $n \in \mathbb{N}$ : Natural Numbers
     ;;
   $s$ ::=
-    | $\Var x \Colon \tau$  : (Mutable) Variable Declaration
+    | $\Var x : \tau$  : (Mutable) Variable Declaration
     | $x = e$  : Variable Assignment/Mutation
     | $s_1 \Semi s_2$  : Statement Sequencing
     | $\If e \Then s_1 \Else s_2$
@@ -56,7 +56,7 @@ The grammar for contexts is as follows:
 \begin{bnf}
   $\Gamma$ ::=
     | $\cdot$ : Empty
-    | $\Gamma, x \Colon \tau$ : Variable Extension
+    | $\Gamma, x : \tau$ : Variable Extension
     | $\Gamma, \square_\tau$ : Stack Frame Delimiter
     ;;
 \end{bnf}
@@ -112,11 +112,11 @@ Typing statements is more involved. Since statments may update their context, we
 
   \ir{Seq}{\Gamma \vdash s_1 \dashv \Gamma' \\ \Gamma' \vdash s_2 \dashv \Gamma''}{\Gamma \vdash s_1 \Semi s_2 \dashv \Gamma'' }
 
-  \ir{IfStmt}{\Gamma \vdash e \Colon \Bool \\ \Gamma \vdash s_1 \dashv \Gamma' \\ \Gamma \vdash s_2 \dashv \Gamma'}{\Gamma \vdash{} \If e \Then s_1 \Else s_2 \dashv \Gamma'}
+  \ir{IfStmt}{\Gamma \vdash e : \Bool \\ \Gamma \vdash s_1 \dashv \Gamma' \\ \Gamma \vdash s_2 \dashv \Gamma'}{\Gamma \vdash{} \If e \Then s_1 \Else s_2 \dashv \Gamma'}
 
-  \ir{Return}{\drop(\Gamma) = \Gamma', \square_\tau \\ \Gamma \vdash e \Colon \tau}{\Gamma \vdash{} \Return e \dashv \Gamma'}
+  \ir{Return}{\drop(\Gamma) = \Gamma', \square_\tau \\ \Gamma \vdash e : \tau}{\Gamma \vdash{} \Return e \dashv \Gamma'}
 
-  \ir{CallStmt}{m \Colon (\tau_1, \tau_2, ...): \sigma \\ \Gamma \vdash e_1 \Colon \tau_1 \\ \Gamma \vdash e_2 \Colon \tau_2 \\ \dots}{\Gamma \vdash m(e_1, e_2, ...) \dashv \Gamma}
+  \ir{CallStmt}{m : (\tau_1, \tau_2, ...): \sigma \\ \Gamma \vdash e_1 : \tau_1 \\ \Gamma \vdash e_2 : \tau_2 \\ \dots}{\Gamma \vdash m(e_1, e_2, ...) \dashv \Gamma}
 \end{mathpar}
 \jc{IfStmt is very restrictive; we should check with Komi to see exactly what we want here, especially since classes will make things a lot more complicated. Likely we will need some unification over contexts here for the branches.}
 

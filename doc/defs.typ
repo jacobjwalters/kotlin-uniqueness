@@ -5,14 +5,19 @@
 // Language name
 #let Lbase = $cal(L)_sans("Base")$
 
-// Better spacing for typing judgements
-#let Colon = $thin :$
-
-// Better spacing for statement sequences
-#let Semi = $";" thin thin$
-
 // Contexts
 #let ctx = $thin upright("ctx")$
+#let drop = math.op("drop")
+#let square = $square$
+
+// Simulation of mathpar: wrap proof trees in an inline block to allow automatic flow
+#let mathpar(..trees) = {
+  align(center, {
+    for tree in trees.pos() {
+      box(inset: (x: 1em, y: 1em), tree)
+    }
+  })
+}
 
 // Types
 #let Nat = $sans("Nat")$
@@ -38,5 +43,5 @@
 
 // Todo notes (rendered as margin notes or highlighted text)
 #let jtodo(content) = text(fill: blue)[*JW: TODO:* #content]
-#let jq(content) = text(fill: blue)[*JW:* #content]
-#let jc(content) = text(fill: blue)[*JW:* #content]
+#let jq(content) = text(fill: blue)[*JW: Question:* #content]
+#let jc(content) = text(fill: blue)[*JW: Comment:* #content]
