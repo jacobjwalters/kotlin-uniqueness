@@ -82,15 +82,21 @@ We need a removal operator acting on the context, to remove local variables when
 When leaving a scope, we drop all bindings introduced after the current stack frame. To do this, we define a recursive function drop:
 
 $
-  drop(dot)                 &= dot \
-  drop(Gamma, square_tau)  &= Gamma, square_tau \
-  drop(Gamma, x : tau)      &= drop(Gamma)
+  drop(dot)               &= dot \
+  drop(Gamma, square_tau) &= Gamma, square_tau \
+  drop(Gamma, x : tau)    &= drop(Gamma)
 $
 
 #jq[Is this going to get weird if we add exceptions?]
 
 == Type System
 Typing expressions is straightforward. We use the standard $Gamma tack.r e : tau$ judgement form.
+
+#mathpar(
+  proof-tree(rule(name: "TrueConst", $Gamma tack.r #True : #Bool$)),
+  proof-tree(rule(name: "FalseConst", $Gamma tack.r #False : #Bool$)),
+  proof-tree(rule(name: "NatConst", $Gamma tack.r n : #Nat$, $n in bb(N)$)),
+)
 
 #jtodo[Expression types]
 
@@ -122,3 +128,5 @@ Method call statements may have an effect on the heap at run time, but at compil
 #v(1em)
 
 Consider carefully a method with the body $#Return #Null ; #Return 1$. We obviously shouldn't allow $#Return 1$ to execute in the parent call frame; in fact, it shouldn't execute at all, and should be seen as unreachable code.
+
+#jtodo[Double check that this is sensible]
