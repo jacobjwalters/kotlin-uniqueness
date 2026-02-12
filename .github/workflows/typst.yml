@@ -21,8 +21,11 @@ jobs:
           for file in **/*.pdf; do
             mv "$file" "${file%.pdf}-${{ env.DATE }}.pdf"
           done
-      - name: Upload PDF file
-        uses: actions/upload-artifact@v4
+      - name: Create Release
+        uses: ncipollo/release-action@v1
         with:
-          name: PDF-${{ env.DATE }}
-          path: "**/*.pdf"
+          artifacts: "main.pdf"
+          body: "PDF generated from main.typ"
+          commit: "main"
+          tag: "latest"
+          allowUpdates: true
