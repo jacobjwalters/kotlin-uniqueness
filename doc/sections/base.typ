@@ -96,9 +96,12 @@ Typing expressions is straightforward. We use the standard $Gamma tack.r e : tau
   proof-tree(rule(name: "TrueConst", $Gamma tack.r #True : #Bool$)),
   proof-tree(rule(name: "FalseConst", $Gamma tack.r #False : #Bool$)),
   proof-tree(rule(name: "NatConst", $Gamma tack.r n : #Nat$, $n in bb(N)$)),
+  proof-tree(rule(name: "NullConst", $Gamma tack.r #Null : tau$)),
+  proof-tree(rule(name: "VarAccess", $Gamma tack.r x : tau$, $x : tau in Gamma$)),
+  proof-tree(rule(name: "CallExpr", $Gamma tack.r m(e_1, e_2, ...) : sigma$, $m : (tau_1, tau_2, ...): sigma$, $Gamma tack.r e_i : tau_i$))
 )
 
-#jtodo[Expression types]
+Note that $#Null$ is a member of all types in this system.
 
 Typing statements is more involved. Since statments may update their context, we use a "small-step" typing judgement form $Gamma tack.r s tack.l Gamma'$, where $Gamma$ represents the context before the statement runs, and $Gamma'$ represents the context after the statement runs.
 
@@ -108,7 +111,7 @@ Typing statements is more involved. Since statments may update their context, we
   proof-tree(rule(name: "Seq", $Gamma tack.r s_1; s_2 tack.l Gamma''$, $Gamma tack.r s_1 tack.l Gamma'$, $Gamma' tack.r s_2 tack.l Gamma''$)),
   proof-tree(rule(name: "IfStmt", $Gamma tack.r #If e #Then s_1 #Else s_2 tack.l Gamma'$, $Gamma tack.r e : #Bool$, $Gamma tack.r s_1 tack.l Gamma'$, $Gamma tack.r s_2 tack.l Gamma'$)),
   proof-tree(rule(name: "Return", $Gamma tack.r #Return e tack.l Gamma'$, $drop(Gamma) = Gamma'$, $square_tau$, $Gamma tack.r e : tau$)),
-  proof-tree(rule(name: "CallStmt", $Gamma tack.r m(e_1, e_2, ...) tack.l Gamma$, $m : (tau_1, tau_2, ...): sigma$, $Gamma tack.r e_1 : tau_1$, $Gamma tack.r e_2 : tau_2$, $dots$))
+  proof-tree(rule(name: "CallStmt", $Gamma tack.r m(e_1, e_2, ...) tack.l Gamma$, $m : (tau_1, tau_2, ...): sigma$, $Gamma tack.r e_i : tau_i$))
 )
 
 #jc[IfStmt is very restrictive; we should check with Komi to see exactly what we want here, especially since classes will make things a lot more complicated. Likely we will need some unification over contexts here for the branches.]
