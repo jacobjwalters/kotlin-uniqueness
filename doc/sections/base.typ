@@ -140,3 +140,35 @@ Method call statements may have an effect on the heap at run time, but at compil
 Consider carefully a method with the body $#Return #Null ; #Return 1$. We obviously shouldn't allow $#Return 1$ to execute in the parent call frame; in fact, it shouldn't execute at all, and should be seen as unreachable code.
 
 #jtodo[Double check that this is sensible]
+
+== Evaluation
+Evaluation of an #Lbase program begins with a pre-specified method name. For the rest of this document, we'll use "main". We define a small step store semantics.
+
+=== Environment and the Heap
+We model two stores in our judgements; an environment $Gamma$, which maps variables to addresses; and a heap $Delta$, which maps addresses to values. Effectively, $Gamma$ is the stack, and $Delta$ is the heap. We model lookup as partial functions $Gamma(x) = a$ and $Delta(a) = v$, for a variable $x$, an address $a$ and a value $v$.
+
+#jtodo[Give syntax of environment and heap]
+#jtodo[Early return? We need stack frames again for sure this time.]
+
+Our small step evaluation judgement for a term $t$ is $Gamma | Delta tack.r t ~> Gamma' | Delta' tack.r t'$. For inference rules that do not modify or access the heap, we will write $Gamma tack.r t ~> Gamma' tack.r t'$ for brevity. In these cases, the heap is passed from the consequent to the antecedents unchanged.
+
+Once again, method bodies are tracked globally when defined. We define a function $body(m)$, which returns the body of a method, and a function $args(m)$, which returns the argument names taken by a method.
+
+=== Values
+#jtodo[fill in]
+
+=== Expression Evaluation
+#mathpar(
+  proof-tree(rule(name: "TrueConst", $Gamma tack.r #True ~> Gamma tack.r #True$)),
+  proof-tree(rule(name: "FalseConst", $Gamma tack.r #False ~> Gamma tack.r #False$)),
+  proof-tree(rule(name: "NatConst", $Gamma tack.r n ~> Gamma tack.r n$, $n in bb(N)$)),
+  proof-tree(rule(name: "NullConst", $Gamma tack.r #Null ~> Gamma tack.r #Null$)),
+  proof-tree(rule(name: "VarAccess", $Gamma | Delta tack.r x ~> Gamma | Delta tack.r v$, $Delta(Gamma(x))$)),
+  proof-tree(rule(name: "CallExprE", $Gamma tack.r m(e_1, e_2, ...) ~> m(e_1', e_2, ...)$, $Gamma tack.r e_1 ~> Gamma tack.r e_1'$)),
+  proof-tree(rule(name: "CallExprV", $Gamma tack.r m(v_1, v_2, ...) ~> Gamma, x_1 = v_1, x_2 = v_2, ... tack.r s$, $args(m) = x_1, x_2, ...$, $body(m) = s$)),
+)
+
+The interesting part is call expressions. #Lbase passes by value, and evaluates arguments left-to-right.
+
+=== Statement Evaluation
+#jtodo[Fill in]

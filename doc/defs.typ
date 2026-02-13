@@ -9,6 +9,8 @@
 #let ctx = $thin upright("ctx")$
 #let drop = math.op("drop")
 #let square = $square$
+#let body = math.op("body")
+#let args = math.op("args")
 
 // Simulation of mathpar: wrap proof trees in an inline block to allow automatic flow
 #let mathpar(..trees) = {
