@@ -8,7 +8,7 @@
 
 $
 P ::=& overline(M) && "Programs" \
-M ::=& m(overline(x : tau)) : sigma { #Begin; s; #Return thin e } && "Method Definitions" \
+M ::=& m(overline(x : tau)) : sigma { #Begin ; s ; #Return thin e } && "Method Definitions" \
   |& m(overline(x : tau)) : sigma && "Method Declarations" \
 tau, sigma ::=& #Nat && "Naturals" \
   |& #Bool && "Booleans" \
@@ -90,6 +90,10 @@ Note that these functions only differ in the $Gamma, diamond$ case.
 #jq[Is this going to get weird if we add exceptions?]
 
 == Type System
+Herein we discuss the type system of #Lbase. Mostly it's a straightforward approach; the interesting parts surround stack frames and calling methods.
+
+The approach to type checking begins by adding all method declarations to a (global) context of methods, thereby assuming that method type declarations are always correct. Once this pass is done, the body of each method (if given) is checked according to the statement rules.
+
 === Expression Types
 Typing expressions is straightforward. We use the standard $Gamma tack.r e : tau$ judgement form.
 
@@ -103,6 +107,7 @@ Typing expressions is straightforward. We use the standard $Gamma tack.r e : tau
 )
 
 Note that $#Null$ is a member of all types in this system.
+#jq[Subtyping with null?]
 
 === Statement Types
 Typing statements is more involved. Since statments may update their context, we use a "small-step" typing judgement form $Gamma tack.r s tack.l Gamma'$, where $Gamma$ represents the context before the statement runs, and $Gamma'$ represents the context after the statement runs.
@@ -135,6 +140,3 @@ Method call statements may have an effect on the heap at run time, but at compil
 Consider carefully a method with the body $#Return #Null ; #Return 1$. We obviously shouldn't allow $#Return 1$ to execute in the parent call frame; in fact, it shouldn't execute at all, and should be seen as unreachable code.
 
 #jtodo[Double check that this is sensible]
-
-=== Methods
-#jtodo[Write this part]
