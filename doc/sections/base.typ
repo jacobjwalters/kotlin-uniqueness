@@ -155,7 +155,7 @@ Our small step evaluation judgement for a term $t$ is $Gamma | Delta tack.r t ~>
 Once again, method bodies are tracked globally when defined. We define a function $body(m)$, which returns the body of a method, and a function $args(m)$, which returns the argument names taken by a method.
 
 === Values
-#jtodo[fill in]
+Our notion of values is given by the standard small step definition $Gamma tack.r v ~> Gamma tack.r v$. Only $#True$, $#False$, $#Null$, and $n in bb(N)$ are values in #Lbase.
 
 === Expression Evaluation
 #mathpar(
