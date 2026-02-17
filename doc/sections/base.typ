@@ -69,7 +69,7 @@ $x in.not Gamma$ is bookkeeping for ensuring all names are distinct, and isn't s
 #jq[Do we want to allow name reuse (and thus shadowing)? How will this interact with borrowing later on?]
 
 === Removal
-When leaving a scope, we drop all bindings introduced after the current stack frame. To do this, we define two recursive functions called $drop_square$ and $drop_diamond$:
+When leaving a scope, we drop all bindings introduced after the current stack frame. To do this, we define two recursive functions called $drop_square$ and $drop_diamond$, used when exiting method frames and control flow frames respectively:
 
 $
   drop_square (dot)               &= dot \
@@ -117,7 +117,7 @@ Typing statements is more involved. Since statments may update their context, we
   proof-tree(rule(name: "VarAssign", $Gamma, x : tau tack.r x = e tack.l Gamma, x : tau$, $Gamma, x : tau tack.r e : tau$)),
   proof-tree(rule(name: "Seq", $Gamma tack.r s_1; s_2 tack.l Gamma''$, $Gamma tack.r s_1 tack.l Gamma'$, $Gamma' tack.r s_2 tack.l Gamma''$)),
   proof-tree(rule(name: "IfStmt", $Gamma tack.r #If e #Then s_1 #Else s_2 tack.l Gamma'$, $Gamma tack.r e : #Bool$, $Gamma, diamond tack.r s_1 tack.l Gamma', diamond$, $Gamma, diamond tack.r s_2 tack.l Gamma', diamond$)),
-  proof-tree(rule(name: "Return", $Gamma tack.r #Return e tack.l Gamma'$, $drop(Gamma) = Gamma'$, $square_tau$, $Gamma tack.r e : tau$)),
+  proof-tree(rule(name: "Return", $Gamma tack.r #Return e tack.l Gamma'$, $drop_square(Gamma) = Gamma'$, $square_tau$, $Gamma tack.r e : tau$)),
   proof-tree(rule(name: "CallStmt", $Gamma tack.r m(e_1, e_2, ...) tack.l Gamma$, $m : (tau_1, tau_2, ...): sigma$, $Gamma tack.r e_i : tau_i$))
 )
 
