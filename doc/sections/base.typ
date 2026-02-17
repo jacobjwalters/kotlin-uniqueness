@@ -145,9 +145,10 @@ Consider carefully a method with the body $#Return #Null ; #Return 1$. We obviou
 Evaluation of an #Lbase program begins with a pre-specified method name. For the rest of this document, we'll use "main". We define a small step store semantics.
 
 === Environment and the Heap
-We model two stores in our judgements; an environment $Gamma$, which maps variables to addresses; and a heap $Delta$, which maps addresses to values. Effectively, $Gamma$ is the stack, and $Delta$ is the heap. We model lookup as partial functions $Gamma(x) = a$ and $Delta(a) = v$, for a variable $x$, an address $a$ and a value $v$. The environment is ordered so as to permit shadowing, and the heap is unordered.
+We model two stores in our judgements; an environment $Gamma$, which maps variables to addresses or values; and a heap $Delta$, which maps addresses to values. Effectively, $Gamma$ is the stack, and $Delta$ is the heap. We model lookup as partial functions $Gamma(x) = a$ and $Delta(a) = v$, for a variable $x$, an address $a$ and a value $v$. The environment is ordered so as to permit shadowing, and the heap is unordered.
 
-#jtodo[Give syntax of environment and heap]
+#jq[Should addresses just be normal values? Is allowing that sound?]
+
 Our environment and heap syntax is as follows:
 $
 Gamma ::=& dot && "Empty" \
@@ -158,7 +159,7 @@ Delta ::=& dot && "Empty" \
   |& Delta, a -> v && "Heap Extension" \
 $
 
-Each address $a$ is a distinct label referring to a location on the stack. The stack can contain both addresses and values, to model local variables and
+Each address $a$ is a distinct label referring to a location on the stack. The stack can contain both addresses and values, to allow modelling non-heap-allocated values like local variables.
 
 #jtodo[Early return? We need stack frames again for sure this time.]
 
@@ -169,18 +170,24 @@ Once again, method bodies are tracked globally when defined. We define a functio
 === Values
 Our notion of values is given by the standard small step definition $Gamma tack.r v ~> Gamma tack.r v$. Only $#True$, $#False$, $#Null$, and $n in bb(N)$ are values in #Lbase.
 
+$
+v ::=& #True |& #False |& #Null |& n in bb(N)
+$
+
 === Expression Evaluation
 #mathpar(
   proof-tree(rule(name: "TrueConst", $Gamma tack.r #True ~> Gamma tack.r #True$)),
   proof-tree(rule(name: "FalseConst", $Gamma tack.r #False ~> Gamma tack.r #False$)),
   proof-tree(rule(name: "NatConst", $Gamma tack.r n ~> Gamma tack.r n$, $n in bb(N)$)),
   proof-tree(rule(name: "NullConst", $Gamma tack.r #Null ~> Gamma tack.r #Null$)),
-  proof-tree(rule(name: "VarAccess", $Gamma | Delta tack.r x ~> Gamma | Delta tack.r v$, $Delta(Gamma(x))$)),
-  proof-tree(rule(name: "CallExprE", $Gamma tack.r m(e_1, e_2, ...) ~> m(e_1', e_2, ...)$, $Gamma tack.r e_1 ~> Gamma tack.r e_1'$)),
-  proof-tree(rule(name: "CallExprV", $Gamma tack.r m(v_1, v_2, ...) ~> Gamma, x_1 = v_1, x_2 = v_2, ... tack.r s$, $args(m) = x_1, x_2, ...$, $body(m) = s$)),
+  proof-tree(rule(name: "VarAccess", $Gamma, x -> a | Delta, a -> v tack.r x ~> Gamma, x -> a | Delta, a -> v tack.r v$)),
+  proof-tree(rule(name: "CallExprE", $Gamma tack.r m(e_1, e_2, ...) ~> m(e'_1, e_2, ...)$, $Gamma tack.r e_1 ~> Gamma tack.r e'_1$)),
+  proof-tree(rule(name: "CallExprV", $Gamma tack.r m(v_1, v_2, ...) ~> Gamma, x_1 := v_1, x_2 := v_2, ... tack.r s$, $args(m) = x_1, x_2, ...$, $body(m) = s$)),
 )
 
-The interesting part is call expressions. #Lbase passes by value, and evaluates arguments left-to-right.
+The only expression rule which directly interacts with the heap is the one for variable access. We enforce in this rule that the corresponding label is actually defined on the heap.
+
+Note the rules for call expressions. #Lbase passes by value, and evaluates arguments left-to-right.
 
 === Statement Evaluation
 #jtodo[Fill in]
