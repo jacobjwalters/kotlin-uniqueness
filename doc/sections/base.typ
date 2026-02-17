@@ -143,6 +143,15 @@ Consider carefully a method with the body $#Return #Null ; #Return 1$. We obviou
 
 #jtodo[Double check that this is sensible]
 
+=== Method Bodies
+We introduce a final typing judgement $Gamma tack.r m(x_i : tau_i): sigma { s }$ to ascribe types for method definitions.
+
+#mathpar(
+  proof-tree(rule(name: "Method", $Gamma tack.r m(x_i : tau_i): sigma { s }$, $Gamma, square_sigma, x_i : tau_i tack.r s tack.l Gamma, square_sigma$))
+)
+
+Note the assymmetry in the contexts when checking the method body. Effectively we're forcing the introduced arguments (and any local defs) to be dropped, which in turn means that we only can exit a method via an explicit return statement.
+
 == Evaluation
 Evaluation of an #Lbase program begins with a pre-specified method name. For the rest of this document, we'll use "main". We define a small step store semantics.
 
