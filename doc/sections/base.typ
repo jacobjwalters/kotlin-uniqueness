@@ -191,3 +191,17 @@ Note the rules for call expressions. #Lbase passes by value, and evaluates argum
 
 === Statement Evaluation
 #jtodo[Fill in]
+
+#mathpar(
+  proof-tree(rule(name: "VarDecl", $Gamma tack.r #Var x : tau ~> Gamma$)),
+  proof-tree(rule(name: "VarAssign", $Gamma, x : tau tack.r x = e tack.l Gamma, x : tau$, $Gamma, x : tau tack.r e : tau$)),
+  proof-tree(rule(name: "Seq", $Gamma tack.r s_1; s_2 tack.l Gamma''$, $Gamma tack.r s_1 tack.l Gamma'$, $Gamma' tack.r s_2 tack.l Gamma''$)),
+  proof-tree(rule(name: "IfStmt", $Gamma tack.r #If e #Then s_1 #Else s_2 tack.l Gamma'$, $Gamma tack.r e : #Bool$, $Gamma, diamond tack.r s_1 tack.l Gamma', diamond$, $Gamma, diamond tack.r s_2 tack.l Gamma', diamond$)),
+  proof-tree(rule(name: "Return", $Gamma tack.r #Return e tack.l Gamma'$, $drop_square(Gamma) = Gamma'$, $square_tau$, $Gamma tack.r e : tau$)),
+  proof-tree(rule(name: "CallStmt", $Gamma tack.r m(e_1, e_2, ...) tack.l Gamma$, $m : (tau_1, tau_2, ...): sigma$, $Gamma tack.r e_i : tau_i$))
+)
+
+#jtodo[Do rules after VarDecl]
+#jtodo[What judgement should we use for statements? They don't always produce another statement to execute]
+
+Variable declaration has no effect during evaluation. Indeed, type checking already ensures that all variables we refer to have already been declared.
