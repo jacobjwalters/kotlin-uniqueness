@@ -145,9 +145,21 @@ Consider carefully a method with the body $#Return #Null ; #Return 1$. We obviou
 Evaluation of an #Lbase program begins with a pre-specified method name. For the rest of this document, we'll use "main". We define a small step store semantics.
 
 === Environment and the Heap
-We model two stores in our judgements; an environment $Gamma$, which maps variables to addresses; and a heap $Delta$, which maps addresses to values. Effectively, $Gamma$ is the stack, and $Delta$ is the heap. We model lookup as partial functions $Gamma(x) = a$ and $Delta(a) = v$, for a variable $x$, an address $a$ and a value $v$.
+We model two stores in our judgements; an environment $Gamma$, which maps variables to addresses; and a heap $Delta$, which maps addresses to values. Effectively, $Gamma$ is the stack, and $Delta$ is the heap. We model lookup as partial functions $Gamma(x) = a$ and $Delta(a) = v$, for a variable $x$, an address $a$ and a value $v$. The environment is ordered so as to permit shadowing, and the heap is unordered.
 
 #jtodo[Give syntax of environment and heap]
+Our environment and heap syntax is as follows:
+$
+Gamma ::=& dot && "Empty" \
+  |& Gamma, x := v && "Variable Extension" \
+  |& Gamma, x -> a && "Address Extension" \
+
+Delta ::=& dot && "Empty" \
+  |& Delta, a -> v && "Heap Extension" \
+$
+
+Each address $a$ is a distinct label referring to a location on the stack. The stack can contain both addresses and values, to model local variables and
+
 #jtodo[Early return? We need stack frames again for sure this time.]
 
 Our small step evaluation judgement for a term $t$ is $Gamma | Delta tack.r t ~> Gamma' | Delta' tack.r t'$. For inference rules that do not modify or access the heap, we will write $Gamma tack.r t ~> Gamma' tack.r t'$ for brevity. In these cases, the heap is passed from the consequent to the antecedents unchanged.
