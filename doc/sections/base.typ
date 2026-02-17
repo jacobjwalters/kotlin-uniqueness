@@ -117,7 +117,7 @@ Typing statements is more involved. Since statments may update their context, we
   proof-tree(rule(name: "VarAssign", $Gamma, x : tau tack.r x = e tack.l Gamma, x : tau$, $Gamma, x : tau tack.r e : tau$)),
   proof-tree(rule(name: "Seq", $Gamma tack.r s_1; s_2 tack.l Gamma''$, $Gamma tack.r s_1 tack.l Gamma'$, $Gamma' tack.r s_2 tack.l Gamma''$)),
   proof-tree(rule(name: "IfStmt", $Gamma tack.r #If e #Then s_1 #Else s_2 tack.l Gamma'$, $Gamma tack.r e : #Bool$, $Gamma, diamond tack.r s_1 tack.l Gamma', diamond$, $Gamma, diamond tack.r s_2 tack.l Gamma', diamond$)),
-  proof-tree(rule(name: "Return", $Gamma tack.r #Return e tack.l Gamma'$, $drop_square(Gamma) = Gamma'$, $square_tau$, $Gamma tack.r e : tau$)),
+  proof-tree(rule(name: "Return", $Gamma tack.r #Return e tack.l Gamma'$, $drop_square (Gamma) = Gamma'$, $square_tau$, $Gamma tack.r e : tau$)),
   proof-tree(rule(name: "CallStmt", $Gamma tack.r m(e_1, e_2, ...) tack.l Gamma$, $m : (tau_1, tau_2, ...): sigma$, $Gamma tack.r e_i : tau_i$))
 )
 
