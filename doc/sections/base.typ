@@ -24,8 +24,8 @@ e ::=& #Null \
 s ::=& #Var x : tau && "(Mutable) Variable Declaration" \
   |& x = e && "Variable Assignment/Mutation" \
   |& s_1; s_2 && "Statement Sequencing" \
-  |& #If e #Then s_1 #Else s_2 \
-  |& #Return e && "Early Return" \
+  |& #If e #Then s_1 #Else s_2 && "If/Then/Else" \
+  |& #Return e && "(Early) Return" \
   |& m(overline(e)) && "Method Call" \
   |& #Alloc && "Heap Allocation" \
   |& #Free && "Heap Deallocation" \
