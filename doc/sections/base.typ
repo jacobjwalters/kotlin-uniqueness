@@ -173,12 +173,12 @@ Each address $a$ is a distinct label referring to a location on the stack. The s
 
 #jtodo[Early return? We need stack frames again for sure this time.]
 
-Our small step evaluation judgement for a term $t$ is $S | H tack.r t ~> S' | H' tack.r t'$. For inference rules that do not modify or access the heap, we will write $S tack.r t ~> S' tack.r t'$ for brevity. In these cases, the heap is passed from the consequent to the antecedents unchanged.
+Our small step evaluation judgement for a term $t$ is $chevron.l S | H | t chevron.r ~> chevron.l S', H', t' chevron.r$.
 
 Once again, method bodies are tracked globally when defined. We define a function $body(m)$, which returns the body of a method, and a function $args(m)$, which returns the argument names taken by a method.
 
 === Values
-Our notion of values is given by the standard small step definition $S tack.r v ~> S tack.r v$. Only $#True$, $#False$, $#Null$, and $n in bb(N)$ are values in #Lbase.
+Our notion of values is given by the standard small step definition $chevron.l S | H | v chevron.r ~> chevron.l S | H | v chevron.r$. Only $#True$, $#False$, $#Null$, and $n in bb(N)$ are values in #Lbase.
 
 $
 v ::=& #True |& #False |& #Null |& n in bb(N)
@@ -186,13 +186,13 @@ $
 
 === Expression Evaluation
 #mathpar(
-  proof-tree(rule(name: "TrueConst", $S tack.r #True ~> S tack.r #True$)),
-  proof-tree(rule(name: "FalseConst", $S tack.r #False ~> S tack.r #False$)),
-  proof-tree(rule(name: "NatConst", $S tack.r n ~> S tack.r n$, $n in bb(N)$)),
-  proof-tree(rule(name: "NullConst", $S tack.r #Null ~> S tack.r #Null$)),
-  proof-tree(rule(name: "VarAccess", $S, x -> a | H, a -> v tack.r x ~> S, x -> a | H, a -> v tack.r v$)),
-  proof-tree(rule(name: "CallExprE", $S tack.r m(e_1, e_2, ...) ~> m(e'_1, e_2, ...)$, $S tack.r e_1 ~> S tack.r e'_1$)),
-  proof-tree(rule(name: "CallExprV", $S tack.r m(v_1, v_2, ...) ~> S, x_1 := v_1, x_2 := v_2, ... tack.r s$, $args(m) = x_1, x_2, ...$, $body(m) = s$)),
+  proof-tree(rule(name: "TrueConst", $chevron.l S | H | #True chevron.r ~> chevron.l S | H | #True chevron.r$)),
+  proof-tree(rule(name: "FalseConst", $chevron.l S | H | #False chevron.r ~> chevron.l S | H | #False chevron.r$)),
+  proof-tree(rule(name: "NatConst", $chevron.l S | H | n chevron.r ~> chevron.l S | H | n chevron.r$, $n in bb(N)$)),
+  proof-tree(rule(name: "NullConst", $chevron.l S | H | #Null chevron.r ~> chevron.l S | H | #Null chevron.r$)),
+  proof-tree(rule(name: "VarAccess", $chevron.l S, x -> a | H, a -> v | x chevron.r ~> chevron.l S, x -> a | H, a -> v | v chevron.r$)),
+  proof-tree(rule(name: "CallExprE", $chevron.l S | H | m(e_1, e_2, ...) chevron.r ~> chevron.l S | H | m(e'_1, e_2, ...) chevron.r$, $chevron.l S | H | e_1 chevron.r ~> chevron.l S | H | e'_1 chevron.r$)),
+  proof-tree(rule(name: "CallExprV", $chevron.l S | H | m(v_1, v_2, ...) chevron.r ~> chevron.l S, x_1 := v_1, x_2 := v_2, ... | H | s chevron.r$, $args(m) = x_1, x_2, ...$, $body(m) = s$)),
 )
 
 The only expression rule which directly interacts with the heap is the one for variable access. We enforce in this rule that the corresponding label is actually defined on the heap.
