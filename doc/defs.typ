@@ -21,6 +21,9 @@
   })
 }
 
+// Judgements
+#let ms = $op(~>)^*$
+
 // Types
 #let Nat = $sans("Nat")$
 #let Bool = $sans("Bool")$

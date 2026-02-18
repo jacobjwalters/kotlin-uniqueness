@@ -173,7 +173,7 @@ Each address $a$ is a distinct label referring to a location on the stack. The s
 
 #jtodo[Early return? We need stack frames again for sure this time.]
 
-Our small step evaluation judgement for a term $t$ is $chevron.l S | H | t chevron.r ~> chevron.l S', H', t' chevron.r$.
+Our small step evaluation judgement for a term $t$ is $chevron.l S | H | t chevron.r ~> chevron.l S', H', t' chevron.r$. We define a multi step judgement $ms$ in the usual way.
 
 Once again, method bodies are tracked globally when defined. We define a function $body(m)$, which returns the body of a method, and a function $args(m)$, which returns the argument names taken by a method.
 
@@ -194,6 +194,7 @@ $
   proof-tree(rule(name: "CallExprE", $chevron.l S | H | m(e_1, e_2, ...) chevron.r ~> chevron.l S | H | m(e'_1, e_2, ...) chevron.r$, $chevron.l S | H | e_1 chevron.r ~> chevron.l S | H | e'_1 chevron.r$)),
   proof-tree(rule(name: "CallExprV", $chevron.l S | H | m(v_1, v_2, ...) chevron.r ~> chevron.l S, x_1 := v_1, x_2 := v_2, ... | H | s chevron.r$, $args(m) = x_1, x_2, ...$, $body(m) = s$)),
 )
+#jtodo[Double check stack contents on method return is correct here]
 
 The only expression rule which directly interacts with the heap is the one for variable access. We enforce in this rule that the corresponding label is actually defined on the heap.
 
