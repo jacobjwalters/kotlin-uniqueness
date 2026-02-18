@@ -32,7 +32,8 @@ s ::=& #Var x : tau && "(Mutable) Variable Declaration" \
   |& #Free e && "Heap Deallocation" \
 $
 
-#jq[Do we want loops?]
+#jtodo[Loops]
+#jtodo[Exceptions]
 
 Overlined elements denote n-ary lists of such elements. $x$ and $m$ represent infinite sets of variable and method names respectively. Methods are all defined top-level, and may be (mutually) recursive.
 
@@ -103,7 +104,6 @@ $
   drop_diamond (Gamma, diamond)    &= Gamma, diamond \
   drop_diamond (Gamma, x : tau)    &= drop_diamond (Gamma) \
 $
-#jtodo[Fix this so that diamonds/squares appear above addresses.]
 
 Note the $Gamma, diamond$ case: in $drop_square$, we recurse past the control flow delimiter; in $drop_diamond$, we stop. Addtionally, $drop_diamond$ is undefined on $Gamma, square_tau$. This is to preclude us from writing a break statement outside of a loop.
 
@@ -184,9 +184,7 @@ Note the assymmetry in the contexts when checking the method body. Effectively w
 Evaluation of an #Lbase program begins with a pre-specified method name. For the rest of this document, we'll use "main". We define a small step store semantics.
 
 === Environment and the Heap
-We model two stores in our judgements; an environment $S$, which maps variables to addresses or values; and a heap $H$, which maps addresses to values. Effectively, $S$ is the stack, and $D$ is the heap. We model lookup as partial functions $S(x) = a$ and $H(a) = v$, for a variable $x$, an address $a$ and a value $v$. The environment is ordered so as to permit shadowing, and the heap is unordered.
-
-#jq[Should addresses just be normal values? Is allowing that sound?]
+We model two stores in our judgements; an environment $S$, which maps variables to addresses or values; and a heap $H$, which maps addresses to values. Effectively, $S$ is the stack, and $D$ is the heap. The environment is ordered so as to permit shadowing, and the heap is unordered.
 
 Our environment and heap syntax is as follows:
 $
@@ -248,7 +246,6 @@ To deal with this, we introduce a new statement form called $#Skip$, which denot
 )
 
 #jtodo[Return, CallStmt]
-#jtodo[What judgement should we use for statements? They don't always produce another statement to execute]
 
 Variable declaration has no effect during evaluation. Indeed, type checking already ensures that all variables we refer to have already been declared.
 
