@@ -109,8 +109,8 @@ Typing expressions is straightforward. We use the standard $Gamma tack.r e : tau
   proof-tree(rule(name: "FalseConst", $Gamma tack.r #False : #Bool$)),
   proof-tree(rule(name: "NatConst", $Gamma tack.r n : #Nat$, $n in bb(N)$)),
   proof-tree(rule(name: "NullConst", $Gamma tack.r #Null : tau$)),
-  proof-tree(rule(name: "VarAccess", $Gamma tack.r x : tau$, $x : tau in Gamma$)),
   proof-tree(rule(name: "CallExpr", $Gamma tack.r m(e_1, e_2, ...) : sigma$, $m : (tau_1, tau_2, ...): sigma$, $Gamma tack.r e_i : tau_i$))
+  proof-tree(rule(name: "VarAccess", $Gamma, x : tau tack.r x : tau$)),
 )
 
 Note that $#Null$ is a member of all types in this system.
