@@ -203,19 +203,27 @@ Note the rules for call expressions. #Lbase passes by value, and evaluates argum
 === Statement Evaluation
 With small step operational semantics for expressions, we always know exactly which next step we can perform, even if we're looking at a value. Conversely, for rules such as VarDecl, VarAssign, and CallStmt, we don't know exactly what expression comes next, as it's presumably part of a sequencing operation higher up in the syntax tree.
 
-To deal with this, we introduce a new statement form called $#Skip$, which denotes a fully evaluated statement. Operationally, it is a stuck state, but we're able to eliminate it and progress evaluation via Seq and If.
+To deal with this, we introduce a new statement form called $#Skip$, which denotes a fully evaluated statement. Operationally, it is a stuck state, but we're able to eliminate it and progress evaluation via Seq.
 
 #mathpar(
-  proof-tree(rule(name: "Skip", $S tack.r #Var x : tau ~> S tack.r #Skip$)),
-  proof-tree(rule(name: "VarDecl", $S tack.r #Var x : tau ~> S tack.r #Skip$)),
-  proof-tree(rule(name: "VarAssign", $S, x : tau tack.r x = e tack.l S, x : tau$, $S, x : tau tack.r e : tau$)),
-  proof-tree(rule(name: "Seq", $S tack.r s_1; s_2 tack.l S''$, $S tack.r s_1 tack.l S'$, $S' tack.r s_2 tack.l S''$)),
-  proof-tree(rule(name: "IfStmt", $S tack.r #If e #Then s_1 #Else s_2 tack.l S'$, $S tack.r e : #Bool$, $S, diamond tack.r s_1 tack.l S', diamond$, $S, diamond tack.r s_2 tack.l S', diamond$)),
-  proof-tree(rule(name: "Return", $S tack.r #Return e tack.l S'$, $drop_square(S) = S'$, $square_tau$, $S tack.r e : tau$)),
-  proof-tree(rule(name: "CallStmt", $S tack.r m(e_1, e_2, ...) tack.l S$, $m : (tau_1, tau_2, ...): sigma$, $S tack.r e_i : tau_i$))
+  proof-tree(rule(name: "Skip", $chevron.l S | H | #Skip chevron.r ~> chevron.l S | H | #Skip chevron.r$)),
+  proof-tree(rule(name: "VarDecl", $chevron.l S | H | #Var x : tau chevron.r ~> chevron.l S | H | #Skip chevron.r$)),
+  proof-tree(rule(name: "VarAssign1", $chevron.l S, x := \_ | H | x = e chevron.r ~> chevron.l S | H | x = e' chevron.r$, $chevron.l S, x := \_ | H | e chevron.r ~> chevron.l S, x := \_ | H | e' chevron.r$)),
+  proof-tree(rule(name: "VarAssign2", $chevron.l S, x := \_ | H | x = v chevron.r ~> chevron.l S, x := v | H | #Skip chevron.r$)),
+  proof-tree(rule(name: "Seq1", $chevron.l S | H | s_1; s_2 chevron.r ~> chevron.l S' | H' | s'_1; s_2 chevron.r$, $chevron.l S | H | s_1 chevron.r ~> chevron.l S' | H' | s'_1 chevron.r$)),
+  proof-tree(rule(name: "Seq2", $chevron.l S | H | #Skip ; s_2 chevron.r ~> chevron.l S | H | s_2 chevron.r$)),
+  proof-tree(rule(name: "IfCond", $chevron.l S | H | #If e #Then s_1 #Else s_2 chevron.r ~> chevron.l S' | H' | #If e' #Then s_1 #Else s_2 chevron.r$, $chevron.l S | H | e chevron.r ~> chevron.l S' | H' | e' chevron.r$)),
+  proof-tree(rule(name: "IfThen", $chevron.l S | H | #If #True #Then s_1 #Else s_2 chevron.r ~> chevron.l S | H | s_1 chevron.r$)),
+  proof-tree(rule(name: "IfElse", $chevron.l S | H | #If #False #Then s_1 #Else s_2 chevron.r ~> chevron.l S | H | s_2 chevron.r$)),
+  proof-tree(rule(name: "Return", $chevron.l S | H | #Return e tack.l S'$, $drop_square(S) = S'$, $square_tau$, $chevron.l S | H | e : tau chevron.r$)),
+  proof-tree(rule(name: "CallStmt", $chevron.l S | H | m(e_1, e_2, ...) chevron.r ~> chevron.l S | H | m(e_1)$, $m : (tau_1, tau_2, ...): sigma$, $chevron.l S | H | e_i : tau_i chevron.r$))
 )
 
-#jtodo[Do rules after VarDecl]
+#jtodo[Return, CallStmt]
 #jtodo[What judgement should we use for statements? They don't always produce another statement to execute]
 
 Variable declaration has no effect during evaluation. Indeed, type checking already ensures that all variables we refer to have already been declared.
+
+The underscore in the LHS of VarAssign is a wildcard, and represents a value we don't care about.
+
+The If rule assumes that expressions do not modify the stack or heap. This is currently true,
