@@ -62,14 +62,26 @@ $
 Method stack frames are typed with the return type of the method, are introduced when entering the body of a method, and are removed upon returning. Control flow stack frames are untyped, are introduced when entering the branches of an if statement, and are removed either at the end of the branch, or during early return.
 #jtodo[Loops? Break/continue statements?]
 
+Note that for address extension, the type $tau$ refers to the type of the value stored on the heap; the literal $a$ itself must of course still be of type $#Addr$.
+
+In order to model heap allocations, we have a second typing context $Delta$ for things on the heap:
+$
+Delta ::=& dot |& Delta, a : tau
+$
+
 === Well Formed Contexts
-We introduce a judgement $Gamma #ctx$ to denote well formed contexts (WFCs). WFCs are defined inductively:
+We introduce a judgement $Gamma #ctx$, and $Delta #ctx$ to denote well formed contexts (WFCs) and heaps (WFHs). WFCs/WFHs are defined inductively:
 
 #mathpar(
   proof-tree(rule(name: "CtxEmp", $dot #ctx$)),
   proof-tree(rule(name: "CtxVarExt", $Gamma, x : tau #ctx$, $x in.not Gamma$, $Gamma #ctx$)),
   proof-tree(rule(name: "CtxMethodFrame", $Gamma, square_tau #ctx$, $Gamma #ctx$)),
   proof-tree(rule(name: "CtxControlFrame", $Gamma, diamond #ctx$, $Gamma #ctx$))
+)
+
+#mathpar(
+  proof-tree(rule(name: "HeapCtxEmp", $dot #ctx$)),
+  proof-tree(rule(name: "HeapCtxAddrExt", $Delta, x : tau #ctx$, $x in.not Delta$, $Delta #ctx$)),
 )
 
 $x in.not Gamma$ is bookkeeping for ensuring all names are distinct, and isn't strictly needed. Membership checking and lookup are defined in the usual way.
@@ -83,18 +95,19 @@ $
   drop_square (dot)               &= dot \
   drop_square (Gamma, square_tau) &= Gamma, square_tau \
   drop_square (Gamma, diamond)    &= drop_square (Gamma) \
-  drop_square (Gamma, x : tau)    &= drop_square (Gamma)
+  drop_square (Gamma, x : tau)    &= drop_square (Gamma) \
 $
 
 $
   drop_diamond (dot)               &= dot \
   drop_diamond (Gamma, diamond)    &= Gamma, diamond \
-  drop_diamond (Gamma, x : tau)    &= drop_diamond (Gamma)
+  drop_diamond (Gamma, x : tau)    &= drop_diamond (Gamma) \
 $
+#jtodo[Fix this so that diamonds/squares appear above addresses.]
 
 Note the $Gamma, diamond$ case: in $drop_square$, we recurse past the control flow delimiter; in $drop_diamond$, we stop. Addtionally, $drop_diamond$ is undefined on $Gamma, square_tau$. This is to preclude us from writing a break statement outside of a loop.
 
-#jq[Is this going to get weird if we add exceptions?]
+#jq[Is any of this going to get weird if we add exceptions?]
 
 == Type System
 Herein we discuss the type system of #Lbase. Mostly it's a straightforward approach; the interesting parts surround stack frames and calling methods.
@@ -102,33 +115,39 @@ Herein we discuss the type system of #Lbase. Mostly it's a straightforward appro
 The approach to type checking begins by adding all method declarations to a (global) context of methods, thereby assuming that method type declarations are always correct. Once this pass is done, the body of each method (if given) is checked according to the statement rules.
 
 === Expression Types
-Typing expressions is straightforward. We use the standard $Gamma tack.r e : tau$ judgement form.
+Typing expressions is straightforward. We use the judgement form $Gamma | Delta tack.r e : tau$.
 
 #mathpar(
-  proof-tree(rule(name: "TrueConst", $Gamma tack.r #True : #Bool$)),
-  proof-tree(rule(name: "FalseConst", $Gamma tack.r #False : #Bool$)),
-  proof-tree(rule(name: "NatConst", $Gamma tack.r n : #Nat$, $n in bb(N)$)),
-  proof-tree(rule(name: "NullConst", $Gamma tack.r #Null : tau$)),
-  proof-tree(rule(name: "CallExpr", $Gamma tack.r m(e_1, e_2, ...) : sigma$, $m : (tau_1, tau_2, ...): sigma$, $Gamma tack.r e_i : tau_i$))
-  proof-tree(rule(name: "VarAccess", $Gamma, x : tau tack.r x : tau$)),
+  proof-tree(rule(name: "TrueConst", $Gamma | Delta tack.r #True : #Bool$)),
+  proof-tree(rule(name: "FalseConst", $Gamma | Delta tack.r #False : #Bool$)),
+  proof-tree(rule(name: "NatConst", $Gamma | Delta tack.r n : #Nat$, $n in bb(N)$)),
+  proof-tree(rule(name: "NullConst", $Gamma | Delta tack.r #Null : tau$)),
+  proof-tree(rule(name: "VarAccess", $Gamma | Delta, x : tau tack.r x : tau$)),
+  proof-tree(rule(name: "CallExpr", $Gamma | Delta tack.r m(e_1, e_2, ...) : sigma$, $m : (tau_1, tau_2, ...): sigma$, $Gamma | Delta tack.r e_i : tau_i$)),
+  proof-tree(rule(name: "AddrConst", $Gamma | Delta, a : tau tack.r a : #Addr$)),
+  proof-tree(rule(name: "HeapAccess", $Gamma | Delta, a : tau tack.r @a : tau$)),
 )
+#jtodo[CallExpr ignores the heap effect of the method. This sucks!]
 
 Note that $#Null$ is a member of all types in this system.
 #jq[Subtyping with null?]
 
 === Statement Types
-Typing statements is more involved. Since statments may update their context, we use a "small-step" typing judgement form $Gamma tack.r s tack.l Gamma'$, where $Gamma$ represents the context before the statement runs, and $Gamma'$ represents the context after the statement runs.
+Typing statements is more involved. Since statments may update their context, we use a "small-step" typing judgement form $Gamma | Delta tack.r s tack.l Gamma' | Delta'$, where $Gamma$ represents the context before the statement runs, and $Gamma'$ represents the context after the statement runs (and likewise for the heap $Delta$).
 
 #mathpar(
-  proof-tree(rule(name: "VarDecl", $Gamma tack.r #Var x : tau tack.l Gamma, x : tau$, $x in.not Gamma$)),
-  proof-tree(rule(name: "VarAssign", $Gamma, x : tau tack.r x = e tack.l Gamma, x : tau$, $Gamma, x : tau tack.r e : tau$)),
-  proof-tree(rule(name: "Seq", $Gamma tack.r s_1; s_2 tack.l Gamma''$, $Gamma tack.r s_1 tack.l Gamma'$, $Gamma' tack.r s_2 tack.l Gamma''$)),
-  proof-tree(rule(name: "IfStmt", $Gamma tack.r #If e #Then s_1 #Else s_2 tack.l Gamma'$, $Gamma tack.r e : #Bool$, $Gamma, diamond tack.r s_1 tack.l Gamma', diamond$, $Gamma, diamond tack.r s_2 tack.l Gamma', diamond$)),
-  proof-tree(rule(name: "Return", $Gamma tack.r #Return e tack.l Gamma', square_tau$, $drop_square (Gamma) = Gamma', square_tau$, $Gamma tack.r e : tau$)),
-  proof-tree(rule(name: "CallStmt", $Gamma tack.r m(e_1, e_2, ...) tack.l Gamma$, $m : (tau_1, tau_2, ...): sigma$, $Gamma tack.r e_i : tau_i$))
+  proof-tree(rule(name: "VarDecl", $Gamma | Delta tack.r #Var x : tau tack.l Gamma | Delta, x : tau$, $x in.not Gamma$)),
+  proof-tree(rule(name: "VarAssign", $Gamma | Delta, x : tau tack.r x = e tack.l Gamma | Delta, x : tau$, $Gamma | Delta, x : tau tack.r e : tau$)),
+  proof-tree(rule(name: "Seq", $Gamma | Delta tack.r s_1; s_2 tack.l Gamma'' | Delta''$, $Gamma | Delta tack.r s_1 tack.l Gamma' | Delta'$, $Gamma' | Delta' tack.r s_2 tack.l Gamma' | Delta''$)),
+  proof-tree(rule(name: "IfStmt", $Gamma | Delta tack.r #If e #Then s_1 #Else s_2 tack.l Gamma' | Delta'$, $Gamma | Delta tack.r e : #Bool$, $Gamma, diamond | Delta tack.r s_1 tack.l Gamma', diamond | Delta'$, $Gamma, diamond | Delta tack.r s_2 tack.l Gamma', diamond | Delta'$)),
+  proof-tree(rule(name: "Return", $Gamma | Delta tack.r #Return e tack.l Gamma', square_tau | Delta'$, $drop_square (Gamma) = Gamma', square_tau$, $Gamma | Delta tack.r e : tau$)),
+  proof-tree(rule(name: "CallStmt", $Gamma | Delta tack.r m(e_1, e_2, ...) tack.l Gamma$, $m : (tau_1, tau_2, ...): sigma$, $Gamma | Delta tack.r e_i : tau_i$)),
+  proof-tree(rule(name: "Alloc", $Gamma | Delta tack.r x = #Alloc e tack.l Gamma, x : #Addr | Delta, a : tau$, $Gamma | Delta tack.r e : tau$)),
+  proof-tree(rule(name: "Store", $Gamma | Delta, a : tau tack.r a = e tack.l Gamma | Delta, a : tau$, $Gamma | Delta, a : tau tack.r e : tau$)),
+  proof-tree(rule(name: "Free", $Gamma | Delta, a : \_ tack.r #Free e tack.l Gamma | Delta$, $Gamma | Delta tack.r e : #Addr$)),
 )
 
-#jc[IfStmt is very restrictive; we should check with Komi to see exactly what we want here, especially since classes will make things a lot more complicated. Likely we will need some unification over contexts here for the branches.]
+#jc[IfStmt is very restrictive; we should check with Komi to see exactly what we want here, especially since classes will make things a lot more complicated. Likely we will need some type unification over contexts/heaps here for the branches.]
 
 #jq[Is our treatment of method calling and returning sound?]
 
@@ -143,6 +162,8 @@ If statements require that both branches produce the same resultant context. Thi
 Return drops the current stack frame, checks the expression matches the expected type, then produces the context in which the method was originally called.
 
 Method call statements may have an effect on the heap at run time, but at compile time they have no effect on the context, so in this case we merely have to check the argument types. Note that the preconditions for this rule are identical to the expression case; only the judgement form of the consequent differs.
+
+Alloc allocates a location on the heap, stores the result of the expression there, and then sets $x$ to the address of the allocated location.
 
 #v(1em)
 
