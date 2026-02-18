@@ -163,13 +163,12 @@ Our environment and heap syntax is as follows:
 $
 S ::=& dot && "Empty" \
   |& S, x := v && "Variable Extension" \
-  |& S, x -> a && "Address Extension" \
 
 H ::=& dot && "Empty" \
   |& H, a -> v && "Heap Extension" \
 $
 
-Each address $a$ is a distinct label referring to a location on the stack. The stack can contain both addresses and values, to allow modelling non-heap-allocated values like local variables.
+Each address $a$ is a distinct label referring to a location on the stack. Addresses are treated as values.
 
 #jtodo[Early return? We need stack frames again for sure this time.]
 
@@ -181,7 +180,7 @@ Once again, method bodies are tracked globally when defined. We define a functio
 Our notion of values is given by the standard small step definition $chevron.l S | H | v chevron.r ~> chevron.l S | H | v chevron.r$. Only $#True$, $#False$, $#Null$, and $n in bb(N)$ are values in #Lbase.
 
 $
-v ::=& #True |& #False |& #Null |& n in bb(N)
+v ::=& a |& #True |& #False |& #Null |& n in bb(N)
 $
 
 === Expression Evaluation
@@ -190,7 +189,7 @@ $
   proof-tree(rule(name: "FalseConst", $chevron.l S | H | #False chevron.r ~> chevron.l S | H | #False chevron.r$)),
   proof-tree(rule(name: "NatConst", $chevron.l S | H | n chevron.r ~> chevron.l S | H | n chevron.r$, $n in bb(N)$)),
   proof-tree(rule(name: "NullConst", $chevron.l S | H | #Null chevron.r ~> chevron.l S | H | #Null chevron.r$)),
-  proof-tree(rule(name: "VarAccess", $chevron.l S, x -> a | H, a -> v | x chevron.r ~> chevron.l S, x -> a | H, a -> v | v chevron.r$)),
+  proof-tree(rule(name: "VarAccess", $chevron.l S, x := a | H, a -> v | x chevron.r ~> chevron.l S, x := a | H, a -> v | v chevron.r$)),
   proof-tree(rule(name: "CallExprE", $chevron.l S | H | m(e_1, e_2, ...) chevron.r ~> chevron.l S | H | m(e'_1, e_2, ...) chevron.r$, $chevron.l S | H | e_1 chevron.r ~> chevron.l S | H | e'_1 chevron.r$)),
   proof-tree(rule(name: "CallExprV", $chevron.l S | H | m(v_1, v_2, ...) chevron.r ~> chevron.l S, x_1 := v_1, x_2 := v_2, ... | H | s chevron.r$, $args(m) = x_1, x_2, ...$, $body(m) = s$)),
 )
