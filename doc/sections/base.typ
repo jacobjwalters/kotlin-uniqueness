@@ -80,12 +80,11 @@ $
 
 $
   drop_diamond (dot)               &= dot \
-  drop_diamond (Gamma, square_tau) &= Gamma, square_tau \
   drop_diamond (Gamma, diamond)    &= Gamma, diamond \
   drop_diamond (Gamma, x : tau)    &= drop_diamond (Gamma)
 $
 
-Note that these functions only differ in the $Gamma, diamond$ case.
+Note the $Gamma, diamond$ case: in $drop_square$, we recurse past the control flow delimiter; in $drop_diamond$, we stop. Addtionally, $drop_diamond$ is undefined on $Gamma, square_tau$. This is to preclude us from writing a break statement outside of a loop.
 
 #jq[Is this going to get weird if we add exceptions?]
 
