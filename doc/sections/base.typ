@@ -67,8 +67,9 @@ We introduce a judgement $Gamma #ctx$ to denote well formed contexts (WFCs). WFC
 
 #mathpar(
   proof-tree(rule(name: "CtxEmp", $dot #ctx$)),
-  proof-tree(rule(name: "CtxVarExt", $Gamma #ctx$, $x in.not Gamma$, $Gamma, x : tau #ctx$)),
-  proof-tree(rule(name: "CtxStackFrame", $Gamma #ctx$, $Gamma, square #ctx$))
+  proof-tree(rule(name: "CtxVarExt", $Gamma, x : tau #ctx$, $x in.not Gamma$, $Gamma #ctx$)),
+  proof-tree(rule(name: "CtxMethodFrame", $Gamma, square_tau #ctx$, $Gamma #ctx$)),
+  proof-tree(rule(name: "CtxControlFrame", $Gamma, diamond #ctx$, $Gamma #ctx$))
 )
 
 $x in.not Gamma$ is bookkeeping for ensuring all names are distinct, and isn't strictly needed. Membership checking and lookup are defined in the usual way.
