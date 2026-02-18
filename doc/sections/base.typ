@@ -200,10 +200,13 @@ The only expression rule which directly interacts with the heap is the one for v
 Note the rules for call expressions. #Lbase passes by value, and evaluates arguments left-to-right.
 
 === Statement Evaluation
-#jtodo[Fill in]
+With small step operational semantics for expressions, we always know exactly which next step we can perform, even if we're looking at a value. Conversely, for rules such as VarDecl, VarAssign, and CallStmt, we don't know exactly what expression comes next, as it's presumably part of a sequencing operation higher up in the syntax tree.
+
+To deal with this, we introduce a new statement form called $#Skip$, which denotes a fully evaluated statement. Operationally, it is a stuck state, but we're able to eliminate it and progress evaluation via Seq and If.
 
 #mathpar(
-  proof-tree(rule(name: "VarDecl", $Gamma tack.r #Var x : tau ~> Gamma$)),
+  proof-tree(rule(name: "Skip", $Gamma tack.r #Var x : tau ~> Gamma tack.r #Skip$)),
+  proof-tree(rule(name: "VarDecl", $Gamma tack.r #Var x : tau ~> Gamma tack.r #Skip$)),
   proof-tree(rule(name: "VarAssign", $Gamma, x : tau tack.r x = e tack.l Gamma, x : tau$, $Gamma, x : tau tack.r e : tau$)),
   proof-tree(rule(name: "Seq", $Gamma tack.r s_1; s_2 tack.l Gamma''$, $Gamma tack.r s_1 tack.l Gamma'$, $Gamma' tack.r s_2 tack.l Gamma''$)),
   proof-tree(rule(name: "IfStmt", $Gamma tack.r #If e #Then s_1 #Else s_2 tack.l Gamma'$, $Gamma tack.r e : #Bool$, $Gamma, diamond tack.r s_1 tack.l Gamma', diamond$, $Gamma, diamond tack.r s_2 tack.l Gamma', diamond$)),

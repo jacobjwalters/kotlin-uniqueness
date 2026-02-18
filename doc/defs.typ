@@ -26,6 +26,7 @@
 #let Bool = $sans("Bool")$
 
 // Terms
+#let Skip = $sans("skip")$
 #let Begin = $sans("begin")$
 #let Return = $sans("return")$
 #let Unique = $sans("unique")$
