@@ -8,7 +8,7 @@
 
 $
 P ::=& overline(M) && "Programs" \
-M ::=& m(overline(x : tau)) : sigma { #Begin ; s ; #Return e } && "Method Definitions" \
+M ::=& m(overline(x : tau)) : sigma { s } && "Method Definitions" \
   |& m(overline(x : tau)) : sigma && "Method Declarations" \
 tau, sigma ::=& #Nat && "Naturals" \
   |& #Bool && "Booleans" \

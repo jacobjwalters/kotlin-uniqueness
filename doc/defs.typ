@@ -8,7 +8,7 @@
 // Contexts
 #let ctx = $thin upright("ctx")$
 #let drop = math.op("drop")
-#let square = $square$
+#let normalise = math.op("normalise")
 #let body = math.op("body")
 #let args = math.op("args")
 
