@@ -155,30 +155,30 @@ Note the assymmetry in the contexts when checking the method body. Effectively w
 Evaluation of an #Lbase program begins with a pre-specified method name. For the rest of this document, we'll use "main". We define a small step store semantics.
 
 === Environment and the Heap
-We model two stores in our judgements; an environment $Gamma$, which maps variables to addresses or values; and a heap $Delta$, which maps addresses to values. Effectively, $Gamma$ is the stack, and $Delta$ is the heap. We model lookup as partial functions $Gamma(x) = a$ and $Delta(a) = v$, for a variable $x$, an address $a$ and a value $v$. The environment is ordered so as to permit shadowing, and the heap is unordered.
+We model two stores in our judgements; an environment $S$, which maps variables to addresses or values; and a heap $H$, which maps addresses to values. Effectively, $S$ is the stack, and $D$ is the heap. We model lookup as partial functions $S(x) = a$ and $H(a) = v$, for a variable $x$, an address $a$ and a value $v$. The environment is ordered so as to permit shadowing, and the heap is unordered.
 
 #jq[Should addresses just be normal values? Is allowing that sound?]
 
 Our environment and heap syntax is as follows:
 $
-Gamma ::=& dot && "Empty" \
-  |& Gamma, x := v && "Variable Extension" \
-  |& Gamma, x -> a && "Address Extension" \
+S ::=& dot && "Empty" \
+  |& S, x := v && "Variable Extension" \
+  |& S, x -> a && "Address Extension" \
 
-Delta ::=& dot && "Empty" \
-  |& Delta, a -> v && "Heap Extension" \
+H ::=& dot && "Empty" \
+  |& H, a -> v && "Heap Extension" \
 $
 
 Each address $a$ is a distinct label referring to a location on the stack. The stack can contain both addresses and values, to allow modelling non-heap-allocated values like local variables.
 
 #jtodo[Early return? We need stack frames again for sure this time.]
 
-Our small step evaluation judgement for a term $t$ is $Gamma | Delta tack.r t ~> Gamma' | Delta' tack.r t'$. For inference rules that do not modify or access the heap, we will write $Gamma tack.r t ~> Gamma' tack.r t'$ for brevity. In these cases, the heap is passed from the consequent to the antecedents unchanged.
+Our small step evaluation judgement for a term $t$ is $S | H tack.r t ~> S' | H' tack.r t'$. For inference rules that do not modify or access the heap, we will write $S tack.r t ~> S' tack.r t'$ for brevity. In these cases, the heap is passed from the consequent to the antecedents unchanged.
 
 Once again, method bodies are tracked globally when defined. We define a function $body(m)$, which returns the body of a method, and a function $args(m)$, which returns the argument names taken by a method.
 
 === Values
-Our notion of values is given by the standard small step definition $Gamma tack.r v ~> Gamma tack.r v$. Only $#True$, $#False$, $#Null$, and $n in bb(N)$ are values in #Lbase.
+Our notion of values is given by the standard small step definition $S tack.r v ~> S tack.r v$. Only $#True$, $#False$, $#Null$, and $n in bb(N)$ are values in #Lbase.
 
 $
 v ::=& #True |& #False |& #Null |& n in bb(N)
@@ -186,13 +186,13 @@ $
 
 === Expression Evaluation
 #mathpar(
-  proof-tree(rule(name: "TrueConst", $Gamma tack.r #True ~> Gamma tack.r #True$)),
-  proof-tree(rule(name: "FalseConst", $Gamma tack.r #False ~> Gamma tack.r #False$)),
-  proof-tree(rule(name: "NatConst", $Gamma tack.r n ~> Gamma tack.r n$, $n in bb(N)$)),
-  proof-tree(rule(name: "NullConst", $Gamma tack.r #Null ~> Gamma tack.r #Null$)),
-  proof-tree(rule(name: "VarAccess", $Gamma, x -> a | Delta, a -> v tack.r x ~> Gamma, x -> a | Delta, a -> v tack.r v$)),
-  proof-tree(rule(name: "CallExprE", $Gamma tack.r m(e_1, e_2, ...) ~> m(e'_1, e_2, ...)$, $Gamma tack.r e_1 ~> Gamma tack.r e'_1$)),
-  proof-tree(rule(name: "CallExprV", $Gamma tack.r m(v_1, v_2, ...) ~> Gamma, x_1 := v_1, x_2 := v_2, ... tack.r s$, $args(m) = x_1, x_2, ...$, $body(m) = s$)),
+  proof-tree(rule(name: "TrueConst", $S tack.r #True ~> S tack.r #True$)),
+  proof-tree(rule(name: "FalseConst", $S tack.r #False ~> S tack.r #False$)),
+  proof-tree(rule(name: "NatConst", $S tack.r n ~> S tack.r n$, $n in bb(N)$)),
+  proof-tree(rule(name: "NullConst", $S tack.r #Null ~> S tack.r #Null$)),
+  proof-tree(rule(name: "VarAccess", $S, x -> a | H, a -> v tack.r x ~> S, x -> a | H, a -> v tack.r v$)),
+  proof-tree(rule(name: "CallExprE", $S tack.r m(e_1, e_2, ...) ~> m(e'_1, e_2, ...)$, $S tack.r e_1 ~> S tack.r e'_1$)),
+  proof-tree(rule(name: "CallExprV", $S tack.r m(v_1, v_2, ...) ~> S, x_1 := v_1, x_2 := v_2, ... tack.r s$, $args(m) = x_1, x_2, ...$, $body(m) = s$)),
 )
 
 The only expression rule which directly interacts with the heap is the one for variable access. We enforce in this rule that the corresponding label is actually defined on the heap.
@@ -205,13 +205,13 @@ With small step operational semantics for expressions, we always know exactly wh
 To deal with this, we introduce a new statement form called $#Skip$, which denotes a fully evaluated statement. Operationally, it is a stuck state, but we're able to eliminate it and progress evaluation via Seq and If.
 
 #mathpar(
-  proof-tree(rule(name: "Skip", $Gamma tack.r #Var x : tau ~> Gamma tack.r #Skip$)),
-  proof-tree(rule(name: "VarDecl", $Gamma tack.r #Var x : tau ~> Gamma tack.r #Skip$)),
-  proof-tree(rule(name: "VarAssign", $Gamma, x : tau tack.r x = e tack.l Gamma, x : tau$, $Gamma, x : tau tack.r e : tau$)),
-  proof-tree(rule(name: "Seq", $Gamma tack.r s_1; s_2 tack.l Gamma''$, $Gamma tack.r s_1 tack.l Gamma'$, $Gamma' tack.r s_2 tack.l Gamma''$)),
-  proof-tree(rule(name: "IfStmt", $Gamma tack.r #If e #Then s_1 #Else s_2 tack.l Gamma'$, $Gamma tack.r e : #Bool$, $Gamma, diamond tack.r s_1 tack.l Gamma', diamond$, $Gamma, diamond tack.r s_2 tack.l Gamma', diamond$)),
-  proof-tree(rule(name: "Return", $Gamma tack.r #Return e tack.l Gamma'$, $drop_square(Gamma) = Gamma'$, $square_tau$, $Gamma tack.r e : tau$)),
-  proof-tree(rule(name: "CallStmt", $Gamma tack.r m(e_1, e_2, ...) tack.l Gamma$, $m : (tau_1, tau_2, ...): sigma$, $Gamma tack.r e_i : tau_i$))
+  proof-tree(rule(name: "Skip", $S tack.r #Var x : tau ~> S tack.r #Skip$)),
+  proof-tree(rule(name: "VarDecl", $S tack.r #Var x : tau ~> S tack.r #Skip$)),
+  proof-tree(rule(name: "VarAssign", $S, x : tau tack.r x = e tack.l S, x : tau$, $S, x : tau tack.r e : tau$)),
+  proof-tree(rule(name: "Seq", $S tack.r s_1; s_2 tack.l S''$, $S tack.r s_1 tack.l S'$, $S' tack.r s_2 tack.l S''$)),
+  proof-tree(rule(name: "IfStmt", $S tack.r #If e #Then s_1 #Else s_2 tack.l S'$, $S tack.r e : #Bool$, $S, diamond tack.r s_1 tack.l S', diamond$, $S, diamond tack.r s_2 tack.l S', diamond$)),
+  proof-tree(rule(name: "Return", $S tack.r #Return e tack.l S'$, $drop_square(S) = S'$, $square_tau$, $S tack.r e : tau$)),
+  proof-tree(rule(name: "CallStmt", $S tack.r m(e_1, e_2, ...) tack.l S$, $m : (tau_1, tau_2, ...): sigma$, $S tack.r e_i : tau_i$))
 )
 
 #jtodo[Do rules after VarDecl]
