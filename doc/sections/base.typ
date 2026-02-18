@@ -27,9 +27,9 @@ s ::=& #Var x : tau && "(Mutable) Variable Declaration" \
   |& #If e #Then s_1 #Else s_2 && "If/Then/Else" \
   |& #Return e && "(Early) Return" \
   |& m(overline(e)) && "Method Call" \
-  |& #Alloc && "Heap Allocation" \
-  |& #Free && "Heap Deallocation" \
-  |& a = e && "Heap Store" \
+  |& x = #Alloc e && "Heap Allocation" \
+  |& @a = e && "Heap Store/Mutation" \
+  |& #Free e && "Heap Deallocation" \
 $
 
 #jq[Do we want loops?]
