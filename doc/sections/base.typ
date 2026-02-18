@@ -168,7 +168,7 @@ H ::=& dot && "Empty" \
   |& H, a -> v && "Heap Extension" \
 $
 
-Each address $a$ is a distinct label referring to a location on the stack. Addresses are treated as values.
+Each address $a$ is a distinct label from an infinite set $A$, and refers to a location on the heap. Addresses are treated as values.
 
 #jtodo[Early return? We need stack frames again for sure this time.]
 
@@ -180,7 +180,7 @@ Once again, method bodies are tracked globally when defined. We define a functio
 Our notion of values is given by the standard small step definition $chevron.l S | H | v chevron.r ~> chevron.l S | H | v chevron.r$. Only $#True$, $#False$, $#Null$, and $n in bb(N)$ are values in #Lbase.
 
 $
-v ::=& a |& #True |& #False |& #Null |& n in bb(N)
+v ::=& a in A |& #True |& #False |& #Null |& n in bb(N)
 $
 
 === Expression Evaluation
