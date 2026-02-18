@@ -8,22 +8,28 @@
 
 $
 P ::=& overline(M) && "Programs" \
-M ::=& m(overline(x : tau)) : sigma { #Begin ; s ; #Return thin e } && "Method Definitions" \
+M ::=& m(overline(x : tau)) : sigma { #Begin ; s ; #Return e } && "Method Definitions" \
   |& m(overline(x : tau)) : sigma && "Method Declarations" \
 tau, sigma ::=& #Nat && "Naturals" \
   |& #Bool && "Booleans" \
+  |& #Addr && "Addresses" \
 e ::=& #Null \
   |& x && "Variable Access" \
   |& m(overline(e)) && "Method Call" \
   |& #True \
   |& #False \
   |& n in bb(N) && "Natural Numbers" \
+  |& a in A && "Address" \
+  |& @a && "Heap Access" \
 s ::=& #Var x : tau && "(Mutable) Variable Declaration" \
   |& x = e && "Variable Assignment/Mutation" \
   |& s_1; s_2 && "Statement Sequencing" \
   |& #If e #Then s_1 #Else s_2 \
   |& #Return e && "Early Return" \
-  |& m(overline(e)) && "Method Call"
+  |& m(overline(e)) && "Method Call" \
+  |& #Alloc && "Heap Allocation" \
+  |& #Free && "Heap Deallocation" \
+  |& a = e && "Heap Store" \
 $
 
 #jq[Do we want loops?]
@@ -33,8 +39,9 @@ Overlined elements denote n-ary lists of such elements. $x$ and $m$ represent in
 #jtodo[Confirm with Komi: do we want (mutual) recursion?]
 
 Non-forgetful differences from the system described by @protopapa2024VerifyingKotlinCode are:
-- Our system is typed (and has #Nat and #Bool as ground types)
+- Our system is typed (and has #Nat and #Bool as ground types).
 - ITE tests an arbitrary boolean expression, rather than direct equality on patterns.
+- We have explicit heap manipulation, in lieu of making all objects heap allocated.
 
 For brevity's sake, we define $#Var x : tau = e$ as $#Var x : tau; x = e$. Additionally, we assume usual boolean/arithmetic operators are defined as method call expressions.
 

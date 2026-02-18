@@ -25,11 +25,14 @@
 #let ms = $op(~>)^*$
 
 // Types
+#let Addr = $sans("Addr")$
 #let Nat = $sans("Nat")$
 #let Bool = $sans("Bool")$
 
 // Terms
 #let Skip = $sans("skip")$
+#let Alloc = $sans("alloc")$
+#let Free = $sans("free")$
 #let Begin = $sans("begin")$
 #let Return = $sans("return")$
 #let Unique = $sans("unique")$
