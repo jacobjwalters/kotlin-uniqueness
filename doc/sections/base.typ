@@ -187,6 +187,14 @@ We introduce a final typing judgement $Gamma tack.r m(x_i : tau_i): sigma { s }$
 
 Note the assymmetry in the contexts when checking the method body. Effectively we're forcing the introduced arguments (and any local defs) to be dropped, which in turn means that we only can exit a method via an explicit return statement.
 
+=== Theorems and Lemmata
+We should be able to use standard techniques to prove progress and preservation for the typing system, since we don't really do anything fancy at the type level.
+
+Our treatment of contexts, however, is non-standard. We should take care to show that it's not possible for values to escape their stack frames, nor for control flow to leave its scope without destroying the corresponding frame.
+
+Note that we don't have strong normalisation, even for expressions; a method is able to call itself in an infinite loop.
+
+
 == Evaluation
 Evaluation of an #Lbase program begins with a pre-specified method name. For the rest of this document, we'll use "main". We define a small step store semantics.
 
