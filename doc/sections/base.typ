@@ -279,3 +279,12 @@ Variable declaration has no effect during evaluation. Indeed, type checking alre
 The underscore in the LHS of VarAssign is a wildcard, and represents a value we don't care about.
 
 The If rule assumes that expressions do not modify the stack or heap. This is currently true,
+
+=== Theorems and Lemmata
+Given a well-typed program $P$:
+
+$P$ should always have an evaluation step to perform, or otherwise have finished executing (return from the main method)
+
+It should be impossible for $P$ to:
+- Access a freed memory location #jc[This is very strong; right now it should be true, but with a relaxed if statement, I'd be surprised if this is decidable/provable]
+- Escape from a method via return and retain locals on the stack (heap allocations and mutations are allowed!)
