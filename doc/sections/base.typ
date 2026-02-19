@@ -219,6 +219,8 @@ $
   proof-tree(rule(name: "VarAccess", $chevron.l S, x := a | H, a -> v | x chevron.r ~> chevron.l S, x := a | H, a -> v | v chevron.r$)),
   proof-tree(rule(name: "CallExprE", $chevron.l S | H | m(e_1, e_2, ...) chevron.r ~> chevron.l S | H | m(e'_1, e_2, ...) chevron.r$, $chevron.l S | H | e_1 chevron.r ~> chevron.l S | H | e'_1 chevron.r$)),
   proof-tree(rule(name: "CallExprV", $chevron.l S | H | m(v_1, v_2, ...) chevron.r ~> chevron.l S, x_1 := v_1, x_2 := v_2, ... | H | s chevron.r$, $args(m) = x_1, x_2, ...$, $body(m) = s$)),
+  proof-tree(rule(name: "AddrConst", $chevron.l S | H, a -> \_ | a chevron.r ~> chevron.l S | H, a -> \_ | a chevron.r$)),
+  proof-tree(rule(name: "HeapAccess", $chevron.l S | H, a -> v | @a chevron.r ~> chevron.l S | H, a -> v | v chevron.r$)),
 )
 #jtodo[Double check stack contents on method return is correct here]
 
