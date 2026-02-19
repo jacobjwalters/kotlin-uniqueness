@@ -122,8 +122,11 @@ Typing expressions is straightforward. We use the judgement form $Gamma | Delta 
   proof-tree(rule(name: "FalseConst", $Gamma | Delta tack.r #False : #Bool$)),
   proof-tree(rule(name: "NatConst", $Gamma | Delta tack.r n : #Nat$, $n in bb(N)$)),
   proof-tree(rule(name: "NullConst", $Gamma | Delta tack.r #Null : tau$)),
+
   proof-tree(rule(name: "VarAccess", $Gamma | Delta, x : tau tack.r x : tau$)),
+
   proof-tree(rule(name: "CallExpr", $Gamma | Delta tack.r m(e_1, e_2, ...) : sigma$, $m : (tau_1, tau_2, ...): sigma$, $Gamma | Delta tack.r e_i : tau_i$)),
+
   proof-tree(rule(name: "AddrConst", $Gamma | Delta, a : tau tack.r a : #Addr$)),
   proof-tree(rule(name: "HeapAccess", $Gamma | Delta, a : tau tack.r @a : tau$)),
 )
@@ -138,10 +141,14 @@ Typing statements is more involved. Since statments may update their context, we
 #mathpar(
   proof-tree(rule(name: "VarDecl", $Gamma | Delta tack.r #Var x : tau tack.l Gamma | Delta, x : tau$, $x in.not Gamma$)),
   proof-tree(rule(name: "VarAssign", $Gamma | Delta, x : tau tack.r x = e tack.l Gamma | Delta, x : tau$, $Gamma | Delta, x : tau tack.r e : tau$)),
+
   proof-tree(rule(name: "Seq", $Gamma | Delta tack.r s_1; s_2 tack.l Gamma'' | Delta''$, $Gamma | Delta tack.r s_1 tack.l Gamma' | Delta'$, $Gamma' | Delta' tack.r s_2 tack.l Gamma' | Delta''$)),
+
   proof-tree(rule(name: "IfStmt", $Gamma | Delta tack.r #If e #Then s_1 #Else s_2 tack.l Gamma' | Delta'$, $Gamma | Delta tack.r e : #Bool$, $Gamma, diamond | Delta tack.r s_1 tack.l Gamma', diamond | Delta'$, $Gamma, diamond | Delta tack.r s_2 tack.l Gamma', diamond | Delta'$)),
+
   proof-tree(rule(name: "Return", $Gamma | Delta tack.r #Return e tack.l Gamma', square_tau | Delta'$, $drop_square (Gamma) = Gamma', square_tau$, $Gamma | Delta tack.r e : tau$)),
   proof-tree(rule(name: "CallStmt", $Gamma | Delta tack.r m(e_1, e_2, ...) tack.l Gamma$, $m : (tau_1, tau_2, ...): sigma$, $Gamma | Delta tack.r e_i : tau_i$)),
+
   proof-tree(rule(name: "Alloc", $Gamma | Delta tack.r x = #Alloc e tack.l Gamma, x : #Addr | Delta, a : tau$, $Gamma | Delta tack.r e : tau$)),
   proof-tree(rule(name: "Store", $Gamma | Delta, a : tau tack.r a = e tack.l Gamma | Delta, a : tau$, $Gamma | Delta, a : tau tack.r e : tau$)),
   proof-tree(rule(name: "Free", $Gamma | Delta, a : \_ tack.r #Free e tack.l Gamma | Delta$, $Gamma | Delta tack.r e : #Addr$)),
@@ -216,9 +223,12 @@ $
   proof-tree(rule(name: "FalseConst", $chevron.l S | H | #False chevron.r ~> chevron.l S | H | #False chevron.r$)),
   proof-tree(rule(name: "NatConst", $chevron.l S | H | n chevron.r ~> chevron.l S | H | n chevron.r$, $n in bb(N)$)),
   proof-tree(rule(name: "NullConst", $chevron.l S | H | #Null chevron.r ~> chevron.l S | H | #Null chevron.r$)),
+
   proof-tree(rule(name: "VarAccess", $chevron.l S, x := a | H, a -> v | x chevron.r ~> chevron.l S, x := a | H, a -> v | v chevron.r$)),
+
   proof-tree(rule(name: "CallExprE", $chevron.l S | H | m(e_1, e_2, ...) chevron.r ~> chevron.l S | H | m(e'_1, e_2, ...) chevron.r$, $chevron.l S | H | e_1 chevron.r ~> chevron.l S | H | e'_1 chevron.r$)),
   proof-tree(rule(name: "CallExprV", $chevron.l S | H | m(v_1, v_2, ...) chevron.r ~> chevron.l S, x_1 := v_1, x_2 := v_2, ... | H | s chevron.r$, $args(m) = x_1, x_2, ...$, $body(m) = s$)),
+
   proof-tree(rule(name: "AddrConst", $chevron.l S | H, a -> \_ | a chevron.r ~> chevron.l S | H, a -> \_ | a chevron.r$)),
   proof-tree(rule(name: "HeapAccess", $chevron.l S | H, a -> v | @a chevron.r ~> chevron.l S | H, a -> v | v chevron.r$)),
 )
@@ -236,13 +246,17 @@ To deal with this, we introduce a new statement form called $#Skip$, which denot
 #mathpar(
   proof-tree(rule(name: "Skip", $chevron.l S | H | #Skip chevron.r ~> chevron.l S | H | #Skip chevron.r$)),
   proof-tree(rule(name: "VarDecl", $chevron.l S | H | #Var x : tau chevron.r ~> chevron.l S | H | #Skip chevron.r$)),
+
   proof-tree(rule(name: "VarAssign1", $chevron.l S, x := \_ | H | x = e chevron.r ~> chevron.l S | H | x = e' chevron.r$, $chevron.l S, x := \_ | H | e chevron.r ~> chevron.l S, x := \_ | H | e' chevron.r$)),
   proof-tree(rule(name: "VarAssign2", $chevron.l S, x := \_ | H | x = v chevron.r ~> chevron.l S, x := v | H | #Skip chevron.r$)),
+
   proof-tree(rule(name: "Seq1", $chevron.l S | H | s_1; s_2 chevron.r ~> chevron.l S' | H' | s'_1; s_2 chevron.r$, $chevron.l S | H | s_1 chevron.r ~> chevron.l S' | H' | s'_1 chevron.r$)),
   proof-tree(rule(name: "Seq2", $chevron.l S | H | #Skip ; s_2 chevron.r ~> chevron.l S | H | s_2 chevron.r$)),
+
   proof-tree(rule(name: "IfCond", $chevron.l S | H | #If e #Then s_1 #Else s_2 chevron.r ~> chevron.l S' | H' | #If e' #Then s_1 #Else s_2 chevron.r$, $chevron.l S | H | e chevron.r ~> chevron.l S' | H' | e' chevron.r$)),
   proof-tree(rule(name: "IfThen", $chevron.l S | H | #If #True #Then s_1 #Else s_2 chevron.r ~> chevron.l S | H | s_1 chevron.r$)),
   proof-tree(rule(name: "IfElse", $chevron.l S | H | #If #False #Then s_1 #Else s_2 chevron.r ~> chevron.l S | H | s_2 chevron.r$)),
+
   proof-tree(rule(name: "Return", $chevron.l S | H | #Return e tack.l S'$, $drop_square(S) = S'$, $square_tau$, $chevron.l S | H | e : tau chevron.r$)),
   proof-tree(rule(name: "CallStmt", $chevron.l S | H | m(e_1, e_2, ...) chevron.r ~> chevron.l S | H | m(e_1)$, $m : (tau_1, tau_2, ...): sigma$, $chevron.l S | H | e_i : tau_i chevron.r$))
 )
