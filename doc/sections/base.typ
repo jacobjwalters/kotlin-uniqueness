@@ -202,7 +202,7 @@ H ::=& dot && "Empty" \
   |& H, a -> v && "Heap Extension" \
 $
 
-Each address $a$ is a distinct label from an infinite set $A$, and refers to a location on the heap. Addresses are treated as values.
+Each address $a$ is a distinct label from an infinite set $A$, and refers to a location on the heap. Heap extension *requires* that the label $a$ does not already appear in the heap.#footnote[Implementation wise: keep track of how many allocations we've ever made, and use this counter to make fresh labels (where labels are naturals). We'll want some lemmata to show this always works.] Addresses are treated as values.
 
 #jtodo[Early return? We need stack frames again for sure this time.]
 
@@ -258,7 +258,10 @@ To deal with this, we introduce a new statement form called $#Skip$, which denot
   proof-tree(rule(name: "IfElse", $chevron.l S | H | #If #False #Then s_1 #Else s_2 chevron.r ~> chevron.l S | H | s_2 chevron.r$)),
 
   proof-tree(rule(name: "Return", $chevron.l S | H | #Return e tack.l S'$, $drop_square(S) = S'$, $square_tau$, $chevron.l S | H | e : tau chevron.r$)),
-  proof-tree(rule(name: "CallStmt", $chevron.l S | H | m(e_1, e_2, ...) chevron.r ~> chevron.l S | H | m(e_1)$, $m : (tau_1, tau_2, ...): sigma$, $chevron.l S | H | e_i : tau_i chevron.r$))
+  proof-tree(rule(name: "CallStmt", $chevron.l S | H | m(e_1, e_2, ...) chevron.r ~> chevron.l S | H | m(e_1)$, $m : (tau_1, tau_2, ...): sigma$, $chevron.l S | H | e_i : tau_i chevron.r$)),
+
+  proof-tree(rule(name: "HeapAlloc1", $chevron.l S, x := \_ | H | x = #Alloc e chevron.r ~> chevron.l S | H | x = #Alloc e' chevron.r$, $chevron.l S, x := \_ | H | e chevron.r ~> chevron.l S, x := \_ | H | e' chevron.r$)),
+  proof-tree(rule(name: "HeapAlloc2", $chevron.l S, x := \_ | H | x = #Alloc v chevron.r ~> chevron.l S, x := a | H, a -> v | #Skip chevron.r$)),
 )
 
 #jtodo[Return, CallStmt]
