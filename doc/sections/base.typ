@@ -270,6 +270,10 @@ To deal with this, we introduce a new statement form called $#Skip$, which denot
 
   proof-tree(rule(name: "HeapAlloc1", $chevron.l S, x := \_ | H | x = #Alloc e chevron.r ~> chevron.l S | H | x = #Alloc e' chevron.r$, $chevron.l S, x := \_ | H | e chevron.r ~> chevron.l S, x := \_ | H | e' chevron.r$)),
   proof-tree(rule(name: "HeapAlloc2", $chevron.l S, x := \_ | H | x = #Alloc v chevron.r ~> chevron.l S, x := a | H, a -> v | #Skip chevron.r$)),
+  proof-tree(rule(name: "HeapStore1", $chevron.l S | H, a -> \_ | @a = e chevron.r ~> chevron.l S | H, a -> \_ | @a = e' chevron.r$, $chevron.l S | H | e chevron.r ~> chevron.l S | H | e' chevron.r$)),
+  proof-tree(rule(name: "HeapStore2", $chevron.l S | H, a -> \_ | @a = v chevron.r ~> chevron.l S | H, a -> v | #Skip chevron.r$)),
+  proof-tree(rule(name: "Free1", $chevron.l S | H | #Free e chevron.r ~> chevron.l S | H | #Free e' chevron.r$, $chevron.l S | H | e chevron.r ~> chevron.l S | H | e' chevron.r$)),
+  proof-tree(rule(name: "Free2", $chevron.l S | H, a -> \_ | #Free a chevron.r ~> chevron.l S | H | #Skip chevron.r$)),
 )
 
 #jtodo[Return, CallStmt]
