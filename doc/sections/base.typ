@@ -92,20 +92,22 @@ Herein we discuss the type system of #Lbase. Mostly it's a straightforward appro
 The approach to type checking begins by adding all method declarations to a (global) context of methods, thereby assuming that method type declarations are always correct. Once this pass is done, the body of each method (if given) is checked according to the statement rules.
 
 === Expression Types
-Typing expressions is straightforward. We use the judgement form $Gamma | Delta tack.r e : tau$.
+Since expressions may affect their context (via conditionals and returns), we use the judgement form $Gamma | Delta tack.r_sigma e : tau tack.l Gamma' | Delta'$, where $sigma$ is the current method's return type. For most expressions, the output context is identical to the input.
 
 #mathpar(
-  proof-tree(rule(name: "TrueConst", $Gamma | Delta tack.r #True : #Bool$)),
-  proof-tree(rule(name: "FalseConst", $Gamma | Delta tack.r #False : #Bool$)),
-  proof-tree(rule(name: "NatConst", $Gamma | Delta tack.r n : #Nat$, $n in bb(N)$)),
-  proof-tree(rule(name: "NullConst", $Gamma | Delta tack.r #Null : tau$)),
+  proof-tree(rule(name: "TrueConst", $Gamma | Delta tack.r_sigma #True : #Bool tack.l Gamma | Delta$)),
+  proof-tree(rule(name: "FalseConst", $Gamma | Delta tack.r_sigma #False : #Bool tack.l Gamma | Delta$)),
+  proof-tree(rule(name: "NatConst", $Gamma | Delta tack.r_sigma n : #Nat tack.l Gamma | Delta$, $n in bb(N)$)),
+  proof-tree(rule(name: "NullConst", $Gamma | Delta tack.r_sigma #Null : tau tack.l Gamma | Delta$)),
 
-  proof-tree(rule(name: "VarAccess", $Gamma, x : tau | Delta tack.r x : tau$)),
+  proof-tree(rule(name: "VarAccess", $Gamma, x : tau | Delta tack.r_sigma x : tau tack.l Gamma, x : tau | Delta$)),
 
-  proof-tree(rule(name: "CallExpr", $Gamma | Delta tack.r m(e_1, e_2, ...) : sigma$, $m : (tau_1, tau_2, ...): sigma$, $Gamma | Delta tack.r e_i : tau_i$)),
+  proof-tree(rule(name: "IfExpr", $Gamma | Delta tack.r_sigma #If e #Then s_1 #Else s_2 : tau tack.l Gamma' | Delta'$, $Gamma | Delta tack.r_sigma e : #Bool tack.l Gamma | Delta$, $Gamma, diamond | Delta tack.r_sigma s_1 tack.l Gamma', diamond | Delta'$, $Gamma, diamond | Delta tack.r_sigma s_2 tack.l Gamma', diamond | Delta'$)),
+
+  proof-tree(rule(name: "Return", $Gamma | Delta tack.r_sigma #Return e : tau tack.l dot | Delta$, $Gamma | Delta tack.r_sigma e : sigma tack.l Gamma | Delta$)),
 )
 
-Note that $#Null$ is a member of all types in this system.
+Note that $#Null$ is a member of all types in this system. $#Return$ has type $tau$ for any $tau$ since it never produces a value. $#If$ has type $tau$ for any $tau$ since its branches are statements.
 #jq[Subtyping with null?]
 
 === Statement Types
@@ -113,29 +115,22 @@ Typing statements is more involved. Since statements may update their context, w
 
 #mathpar(
   proof-tree(rule(name: "VarDecl", $Gamma | Delta tack.r_sigma #Var x : tau tack.l Gamma, x : tau | Delta$, $x in.not Gamma$)),
-  proof-tree(rule(name: "VarAssign", $Gamma, x : tau | Delta tack.r_sigma x = e tack.l Gamma, x : tau | Delta$, $Gamma, x : tau | Delta tack.r e : tau$)),
+  proof-tree(rule(name: "VarAssign", $Gamma, x : tau | Delta tack.r_sigma x = e tack.l Gamma' | Delta'$, $Gamma, x : tau | Delta tack.r_sigma e : tau tack.l Gamma' | Delta'$)),
 
   proof-tree(rule(name: "Seq", $Gamma | Delta tack.r_sigma s_1; s_2 tack.l Gamma'' | Delta''$, $Gamma | Delta tack.r_sigma s_1 tack.l Gamma' | Delta'$, $Gamma' | Delta' tack.r_sigma s_2 tack.l Gamma'' | Delta''$)),
 
-  proof-tree(rule(name: "IfStmt", $Gamma | Delta tack.r_sigma #If e #Then s_1 #Else s_2 tack.l Gamma' | Delta'$, $Gamma | Delta tack.r e : #Bool$, $Gamma, diamond | Delta tack.r_sigma s_1 tack.l Gamma', diamond | Delta'$, $Gamma, diamond | Delta tack.r_sigma s_2 tack.l Gamma', diamond | Delta'$)),
-
-  proof-tree(rule(name: "Return", $Gamma | Delta tack.r_sigma #Return e tack.l dot | Delta$, $Gamma | Delta tack.r e : sigma$)),
-  proof-tree(rule(name: "CallStmt", $Gamma | Delta tack.r_sigma m(e_1, e_2, ...) tack.l Gamma | Delta$, $m : (tau_1, tau_2, ...): \_$, $Gamma | Delta tack.r e_i : tau_i$)),
+  proof-tree(rule(name: "CallStmt", $Gamma | Delta tack.r_sigma m(e_1, e_2, ...) tack.l Gamma | Delta$, $m : (tau_1, tau_2, ...): \_$, $Gamma | Delta tack.r_sigma e_i : tau_i tack.l Gamma | Delta$)),
 )
 
-#jc[IfStmt is very restrictive; we should check with Komi to see exactly what we want here, especially since classes will make things a lot more complicated. Likely we will need some type unification over contexts/heaps here for the branches.]
+#jc[IfExpr is very restrictive; we should check with Komi to see exactly what we want here, especially since classes will make things a lot more complicated. Likely we will need some type unification over contexts/heaps here for the branches.]
 
 #jq[Is our treatment of method calling and returning sound?]
 
 Variable declarations extend the context with a fresh variable.
 
-Variable assigment requires that the variable we're assigning to is available in the context. Note that $e$ has access to $x$ in its context; this allows self mutation (such as $x = x + 1$).
+Variable assigment requires that the variable we're assigning to is available in the context. The output context is determined by the expression: if $e$ is a simple expression, the context is preserved; if $e$ contains a return, the context drops to $dot$. Note that $e$ has access to $x$ in its context; this allows self mutation (such as $x = x + 1$).
 
 Sequencing threads the context produced as the output of the first statement into the input of the second statement.
-
-If statements require that both branches produce the same resultant context. This may be subject to change.
-
-Return checks that the expression matches the method's return type $sigma$, then drops the entire context to $dot$.
 
 Method call statements have no effect on the context at compile time, so we merely have to check the argument types. Note that the preconditions for this rule are identical to the expression case; only the judgement form of the consequent differs.
 
@@ -198,8 +193,11 @@ $
 
   proof-tree(rule(name: "VarAccess", $chevron.l S, x := v | H | x chevron.r ~> chevron.l S, x := v | H | v chevron.r$)),
 
-  proof-tree(rule(name: "CallExprE", $chevron.l S | H | m(e_1, e_2, ...) chevron.r ~> chevron.l S | H | m(e'_1, e_2, ...) chevron.r$, $chevron.l S | H | e_1 chevron.r ~> chevron.l S | H | e'_1 chevron.r$)),
-  proof-tree(rule(name: "CallExprV", $chevron.l S | H | m(v_1, v_2, ...) chevron.r ~> chevron.l S, x_1 := v_1, x_2 := v_2, ... | H | s chevron.r$, $args(m) = x_1, x_2, ...$, $body(m) = s$)),
+  proof-tree(rule(name: "IfCond", $chevron.l S | H | #If e #Then s_1 #Else s_2 chevron.r ~> chevron.l S' | H' | #If e' #Then s_1 #Else s_2 chevron.r$, $chevron.l S | H | e chevron.r ~> chevron.l S' | H' | e' chevron.r$)),
+  proof-tree(rule(name: "IfThen", $chevron.l S | H | #If #True #Then s_1 #Else s_2 chevron.r ~> chevron.l S | H | s_1 chevron.r$)),
+  proof-tree(rule(name: "IfElse", $chevron.l S | H | #If #False #Then s_1 #Else s_2 chevron.r ~> chevron.l S | H | s_2 chevron.r$)),
+
+  proof-tree(rule(name: "Return", $chevron.l S | H | #Return e tack.l S'$, $drop_square(S) = S'$, $square_tau$, $chevron.l S | H | e : tau chevron.r$)),
 )
 #jtodo[Double check stack contents on method return is correct here]
 
@@ -220,22 +218,15 @@ To deal with this, we introduce a new statement form called $#Skip$, which denot
   proof-tree(rule(name: "Seq1", $chevron.l S | H | s_1; s_2 chevron.r ~> chevron.l S' | H' | s'_1; s_2 chevron.r$, $chevron.l S | H | s_1 chevron.r ~> chevron.l S' | H' | s'_1 chevron.r$)),
   proof-tree(rule(name: "Seq2", $chevron.l S | H | #Skip ; s_2 chevron.r ~> chevron.l S | H | s_2 chevron.r$)),
 
-  proof-tree(rule(name: "IfCond", $chevron.l S | H | #If e #Then s_1 #Else s_2 chevron.r ~> chevron.l S' | H' | #If e' #Then s_1 #Else s_2 chevron.r$, $chevron.l S | H | e chevron.r ~> chevron.l S' | H' | e' chevron.r$)),
-  proof-tree(rule(name: "IfThen", $chevron.l S | H | #If #True #Then s_1 #Else s_2 chevron.r ~> chevron.l S | H | s_1 chevron.r$)),
-  proof-tree(rule(name: "IfElse", $chevron.l S | H | #If #False #Then s_1 #Else s_2 chevron.r ~> chevron.l S | H | s_2 chevron.r$)),
-
-  proof-tree(rule(name: "Return", $chevron.l S | H | #Return e tack.l S'$, $drop_square(S) = S'$, $square_tau$, $chevron.l S | H | e : tau chevron.r$)),
   proof-tree(rule(name: "CallStmt", $chevron.l S | H | m(e_1, e_2, ...) chevron.r ~> chevron.l S | H | m(e_1)$, $m : (tau_1, tau_2, ...): sigma$, $chevron.l S | H | e_i : tau_i chevron.r$)),
 
 )
 
-#jtodo[Return, CallStmt]
+#jtodo[CallStmt]
 
 Variable declaration has no effect during evaluation. Indeed, type checking already ensures that all variables we refer to have already been declared.
 
 The underscore in the LHS of VarAssign is a wildcard, and represents a value we don't care about.
-
-The If rule assumes that expressions do not modify the stack or heap. This is currently true.
 
 === Theorems and Lemmata
 Given a well-typed program $P$:
