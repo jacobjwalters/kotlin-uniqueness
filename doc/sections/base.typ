@@ -27,14 +27,11 @@ s ::=& #Var x : tau && "(Mutable) Variable Declaration" \
   |& x = e && "Variable Assignment/Mutation" \
   |& s_1; s_2 && "Statement Sequencing" \
   |& m(e_i) && "Method Call" \
+  |& #While c  { s } && "While Loop" \
+  |& #Break && "Loop Breaking" \
 $
 
-#jtodo[Loops]
-#jtodo[Exceptions]
-
 $f$, $x$, and $m$ represent infinite and non-intersecting sets of field, variable, and method names respectively. Methods are all defined top-level, and may be (mutually) recursive.
-
-#jtodo[Confirm with Komi: do we want (mutual) recursion?]
 
 Non-forgetful differences from the system described by @protopapa2024VerifyingKotlinCode are:
 - Our system is typed (and has #Nat and #Bool as ground types).

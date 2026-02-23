@@ -32,15 +32,14 @@
 #let Nat = $sans("Nat")$
 #let Bool = $sans("Bool")$
 
-// Terms
-#let Skip = $sans("skip")$
-#let Alloc = $sans("alloc")$
-#let Free = $sans("free")$
-#let Begin = $sans("begin")$
-#let Return = $sans("return")$
+// Modalities
 #let Unique = $sans("unique")$
 #let Aliased = $sans("aliased")$
 #let Borrowed = $sans("borrowed")$
+
+// Exprs
+#let Skip = $sans("skip")$
+#let Return = $sans("return")$
 #let Null = $sans("null")$
 #let Var = $sans("var")$
 #let If = $sans("if")$
@@ -48,6 +47,12 @@
 #let Else = $sans("else")$
 #let True = $sans("true")$
 #let False = $sans("false")$
+
+// Statements
+#let While = $sans("while")$
+#let Break = $sans("break")$
+#let Alloc = $sans("alloc")$
+#let Free = $sans("free")$
 
 // Rhetorical and definitional emphasis
 #let remph(body) = emph(body)
