@@ -40,21 +40,19 @@ Non-forgetful differences from the system described by @protopapa2024VerifyingKo
 For brevity's sake, we define $#Var x : tau = e$ as $#Var x : tau; x = e$. Additionally, we assume usual boolean/arithmetic operators are defined as method call expressions.
 
 == Typing Contexts
-Morally, typing contexts (hereafter contexts) in #Lbase are ordered, rightwards-growing lists of names and their associated types, split into "stack frames" to denote the scopes in which variables are introduced. In particular, we have a (global) list of methods and associated method types#footnote[Since we don't have object-level function types, a method type is a list of argument types, paired with a return type, writ $m : (tau_1, tau_2, ...): sigma$], paired with a list of either variables names and their associated types, or stack frame delimiters.
+Morally, typing contexts (hereafter contexts) in #Lbase are ordered, rightwards-growing lists of names and their associated types, split by control flow delimiters to denote the scopes in which variables are introduced. In particular, we have a (global) list of methods and associated method types#footnote[Since we don't have object-level function types, a method type is a list of argument types, paired with a return type, writ $m : (tau_1, tau_2, ...): sigma$], paired with a list of either variable names and their associated types, or control flow delimiters.
 
-In this working note, stack frame delimiters will be displayed as $square$, and if associated with a method, are annotated by that method's return type. Additionally, since method declarations are top level, we omit them from our treatment of contexts, and assume that the expression/statement theories are parameterised by a particular context of methods and method types.
+Since method declarations are top level, we omit them from our treatment of contexts, and assume that the expression/statement theories are parameterised by a particular context of methods and method types. Methods are typed in empty contexts; the current return type is tracked as part of the statement typing judgement.
 
 The grammar for contexts is as follows:
 
 $
 Gamma ::=& dot && "Empty" \
   |& Gamma, x : tau && "Variable Extension" \
-  |& Gamma, square_tau && "Method Stack Frame Delimiter" \
-  |& Gamma, diamond && "Control Flow Stack Frame Delimiter"
+  |& Gamma, diamond && "Control Flow Delimiter"
 $
 
-Method stack frames are typed with the return type of the method, are introduced when entering the body of a method, and are removed upon returning. Control flow stack frames are untyped, are introduced when entering the branches of an if statement, and are removed either at the end of the branch, or during early return.
-#jtodo[Loops? Break/continue statements?]
+Control flow delimiters are introduced when entering the branches of an if statement, and are removed either at the end of the branch, or during early return.
 
 Note that for address extension, the type $tau$ refers to the type of the value stored on the heap; the literal $a$ itself must of course still be of type $#Addr$.
 
@@ -69,8 +67,7 @@ We introduce a judgement $Gamma #ctx$, and $Delta #ctx$ to denote well formed co
 #mathpar(
   proof-tree(rule(name: "CtxEmp", $dot #ctx$)),
   proof-tree(rule(name: "CtxVarExt", $Gamma, x : tau #ctx$, $x in.not Gamma$, $Gamma #ctx$)),
-  proof-tree(rule(name: "CtxMethodFrame", $Gamma, square_tau #ctx$, $Gamma #ctx$)),
-  proof-tree(rule(name: "CtxControlFrame", $Gamma, diamond #ctx$, $Gamma #ctx$))
+  proof-tree(rule(name: "CtxDelimiter", $Gamma, diamond #ctx$, $Gamma #ctx$))
 )
 
 #mathpar(
@@ -80,30 +77,20 @@ We introduce a judgement $Gamma #ctx$, and $Delta #ctx$ to denote well formed co
 
 $x in.not Gamma$ is bookkeeping for ensuring all names are distinct, and isn't strictly needed. Membership checking and lookup are defined in the usual way.
 
-#jq[Do we want to allow name reuse (and thus shadowing)? How will this interact with borrowing later on?]
+#jq[Do we want to allow name reuse (and thus shadowing)? How will this interact with borrowing later on? A: we need to investigate what happens with shadowing in Viper]
 
 === Removal
-When leaving a scope, we drop all bindings introduced after the current stack frame. To do this, we define two recursive functions called $drop_square$ and $drop_diamond$, used when exiting method frames and control flow frames respectively:
+When leaving a control flow scope, we drop all bindings introduced after the current control flow delimiter. To do this, we define a recursive function $drop$:
 
 $
-  drop_square (dot)               &= dot \
-  drop_square (Gamma, square_tau) &= Gamma, square_tau \
-  drop_square (Gamma, diamond)    &= drop_square (Gamma) \
-  drop_square (Gamma, x : tau)    &= drop_square (Gamma) \
+  drop (Gamma, diamond)    &= Gamma, diamond \
+  drop (Gamma, x : tau)    &= drop (Gamma) \
 $
 
-$
-  drop_diamond (dot)               &= dot \
-  drop_diamond (Gamma, diamond)    &= Gamma, diamond \
-  drop_diamond (Gamma, x : tau)    &= drop_diamond (Gamma) \
-$
-
-Note the $Gamma, diamond$ case: in $drop_square$, we recurse past the control flow delimiter; in $drop_diamond$, we stop. Addtionally, $drop_diamond$ is undefined on $Gamma, square_tau$. This is to preclude us from writing a break statement outside of a loop.
-
-#jq[Is any of this going to get weird if we add exceptions?]
+Note that $drop$ is undefined on $dot$. This precludes us from writing a break statement outside of a loop.
 
 == Type System
-Herein we discuss the type system of #Lbase. Mostly it's a straightforward approach; the interesting parts surround stack frames and calling methods.
+Herein we discuss the type system of #Lbase. Mostly it's a straightforward approach; the interesting parts surround control flow and calling methods.
 
 The approach to type checking begins by adding all method declarations to a (global) context of methods, thereby assuming that method type declarations are always correct. Once this pass is done, the body of each method (if given) is checked according to the statement rules.
 
@@ -129,22 +116,22 @@ Note that $#Null$ is a member of all types in this system.
 #jq[Subtyping with null?]
 
 === Statement Types
-Typing statements is more involved. Since statments may update their context, we use a "small-step" typing judgement form $Gamma | Delta tack.r s tack.l Gamma' | Delta'$, where $Gamma$ represents the context before the statement runs, and $Gamma'$ represents the context after the statement runs (and likewise for the heap $Delta$).
+Typing statements is more involved. Since statements may update their context, we use a "small-step" typing judgement form $Gamma | Delta tack.r_sigma s tack.l Gamma' | Delta'$, where $Gamma$ represents the context before the statement runs, $Gamma'$ represents the context after the statement runs (likewise for the heap $Delta$), and $sigma$ is the current method's return type.
 
 #mathpar(
-  proof-tree(rule(name: "VarDecl", $Gamma | Delta tack.r #Var x : tau tack.l Gamma | Delta, x : tau$, $x in.not Gamma$)),
-  proof-tree(rule(name: "VarAssign", $Gamma | Delta, x : tau tack.r x = e tack.l Gamma | Delta, x : tau$, $Gamma | Delta, x : tau tack.r e : tau$)),
+  proof-tree(rule(name: "VarDecl", $Gamma | Delta tack.r_sigma #Var x : tau tack.l Gamma | Delta, x : tau$, $x in.not Gamma$)),
+  proof-tree(rule(name: "VarAssign", $Gamma | Delta, x : tau tack.r_sigma x = e tack.l Gamma | Delta, x : tau$, $Gamma | Delta, x : tau tack.r e : tau$)),
 
-  proof-tree(rule(name: "Seq", $Gamma | Delta tack.r s_1; s_2 tack.l Gamma'' | Delta''$, $Gamma | Delta tack.r s_1 tack.l Gamma' | Delta'$, $Gamma' | Delta' tack.r s_2 tack.l Gamma' | Delta''$)),
+  proof-tree(rule(name: "Seq", $Gamma | Delta tack.r_sigma s_1; s_2 tack.l Gamma'' | Delta''$, $Gamma | Delta tack.r_sigma s_1 tack.l Gamma' | Delta'$, $Gamma' | Delta' tack.r_sigma s_2 tack.l Gamma'' | Delta''$)),
 
-  proof-tree(rule(name: "IfStmt", $Gamma | Delta tack.r #If e #Then s_1 #Else s_2 tack.l Gamma' | Delta'$, $Gamma | Delta tack.r e : #Bool$, $Gamma, diamond | Delta tack.r s_1 tack.l Gamma', diamond | Delta'$, $Gamma, diamond | Delta tack.r s_2 tack.l Gamma', diamond | Delta'$)),
+  proof-tree(rule(name: "IfStmt", $Gamma | Delta tack.r_sigma #If e #Then s_1 #Else s_2 tack.l Gamma' | Delta'$, $Gamma | Delta tack.r e : #Bool$, $Gamma, diamond | Delta tack.r_sigma s_1 tack.l Gamma', diamond | Delta'$, $Gamma, diamond | Delta tack.r_sigma s_2 tack.l Gamma', diamond | Delta'$)),
 
-  proof-tree(rule(name: "Return", $Gamma | Delta tack.r #Return e tack.l Gamma', square_tau | Delta'$, $drop_square (Gamma) = Gamma', square_tau$, $Gamma | Delta tack.r e : tau$)),
-  proof-tree(rule(name: "CallStmt", $Gamma | Delta tack.r m(e_1, e_2, ...) tack.l Gamma$, $m : (tau_1, tau_2, ...): sigma$, $Gamma | Delta tack.r e_i : tau_i$)),
+  proof-tree(rule(name: "Return", $Gamma | Delta tack.r_sigma #Return e tack.l dot | Delta$, $Gamma | Delta tack.r e : sigma$)),
+  proof-tree(rule(name: "CallStmt", $Gamma | Delta tack.r_sigma m(e_1, e_2, ...) tack.l Gamma | Delta$, $m : (tau_1, tau_2, ...): \_$, $Gamma | Delta tack.r e_i : tau_i$)),
 
-  proof-tree(rule(name: "Alloc", $Gamma | Delta tack.r x = #Alloc e tack.l Gamma, x : #Addr | Delta, a : tau$, $Gamma | Delta tack.r e : tau$)),
-  proof-tree(rule(name: "Store", $Gamma | Delta, a : tau tack.r a = e tack.l Gamma | Delta, a : tau$, $Gamma | Delta, a : tau tack.r e : tau$)),
-  proof-tree(rule(name: "Free", $Gamma | Delta, a : \_ tack.r #Free e tack.l Gamma | Delta$, $Gamma | Delta tack.r e : #Addr$)),
+  proof-tree(rule(name: "Alloc", $Gamma | Delta tack.r_sigma x = #Alloc e tack.l Gamma, x : #Addr | Delta, a : tau$, $Gamma | Delta tack.r e : tau$)),
+  proof-tree(rule(name: "Store", $Gamma | Delta, a : tau tack.r_sigma a = e tack.l Gamma | Delta, a : tau$, $Gamma | Delta, a : tau tack.r e : tau$)),
+  proof-tree(rule(name: "Free", $Gamma | Delta, a : \_ tack.r_sigma #Free e tack.l Gamma | Delta$, $Gamma | Delta tack.r e : #Addr$)),
 )
 
 #jc[IfStmt is very restrictive; we should check with Komi to see exactly what we want here, especially since classes will make things a lot more complicated. Likely we will need some type unification over contexts/heaps here for the branches.]
@@ -159,7 +146,7 @@ Sequencing threads the context produced as the output of the first statement int
 
 If statements require that both branches produce the same resultant context. This may be subject to change.
 
-Return drops the current stack frame, checks the expression matches the expected type, then produces the context in which the method was originally called.
+Return checks that the expression matches the method's return type $sigma$, then drops the entire context to $dot$.
 
 Method call statements may have an effect on the heap at run time, but at compile time they have no effect on the context, so in this case we merely have to check the argument types. Note that the preconditions for this rule are identical to the expression case; only the judgement form of the consequent differs.
 
@@ -172,18 +159,18 @@ Consider carefully a method with the body $#Return #Null ; #Return 1$. We obviou
 #jtodo[Double check that this is sensible]
 
 === Method Bodies
-We introduce a final typing judgement $Gamma tack.r m(x_i : tau_i): sigma { s }$ to ascribe types for method definitions.
+We introduce a final typing judgement $tack.r m(x_i : tau_i): sigma { s }$ to ascribe types for method definitions.
 
 #mathpar(
-  proof-tree(rule(name: "Method", $Gamma tack.r m(x_i : tau_i): sigma { s }$, $Gamma, square_sigma, x_i : tau_i tack.r s tack.l Gamma, square_sigma$))
+  proof-tree(rule(name: "Method", $tack.r m(x_i : tau_i): sigma { s }$, $x_i : tau_i tack.r_sigma s tack.l dot$))
 )
 
-Note the assymmetry in the contexts when checking the method body. Effectively we're forcing the introduced arguments (and any local defs) to be dropped, which in turn means that we only can exit a method via an explicit return statement.
+Since methods are typed in empty contexts, the body is checked with only the arguments in scope and the return type $sigma$ annotating the judgement. The output context must be $dot$, forcing all arguments and local definitions to be dropped, which in turn means that we can only exit a method via an explicit return statement.
 
 === Theorems and Lemmata
 We should be able to use standard techniques to prove progress and preservation for the typing system, since we don't really do anything fancy at the type level.
 
-Our treatment of contexts, however, is non-standard. We should take care to show that it's not possible for values to escape their stack frames, nor for control flow to leave its scope without destroying the corresponding frame.
+Our treatment of contexts, however, is non-standard. We should take care to show that it's not possible for values to escape their scopes, nor for control flow to leave its scope without destroying the corresponding delimiter.
 
 Note that we don't have strong normalisation, even for expressions; a method is able to call itself in an infinite loop.
 
