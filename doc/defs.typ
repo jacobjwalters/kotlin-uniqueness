@@ -28,7 +28,6 @@
 #let Class = $sans("class")$
 
 // Types
-#let Addr = $sans("Addr")$
 #let Nat = $sans("Nat")$
 #let Bool = $sans("Bool")$
 
@@ -51,8 +50,6 @@
 // Statements
 #let While = $sans("while")$
 #let Break = $sans("break")$
-#let Alloc = $sans("alloc")$
-#let Free = $sans("free")$
 
 // Rhetorical and definitional emphasis
 #let remph(body) = emph(body)
