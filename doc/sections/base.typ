@@ -18,7 +18,6 @@ p ::=& x && "Variable Access" \
   |& p.f && "Subfield Access" \
 e ::=& #Null \
   |& p && "Path Access" \
-  |& m(e_i) && "Method Call" \
   |& #True \
   |& #False \
   |& n in bb(N) && "Natural Numbers" \
