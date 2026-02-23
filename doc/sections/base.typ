@@ -7,15 +7,15 @@
 == Syntax
 
 $
-P ::=& overline(M) && "Programs" \
-M ::=& m(overline(x : tau)) : sigma { s } && "Method Definitions" \
-  |& m(overline(x : tau)) : sigma && "Method Declarations" \
+P ::=& M^* && "Programs" \
+M ::=& m(x_i : tau_i) : sigma { s } && "Method Definitions" \
+  |& m(x_i : tau_i) : sigma && "Method Declarations" \
 tau, sigma ::=& #Nat && "Naturals" \
   |& #Bool && "Booleans" \
   |& #Addr && "Addresses" \
 e ::=& #Null \
   |& x && "Variable Access" \
-  |& m(overline(e)) && "Method Call" \
+  |& m(e_i) && "Method Call" \
   |& #True \
   |& #False \
   |& n in bb(N) && "Natural Numbers" \
@@ -26,7 +26,7 @@ s ::=& #Var x : tau && "(Mutable) Variable Declaration" \
   |& s_1; s_2 && "Statement Sequencing" \
   |& #If e #Then s_1 #Else s_2 && "If/Then/Else" \
   |& #Return e && "(Early) Return" \
-  |& m(overline(e)) && "Method Call" \
+  |& m(e_i) && "Method Call" \
   |& x = #Alloc e && "Heap Allocation" \
   |& @a = e && "Heap Store/Mutation" \
   |& #Free e && "Heap Deallocation" \
@@ -35,7 +35,7 @@ $
 #jtodo[Loops]
 #jtodo[Exceptions]
 
-Overlined elements denote n-ary lists of such elements. $x$ and $m$ represent infinite sets of variable and method names respectively. Methods are all defined top-level, and may be (mutually) recursive.
+$x$ and $m$ represent infinite sets of variable and method names respectively. Methods are all defined top-level, and may be (mutually) recursive.
 
 #jtodo[Confirm with Komi: do we want (mutual) recursion?]
 
