@@ -22,11 +22,11 @@ e ::=& #Null \
   |& #True \
   |& #False \
   |& n in bb(N) && "Natural Numbers" \
+  |& #If e #Then s_1 #Else s_2 && "If/Then/Else" \
+  |& #Return e && "(Early) Return" \
 s ::=& #Var x : tau && "(Mutable) Variable Declaration" \
   |& x = e && "Variable Assignment/Mutation" \
   |& s_1; s_2 && "Statement Sequencing" \
-  |& #If e #Then s_1 #Else s_2 && "If/Then/Else" \
-  |& #Return e && "(Early) Return" \
   |& m(e_i) && "Method Call" \
 $
 
