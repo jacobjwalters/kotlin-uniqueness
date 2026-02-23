@@ -24,6 +24,9 @@
 // Judgements
 #let ms = $op(~>)^*$
 
+// Classes
+#let Class = $sans("class")$
+
 // Types
 #let Addr = $sans("Addr")$
 #let Nat = $sans("Nat")$

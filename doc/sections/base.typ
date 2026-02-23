@@ -2,47 +2,44 @@
 
 = #Lbase
 
-#Lbase is a simple typed language consisting of sequentially ordered statements with method calls. There are no modes, no classes, and no lambdas (or other methods of capturing).
+#Lbase is a simple typed language consisting of sequentially ordered statements with classes and method calls. There are no modes, and no lambdas
 
 == Syntax
 
 $
-P ::=& M^* && "Programs" \
+P ::=& C^* times M^* && "Programs" \
+C ::=& #Class C(f_i : tau_i) && "Classes" \
 M ::=& m(x_i : tau_i) : sigma { s } && "Method Definitions" \
   |& m(x_i : tau_i) : sigma && "Method Declarations" \
 tau, sigma ::=& #Nat && "Naturals" \
   |& #Bool && "Booleans" \
   |& #Addr && "Addresses" \
+p ::=& x && "Variable Access" \
+  |& p.f && "Subfield Access" \
 e ::=& #Null \
-  |& x && "Variable Access" \
+  |& p && "Path Access" \
   |& m(e_i) && "Method Call" \
   |& #True \
   |& #False \
   |& n in bb(N) && "Natural Numbers" \
-  |& a in A && "Address" \
-  |& @a && "Heap Access" \
 s ::=& #Var x : tau && "(Mutable) Variable Declaration" \
   |& x = e && "Variable Assignment/Mutation" \
   |& s_1; s_2 && "Statement Sequencing" \
   |& #If e #Then s_1 #Else s_2 && "If/Then/Else" \
   |& #Return e && "(Early) Return" \
   |& m(e_i) && "Method Call" \
-  |& x = #Alloc e && "Heap Allocation" \
-  |& @a = e && "Heap Store/Mutation" \
-  |& #Free e && "Heap Deallocation" \
 $
 
 #jtodo[Loops]
 #jtodo[Exceptions]
 
-$x$ and $m$ represent infinite sets of variable and method names respectively. Methods are all defined top-level, and may be (mutually) recursive.
+$f$, $x$, and $m$ represent infinite and non-intersecting sets of field, variable, and method names respectively. Methods are all defined top-level, and may be (mutually) recursive.
 
 #jtodo[Confirm with Komi: do we want (mutual) recursion?]
 
 Non-forgetful differences from the system described by @protopapa2024VerifyingKotlinCode are:
 - Our system is typed (and has #Nat and #Bool as ground types).
 - ITE tests an arbitrary boolean expression, rather than direct equality on patterns.
-- We have explicit heap manipulation, in lieu of making all objects heap allocated.
 
 For brevity's sake, we define $#Var x : tau = e$ as $#Var x : tau; x = e$. Additionally, we assume usual boolean/arithmetic operators are defined as method call expressions.
 
