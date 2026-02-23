@@ -13,6 +13,7 @@ M ::=& m(x_i : tau_i) : sigma { s } && "Method Definitions" \
   |& m(x_i : tau_i) : sigma && "Method Declarations" \
 tau, sigma ::=& #Nat && "Naturals" \
   |& #Bool && "Booleans" \
+  |& C && "Class Types" \
 p ::=& x && "Variable Access" \
   |& p.f && "Subfield Access" \
 e ::=& #Null \
@@ -102,6 +103,8 @@ Since expressions may affect their context (via conditionals and returns), we us
 
   proof-tree(rule(name: "VarAccess", $Gamma, x : tau | Delta tack.r_sigma x : tau tack.l Gamma, x : tau | Delta$)),
 
+  proof-tree(rule(name: "FieldAccess", $Gamma | Delta tack.r_sigma p.f : tau tack.l Gamma | Delta$, $Gamma | Delta tack.r_sigma p : C tack.l Gamma | Delta$, $f : tau in #fields (C)$)),
+
   proof-tree(rule(name: "IfExpr", $Gamma | Delta tack.r_sigma #If e #Then s_1 #Else s_2 : tau tack.l Gamma' | Delta'$, $Gamma | Delta tack.r_sigma e : #Bool tack.l Gamma | Delta$, $Gamma, diamond | Delta tack.r_sigma s_1 tack.l Gamma', diamond | Delta'$, $Gamma, diamond | Delta tack.r_sigma s_2 tack.l Gamma', diamond | Delta'$)),
 
   proof-tree(rule(name: "Return", $Gamma | Delta tack.r_sigma #Return e : tau tack.l dot | Delta$, $Gamma | Delta tack.r_sigma e : sigma tack.l Gamma | Delta$)),
@@ -178,10 +181,10 @@ Our small step evaluation judgement for a term $t$ is $chevron.l S | H | t chevr
 Once again, method bodies are tracked globally when defined. We define a function $body(m)$, which returns the body of a method, and a function $args(m)$, which returns the argument names taken by a method.
 
 === Values
-Our notion of values is given by the standard small step definition $chevron.l S | H | v chevron.r ~> chevron.l S | H | v chevron.r$. Only $#True$, $#False$, $#Null$, and $n in bb(N)$ are values in #Lbase.
+Our notion of values is given by the standard small step definition $chevron.l S | H | v chevron.r ~> chevron.l S | H | v chevron.r$. Addresses $a in cal(A)$ are runtime-only values that do not appear in the source language. $#True$, $#False$, $#Null$, $n in bb(N)$, and $a in cal(A)$ are values in #Lbase.
 
 $
-v ::=& #True |& #False |& #Null |& n in bb(N)
+v ::=& a in cal(A) |& #True |& #False |& #Null |& n in bb(N)
 $
 
 === Expression Evaluation
@@ -192,6 +195,11 @@ $
   proof-tree(rule(name: "NullConst", $chevron.l S | H | #Null chevron.r ~> chevron.l S | H | #Null chevron.r$)),
 
   proof-tree(rule(name: "VarAccess", $chevron.l S, x := v | H | x chevron.r ~> chevron.l S, x := v | H | v chevron.r$)),
+
+  proof-tree(rule(name: "AddrConst", $chevron.l S | H | a chevron.r ~> chevron.l S | H | a chevron.r$, $a in cal(A)$)),
+
+  proof-tree(rule(name: "FieldAccessE", $chevron.l S | H | p.f chevron.r ~> chevron.l S' | H' | p'.f chevron.r$, $chevron.l S | H | p chevron.r ~> chevron.l S' | H' | p' chevron.r$)),
+  proof-tree(rule(name: "FieldAccessV", $chevron.l S | H, a -> C(... f_i := v_i ...) | a.f_i chevron.r ~> chevron.l S | H, a -> C(... f_i := v_i ...) | v_i chevron.r$)),
 
   proof-tree(rule(name: "IfCond", $chevron.l S | H | #If e #Then s_1 #Else s_2 chevron.r ~> chevron.l S' | H' | #If e' #Then s_1 #Else s_2 chevron.r$, $chevron.l S | H | e chevron.r ~> chevron.l S' | H' | e' chevron.r$)),
   proof-tree(rule(name: "IfThen", $chevron.l S | H | #If #True #Then s_1 #Else s_2 chevron.r ~> chevron.l S | H | s_1 chevron.r$)),

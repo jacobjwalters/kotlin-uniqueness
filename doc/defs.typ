@@ -11,6 +11,7 @@
 #let normalise = math.op("normalise")
 #let body = math.op("body")
 #let args = math.op("args")
+#let fields = math.op("fields")
 
 // Simulation of mathpar: wrap proof trees in an inline block to allow automatic flow
 #let mathpar(..trees) = {
