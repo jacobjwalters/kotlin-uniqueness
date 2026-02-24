@@ -188,7 +188,7 @@ Our small step evaluation judgement for a term $t$ is $chevron.l S | H | t chevr
 Once again, method bodies are tracked globally when defined. We define a function $body(m)$, which returns the body of a method, and a function $args(m)$, which returns the argument names taken by a method.
 
 === Values
-Our notion of values is given by the standard small step definition $chevron.l S | H | v chevron.r ~> chevron.l S | H | v chevron.r$. Addresses $a in cal(A)$ are runtime-only values that do not appear in the source language. $#True$, $#False$, $#Null$, $n in bb(N)$, and $a in cal(A)$ are values in #Lbase.
+Values are terms that are fully evaluated. A value $v$ satisfies $chevron.l S | H | v chevron.r ~> chevron.l S | H | v chevron.r$. Addresses $a in cal(A)$ are runtime-only values that do not appear in the source language. $#True$, $#False$, $#Null$, $n in bb(N)$, and $a in cal(A)$ are values in #Lbase.
 
 $
 v ::=& a in cal(A) |& #True |& #False |& #Null |& n in bb(N)
@@ -196,14 +196,7 @@ $
 
 === Expression Evaluation
 #mathpar(
-  proof-tree(rule(name: "TrueConst", $chevron.l S | H | #True chevron.r ~> chevron.l S | H | #True chevron.r$)),
-  proof-tree(rule(name: "FalseConst", $chevron.l S | H | #False chevron.r ~> chevron.l S | H | #False chevron.r$)),
-  proof-tree(rule(name: "NatConst", $chevron.l S | H | n chevron.r ~> chevron.l S | H | n chevron.r$, $n in bb(N)$)),
-  proof-tree(rule(name: "NullConst", $chevron.l S | H | #Null chevron.r ~> chevron.l S | H | #Null chevron.r$)),
-
   proof-tree(rule(name: "VarAccess", $chevron.l S, x := v | H | x chevron.r ~> chevron.l S, x := v | H | v chevron.r$)),
-
-  proof-tree(rule(name: "AddrConst", $chevron.l S | H | a chevron.r ~> chevron.l S | H | a chevron.r$, $a in cal(A)$)),
 
   proof-tree(rule(name: "FieldAccessE", $chevron.l S | H | p.f chevron.r ~> chevron.l S' | H' | p'.f chevron.r$, $chevron.l S | H | p chevron.r ~> chevron.l S' | H' | p' chevron.r$)),
   proof-tree(rule(name: "FieldAccessV", $chevron.l S | H, a -> C(... f_i := v_i ...) | a.f_i chevron.r ~> chevron.l S | H, a -> C(... f_i := v_i ...) | v_i chevron.r$)),
@@ -230,7 +223,6 @@ The naive unrolling $#While c { s } -> #If c #Then (s; #While c { s }) #Else #Sk
 $#InLoop$ solves this by acting as a boundary between the iteration body and the loop itself. When the body finishes ($s = #Skip$), InLoopDone re-enters the loop via $#While c { s_0 }$. When the body breaks ($s = #Break$), InLoopBreak exits the loop by producing $#Skip$. $#Break$ never propagates past $#InLoop$.
 
 #mathpar(
-  proof-tree(rule(name: "Skip", $chevron.l S | H | #Skip chevron.r ~> chevron.l S | H | #Skip chevron.r$)),
   proof-tree(rule(name: "VarDecl", $chevron.l S | H | #Var x : tau chevron.r ~> chevron.l S | H | #Skip chevron.r$)),
 
   proof-tree(rule(name: "VarAssign1", $chevron.l S, x := \_ | H | x = e chevron.r ~> chevron.l S | H | x = e' chevron.r$, $chevron.l S, x := \_ | H | e chevron.r ~> chevron.l S, x := \_ | H | e' chevron.r$)),
