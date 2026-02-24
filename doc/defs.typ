@@ -51,6 +51,7 @@
 // Statements
 #let While = $sans("while")$
 #let Break = $sans("break")$
+#let InLoop = math.op("inloop")
 
 // Rhetorical and definitional emphasis
 #let remph(body) = emph(body)

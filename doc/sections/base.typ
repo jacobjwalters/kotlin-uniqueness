@@ -49,10 +49,11 @@ The grammar for contexts is as follows:
 $
 Gamma ::=& dot && "Empty" \
   |& Gamma, x : tau && "Variable Extension" \
-  |& Gamma, diamond && "Control Flow Delimiter"
+  |& Gamma, diamond_i && "If Delimiter" \
+  |& Gamma, diamond_w && "Loop Delimiter"
 $
 
-Control flow delimiters are introduced when entering the branches of an if statement, and are removed either at the end of the branch, or during early return.
+Control flow delimiters are introduced when entering the branches of an if statement ($diamond_i$) or the body of a while loop ($diamond_w$), and are removed either at the end of the branch/body, or during early return.
 
 In order to model heap allocations, we have a second typing context $Delta$ for things on the heap:
 $
@@ -65,7 +66,8 @@ We introduce a judgement $Gamma #ctx$, and $Delta #ctx$ to denote well formed co
 #mathpar(
   proof-tree(rule(name: "CtxEmp", $dot #ctx$)),
   proof-tree(rule(name: "CtxVarExt", $Gamma, x : tau #ctx$, $x in.not Gamma$, $Gamma #ctx$)),
-  proof-tree(rule(name: "CtxDelimiter", $Gamma, diamond #ctx$, $Gamma #ctx$))
+  proof-tree(rule(name: "CtxIfDelimiter", $Gamma, diamond_i #ctx$, $Gamma #ctx$)),
+  proof-tree(rule(name: "CtxLoopDelimiter", $Gamma, diamond_w #ctx$, $Gamma #ctx$))
 )
 
 #mathpar(
@@ -78,14 +80,15 @@ $x in.not Gamma$ is bookkeeping for ensuring all names are distinct, and isn't s
 #jq[Do we want to allow name reuse (and thus shadowing)? How will this interact with borrowing later on? A: we need to investigate what happens with shadowing in Viper]
 
 === Removal
-When leaving a control flow scope, we drop all bindings introduced after the current control flow delimiter. To do this, we define a recursive function $drop$:
+When typing a $#Break$ statement, we need to strip all bindings introduced since the enclosing loop was entered. To do this, we define a recursive function $drop$ that walks backwards through the context, removing variable bindings and if-delimiters until it reaches the nearest loop delimiter $diamond_w$:
 
 $
-  drop (Gamma, diamond)    &= Gamma, diamond \
+  drop (Gamma, diamond_w)  &= Gamma, diamond_w \
   drop (Gamma, x : tau)    &= drop (Gamma) \
+  drop (Gamma, diamond_i)  &= drop (Gamma) \
 $
 
-Note that $drop$ is undefined on $dot$. This precludes us from writing a break statement outside of a loop.
+Note that $drop$ is undefined on $dot$, which ensures that $#Break$ is ill-typed outside of a loop body. Since $drop$ passes through if-delimiters $diamond_i$, a $#Break$ nested inside an if within a loop correctly reaches the enclosing loop's $diamond_w$.
 
 == Type System
 Herein we discuss the type system of #Lbase. Mostly it's a straightforward approach; the interesting parts surround control flow and calling methods.
@@ -105,7 +108,7 @@ Since expressions may affect their context (via conditionals and returns), we us
 
   proof-tree(rule(name: "FieldAccess", $Gamma | Delta tack.r_sigma p.f : tau tack.l Gamma | Delta$, $Gamma | Delta tack.r_sigma p : C tack.l Gamma | Delta$, $f : tau in #fields (C)$)),
 
-  proof-tree(rule(name: "IfExpr", $Gamma | Delta tack.r_sigma #If e #Then s_1 #Else s_2 : tau tack.l Gamma' | Delta'$, $Gamma | Delta tack.r_sigma e : #Bool tack.l Gamma | Delta$, $Gamma, diamond | Delta tack.r_sigma s_1 tack.l Gamma', diamond | Delta'$, $Gamma, diamond | Delta tack.r_sigma s_2 tack.l Gamma', diamond | Delta'$)),
+  proof-tree(rule(name: "IfExpr", $Gamma | Delta tack.r_sigma #If e #Then s_1 #Else s_2 : tau tack.l Gamma' | Delta'$, $Gamma | Delta tack.r_sigma e : #Bool tack.l Gamma | Delta$, $Gamma, diamond_i | Delta tack.r_sigma s_1 tack.l Gamma', diamond_i | Delta'$, $Gamma, diamond_i | Delta tack.r_sigma s_2 tack.l Gamma', diamond_i | Delta'$)),
 
   proof-tree(rule(name: "Return", $Gamma | Delta tack.r_sigma #Return e : tau tack.l dot | Delta$, $Gamma | Delta tack.r_sigma e : sigma tack.l Gamma | Delta$)),
 )
@@ -123,6 +126,10 @@ Typing statements is more involved. Since statements may update their context, w
   proof-tree(rule(name: "Seq", $Gamma | Delta tack.r_sigma s_1; s_2 tack.l Gamma'' | Delta''$, $Gamma | Delta tack.r_sigma s_1 tack.l Gamma' | Delta'$, $Gamma' | Delta' tack.r_sigma s_2 tack.l Gamma'' | Delta''$)),
 
   proof-tree(rule(name: "CallStmt", $Gamma | Delta tack.r_sigma m(e_1, e_2, ...) tack.l Gamma | Delta$, $m : (tau_1, tau_2, ...): \_$, $Gamma | Delta tack.r_sigma e_i : tau_i tack.l Gamma | Delta$)),
+
+  proof-tree(rule(name: "WhileLoop", $Gamma | Delta tack.r_sigma #While c { s } tack.l Gamma | Delta$, $Gamma | Delta tack.r_sigma c : #Bool tack.l Gamma | Delta$, $Gamma, diamond_w | Delta tack.r_sigma s tack.l Gamma' | Delta'$, $drop(Gamma') = Gamma, diamond_w$)),
+
+  proof-tree(rule(name: "Break", $Gamma | Delta tack.r_sigma #Break tack.l drop(Gamma) | Delta$)),
 )
 
 #jc[IfExpr is very restrictive; we should check with Komi to see exactly what we want here, especially since classes will make things a lot more complicated. Likely we will need some type unification over contexts/heaps here for the branches.]
@@ -216,6 +223,12 @@ With small step operational semantics for expressions, we always know exactly wh
 
 To deal with this, we introduce a new statement form called $#Skip$, which denotes a fully evaluated statement. Operationally, it is a stuck state, but we're able to eliminate it and progress evaluation via Seq.
 
+We also introduce a runtime-only statement form $#InLoop (s, c, s_0)$, which wraps the body of a loop during evaluation: $s$ is the current (partially evaluated) body, $c$ is the loop condition, and $s_0$ is the original body for re-entry.
+
+The naive unrolling $#While c { s } -> #If c #Then (s; #While c { s }) #Else #Skip$ places the body and the loop continuation in a flat sequence. This fails with $#Break$: BreakSeq discards the rest of the body, yielding $#Break ; #While c { s }$, which in turn reduces to $#Break$. $#Break$ has escaped the loop with nothing to catch it! If instead we made $#Break$ reduce to $#Skip$, then $#Skip; #While c { s }$ would restart the loop via Seq2, which is equally wrong.
+
+$#InLoop$ solves this by acting as a boundary between the iteration body and the loop itself. When the body finishes ($s = #Skip$), InLoopDone re-enters the loop via $#While c { s_0 }$. When the body breaks ($s = #Break$), InLoopBreak exits the loop by producing $#Skip$. $#Break$ never propagates past $#InLoop$.
+
 #mathpar(
   proof-tree(rule(name: "Skip", $chevron.l S | H | #Skip chevron.r ~> chevron.l S | H | #Skip chevron.r$)),
   proof-tree(rule(name: "VarDecl", $chevron.l S | H | #Var x : tau chevron.r ~> chevron.l S | H | #Skip chevron.r$)),
@@ -227,6 +240,14 @@ To deal with this, we introduce a new statement form called $#Skip$, which denot
   proof-tree(rule(name: "Seq2", $chevron.l S | H | #Skip ; s_2 chevron.r ~> chevron.l S | H | s_2 chevron.r$)),
 
   proof-tree(rule(name: "CallStmt", $chevron.l S | H | m(e_1, e_2, ...) chevron.r ~> chevron.l S | H | m(e_1)$, $m : (tau_1, tau_2, ...): sigma$, $chevron.l S | H | e_i : tau_i chevron.r$)),
+
+  proof-tree(rule(name: "While", $chevron.l S | H | #While c { s } chevron.r ~> chevron.l S | H | #If c #Then #InLoop (s, c, s) #Else #Skip chevron.r$)),
+
+  proof-tree(rule(name: "InLoopStep", $chevron.l S | H | #InLoop (s, c, s_0) chevron.r ~> chevron.l S' | H' | #InLoop (s', c, s_0) chevron.r$, $chevron.l S | H | s chevron.r ~> chevron.l S' | H' | s' chevron.r$)),
+  proof-tree(rule(name: "InLoopDone", $chevron.l S | H | #InLoop (#Skip, c, s_0) chevron.r ~> chevron.l S | H | #While c { s_0 } chevron.r$)),
+  proof-tree(rule(name: "InLoopBreak", $chevron.l S | H | #InLoop (#Break, c, s_0) chevron.r ~> chevron.l S | H | #Skip chevron.r$)),
+
+  proof-tree(rule(name: "BreakSeq", $chevron.l S | H | #Break; s_2 chevron.r ~> chevron.l S | H | #Break chevron.r$)),
 
 )
 
