@@ -96,40 +96,40 @@ Herein we discuss the type system of #Lbase. Mostly it's a straightforward appro
 The approach to type checking begins by adding all method declarations to a (global) context of methods, thereby assuming that method type declarations are always correct. Once this pass is done, the body of each method (if given) is checked according to the statement rules.
 
 === Expression Types
-Since expressions may affect their context (via conditionals and returns), we use the judgement form $Gamma | Delta tack.r_sigma e : tau tack.l Gamma' | Delta'$, where $sigma$ is the current method's return type. For most expressions, the output context is identical to the input.
+Since expressions may affect their context (via conditionals and returns), we use the judgement form #typeExpr($Gamma$, $Delta$, $sigma$, $e$, $tau$, $Gamma'$, $Delta'$), where $sigma$ is the current method's return type. For most expressions, the output context is identical to the input.
 
 #mathpar(
-  proof-tree(rule(name: "TrueConst", $Gamma | Delta tack.r_sigma #True : #Bool tack.l Gamma | Delta$)),
-  proof-tree(rule(name: "FalseConst", $Gamma | Delta tack.r_sigma #False : #Bool tack.l Gamma | Delta$)),
-  proof-tree(rule(name: "NatConst", $Gamma | Delta tack.r_sigma n : #Nat tack.l Gamma | Delta$, $n in bb(N)$)),
-  proof-tree(rule(name: "NullConst", $Gamma | Delta tack.r_sigma #Null : tau tack.l Gamma | Delta$)),
+  proof-tree(rule(name: "TrueConst", typeExpr($Gamma$, $Delta$, $sigma$, $#True$, $#Bool$, $Gamma$, $Delta$))),
+  proof-tree(rule(name: "FalseConst", typeExpr($Gamma$, $Delta$, $sigma$, $#False$, $#Bool$, $Gamma$, $Delta$))),
+  proof-tree(rule(name: "NatConst", typeExpr($Gamma$, $Delta$, $sigma$, $n$, $#Nat$, $Gamma$, $Delta$), $n in bb(N)$)),
+  proof-tree(rule(name: "NullConst", typeExpr($Gamma$, $Delta$, $sigma$, $#Null$, $tau$, $Gamma$, $Delta$))),
 
-  proof-tree(rule(name: "VarAccess", $Gamma, x : tau | Delta tack.r_sigma x : tau tack.l Gamma, x : tau | Delta$)),
+  proof-tree(rule(name: "VarAccess", typeExpr($Gamma, x : tau$, $Delta$, $sigma$, $x$, $tau$, $Gamma, x : tau$, $Delta$))),
 
-  proof-tree(rule(name: "FieldAccess", $Gamma | Delta tack.r_sigma p.f : tau tack.l Gamma | Delta$, $Gamma | Delta tack.r_sigma p : C tack.l Gamma | Delta$, $f : tau in #fields (C)$)),
+  proof-tree(rule(name: "FieldAccess", typeExpr($Gamma$, $Delta$, $sigma$, $p.f$, $tau$, $Gamma$, $Delta$), typeExpr($Gamma$, $Delta$, $sigma$, $p$, $C$, $Gamma$, $Delta$), $f : tau in #fields (C)$)),
 
-  proof-tree(rule(name: "IfExpr", $Gamma | Delta tack.r_sigma #If e #Then s_1 #Else s_2 : tau tack.l Gamma' | Delta'$, $Gamma | Delta tack.r_sigma e : #Bool tack.l Gamma | Delta$, $Gamma, diamond_i | Delta tack.r_sigma s_1 tack.l Gamma', diamond_i | Delta'$, $Gamma, diamond_i | Delta tack.r_sigma s_2 tack.l Gamma', diamond_i | Delta'$)),
+  proof-tree(rule(name: "IfExpr", typeExpr($Gamma$, $Delta$, $sigma$, $#If e #Then s_1 #Else s_2$, $tau$, $Gamma'$, $Delta'$), typeExpr($Gamma$, $Delta$, $sigma$, $e$, $#Bool$, $Gamma$, $Delta$), typeStmt($Gamma, diamond_i$, $Delta$, $sigma$, $s_1$, $Gamma', diamond_i$, $Delta'$), typeStmt($Gamma, diamond_i$, $Delta$, $sigma$, $s_2$, $Gamma', diamond_i$, $Delta'$))),
 
-  proof-tree(rule(name: "Return", $Gamma | Delta tack.r_sigma #Return e : tau tack.l dot | Delta$, $Gamma | Delta tack.r_sigma e : sigma tack.l Gamma | Delta$)),
+  proof-tree(rule(name: "Return", typeExpr($Gamma$, $Delta$, $sigma$, $#Return e$, $tau$, $dot$, $Delta$), typeExpr($Gamma$, $Delta$, $sigma$, $e$, $sigma$, $Gamma$, $Delta$))),
 )
 
 Note that $#Null$ is a member of all types in this system. $#Return$ has type $tau$ for any $tau$ since it never produces a value. $#If$ has type $tau$ for any $tau$ since its branches are statements.
 #jq[Subtyping with null?]
 
 === Statement Types
-Typing statements is more involved. Since statements may update their context, we use a "small-step" typing judgement form $Gamma | Delta tack.r_sigma s tack.l Gamma' | Delta'$, where $Gamma$ represents the context before the statement runs, $Gamma'$ represents the context after the statement runs (likewise for the heap $Delta$), and $sigma$ is the current method's return type.
+Typing statements is more involved. Since statements may update their context, we use a "small-step" typing judgement form #typeStmt($Gamma$, $Delta$, $sigma$, $s$, $Gamma'$, $Delta'$), where $Gamma$ represents the context before the statement runs, $Gamma'$ represents the context after the statement runs (likewise for the heap $Delta$), and $sigma$ is the current method's return type.
 
 #mathpar(
-  proof-tree(rule(name: "VarDecl", $Gamma | Delta tack.r_sigma #Var x : tau tack.l Gamma, x : tau | Delta$, $x in.not Gamma$)),
-  proof-tree(rule(name: "VarAssign", $Gamma, x : tau | Delta tack.r_sigma x = e tack.l Gamma' | Delta'$, $Gamma, x : tau | Delta tack.r_sigma e : tau tack.l Gamma' | Delta'$)),
+  proof-tree(rule(name: "VarDecl", typeStmt($Gamma$, $Delta$, $sigma$, $#Var x : tau$, $Gamma, x : tau$, $Delta$), $x in.not Gamma$)),
+  proof-tree(rule(name: "VarAssign", typeStmt($Gamma, x : tau$, $Delta$, $sigma$, $x = e$, $Gamma'$, $Delta'$), typeExpr($Gamma, x : tau$, $Delta$, $sigma$, $e$, $tau$, $Gamma'$, $Delta'$))),
 
-  proof-tree(rule(name: "Seq", $Gamma | Delta tack.r_sigma s_1; s_2 tack.l Gamma'' | Delta''$, $Gamma | Delta tack.r_sigma s_1 tack.l Gamma' | Delta'$, $Gamma' | Delta' tack.r_sigma s_2 tack.l Gamma'' | Delta''$)),
+  proof-tree(rule(name: "Seq", typeStmt($Gamma$, $Delta$, $sigma$, $s_1; s_2$, $Gamma''$, $Delta''$), typeStmt($Gamma$, $Delta$, $sigma$, $s_1$, $Gamma'$, $Delta'$), typeStmt($Gamma'$, $Delta'$, $sigma$, $s_2$, $Gamma''$, $Delta''$))),
 
-  proof-tree(rule(name: "CallStmt", $Gamma | Delta tack.r_sigma m(e_1, e_2, ...) tack.l Gamma | Delta$, $m : (tau_1, tau_2, ...): \_$, $Gamma | Delta tack.r_sigma e_i : tau_i tack.l Gamma | Delta$)),
+  proof-tree(rule(name: "CallStmt", typeStmt($Gamma$, $Delta$, $sigma$, $m(e_1, e_2, ...)$, $Gamma$, $Delta$), $m : (tau_1, tau_2, ...): \_$, typeExpr($Gamma$, $Delta$, $sigma$, $e_i$, $tau_i$, $Gamma$, $Delta$))),
 
-  proof-tree(rule(name: "WhileLoop", $Gamma | Delta tack.r_sigma #While c { s } tack.l Gamma | Delta$, $Gamma | Delta tack.r_sigma c : #Bool tack.l Gamma | Delta$, $Gamma, diamond_w | Delta tack.r_sigma s tack.l Gamma' | Delta'$, $drop(Gamma') = Gamma, diamond_w$)),
+  proof-tree(rule(name: "WhileLoop", typeStmt($Gamma$, $Delta$, $sigma$, $#While c { s }$, $Gamma$, $Delta'$), typeExpr($Gamma$, $Delta$, $sigma$, $c$, $#Bool$, $Gamma$, $Delta$), typeStmt($Gamma, diamond_w$, $Delta$, $sigma$, $s$, $Gamma'$, $Delta'$), $drop(Gamma') = Gamma, diamond_w$)),
 
-  proof-tree(rule(name: "Break", $Gamma | Delta tack.r_sigma #Break tack.l drop(Gamma) | Delta$)),
+  proof-tree(rule(name: "Break", typeStmt($Gamma$, $Delta$, $sigma$, $#Break$, $drop(Gamma)$, $Delta$))),
 )
 
 #jc[IfExpr is very restrictive; we should check with Komi to see exactly what we want here, especially since classes will make things a lot more complicated. Likely we will need some type unification over contexts/heaps here for the branches.]
@@ -154,7 +154,7 @@ Consider carefully a method with the body $#Return #Null ; #Return 1$. We obviou
 We introduce a final typing judgement $tack.r m(x_i : tau_i): sigma { s }$ to ascribe types for method definitions.
 
 #mathpar(
-  proof-tree(rule(name: "Method", $tack.r m(x_i : tau_i): sigma { s }$, $x_i : tau_i | Delta tack.r_sigma s tack.l dot | Delta'$))
+  proof-tree(rule(name: "Method", $tack.r m(x_i : tau_i): sigma { s }$, typeStmt($x_i : tau_i$, $Delta$, $sigma$, $s$, $dot$, $Delta'$)))
 )
 
 Since methods are typed in empty contexts, the body is checked with only the arguments in scope and the return type $sigma$ annotating the judgement. The output context must be $dot$, forcing all arguments and local definitions to be dropped, which in turn means that we can only exit a method via an explicit return statement.
@@ -183,12 +183,12 @@ $
 
 #jtodo[Early return?]
 
-Our small step evaluation judgement for a term $t$ is $chevron.l S | H | t chevron.r ~> chevron.l S' | H' | t' chevron.r$. We define a multi step judgement $ms$ in the usual way.
+Our small step evaluation judgement for a term $t$ is $#step($S$, $H$, $t$) ~> #step($S'$, $H'$, $t'$)$. We define a multi step judgement $ms$ in the usual way.
 
 Once again, method bodies are tracked globally when defined. We define a function $body(m)$, which returns the body of a method, and a function $args(m)$, which returns the argument names taken by a method.
 
 === Values
-Values are terms that are fully evaluated. A value $v$ satisfies $chevron.l S | H | v chevron.r ~> chevron.l S | H | v chevron.r$. Addresses $a in cal(A)$ are runtime-only values that do not appear in the source language. $#True$, $#False$, $#Null$, $n in bb(N)$, and $a in cal(A)$ are values in #Lbase.
+Values are terms that are fully evaluated. A value $v$ satisfies $#step($S$, $H$, $v$) ~> #step($S$, $H$, $v$)$. Addresses $a in cal(A)$ are runtime-only values that do not appear in the source language. $#True$, $#False$, $#Null$, $n in bb(N)$, and $a in cal(A)$ are values in #Lbase.
 
 $
 v ::=& a in cal(A) |& #True |& #False |& #Null |& n in bb(N)
@@ -196,14 +196,14 @@ $
 
 === Expression Evaluation
 #mathpar(
-  proof-tree(rule(name: "VarAccess", $chevron.l S, x := v | H | x chevron.r ~> chevron.l S, x := v | H | v chevron.r$)),
+  proof-tree(rule(name: "VarAccess", $#step($S, x := v$, $H$, $x$) ~> #step($S, x := v$, $H$, $v$)$)),
 
-  proof-tree(rule(name: "FieldAccessE", $chevron.l S | H | p.f chevron.r ~> chevron.l S' | H' | p'.f chevron.r$, $chevron.l S | H | p chevron.r ~> chevron.l S' | H' | p' chevron.r$)),
-  proof-tree(rule(name: "FieldAccessV", $chevron.l S | H, a -> C(... f_i := v_i ...) | a.f_i chevron.r ~> chevron.l S | H, a -> C(... f_i := v_i ...) | v_i chevron.r$)),
+  proof-tree(rule(name: "FieldAccessE", $#step($S$, $H$, $p.f$) ~> #step($S'$, $H'$, $p'.f$)$, $#step($S$, $H$, $p$) ~> #step($S'$, $H'$, $p'$)$)),
+  proof-tree(rule(name: "FieldAccessV", $#step($S$, $H, a -> C(... f_i := v_i ...)$, $a.f_i$) ~> #step($S$, $H, a -> C(... f_i := v_i ...)$, $v_i$)$)),
 
-  proof-tree(rule(name: "IfCond", $chevron.l S | H | #If e #Then s_1 #Else s_2 chevron.r ~> chevron.l S' | H' | #If e' #Then s_1 #Else s_2 chevron.r$, $chevron.l S | H | e chevron.r ~> chevron.l S' | H' | e' chevron.r$)),
-  proof-tree(rule(name: "IfThen", $chevron.l S | H | #If #True #Then s_1 #Else s_2 chevron.r ~> chevron.l S | H | s_1 chevron.r$)),
-  proof-tree(rule(name: "IfElse", $chevron.l S | H | #If #False #Then s_1 #Else s_2 chevron.r ~> chevron.l S | H | s_2 chevron.r$)),
+  proof-tree(rule(name: "IfCond", $#step($S$, $H$, $#If e #Then s_1 #Else s_2$) ~> #step($S'$, $H'$, $#If e' #Then s_1 #Else s_2$)$, $#step($S$, $H$, $e$) ~> #step($S'$, $H'$, $e'$)$)),
+  proof-tree(rule(name: "IfThen", $#step($S$, $H$, $#If #True #Then s_1 #Else s_2$) ~> #step($S$, $H$, $s_1$)$)),
+  proof-tree(rule(name: "IfElse", $#step($S$, $H$, $#If #False #Then s_1 #Else s_2$) ~> #step($S$, $H$, $s_2$)$)),
 
   proof-tree(rule(name: "Return", $chevron.l S | H | #Return e tack.l S'$, $drop_square(S) = S'$, $square_tau$, $chevron.l S | H | e : tau chevron.r$)),
 )
@@ -223,23 +223,23 @@ The naive unrolling $#While c { s } -> #If c #Then (s; #While c { s }) #Else #Sk
 $#InLoop$ solves this by acting as a boundary between the iteration body and the loop itself. When the body finishes ($s = #Skip$), InLoopDone re-enters the loop via $#While c { s_0 }$. When the body breaks ($s = #Break$), InLoopBreak exits the loop by producing $#Skip$. $#Break$ never propagates past $#InLoop$.
 
 #mathpar(
-  proof-tree(rule(name: "VarDecl", $chevron.l S | H | #Var x : tau chevron.r ~> chevron.l S | H | #Skip chevron.r$)),
+  proof-tree(rule(name: "VarDecl", $#step($S$, $H$, $#Var x : tau$) ~> #step($S$, $H$, $#Skip$)$)),
 
-  proof-tree(rule(name: "VarAssign1", $chevron.l S, x := \_ | H | x = e chevron.r ~> chevron.l S | H | x = e' chevron.r$, $chevron.l S, x := \_ | H | e chevron.r ~> chevron.l S, x := \_ | H | e' chevron.r$)),
-  proof-tree(rule(name: "VarAssign2", $chevron.l S, x := \_ | H | x = v chevron.r ~> chevron.l S, x := v | H | #Skip chevron.r$)),
+  proof-tree(rule(name: "VarAssign1", $#step($S, x := \_$, $H$, $x = e$) ~> #step($S$, $H$, $x = e'$)$, $#step($S, x := \_$, $H$, $e$) ~> #step($S, x := \_$, $H$, $e'$)$)),
+  proof-tree(rule(name: "VarAssign2", $#step($S, x := \_$, $H$, $x = v$) ~> #step($S, x := v$, $H$, $#Skip$)$)),
 
-  proof-tree(rule(name: "Seq1", $chevron.l S | H | s_1; s_2 chevron.r ~> chevron.l S' | H' | s'_1; s_2 chevron.r$, $chevron.l S | H | s_1 chevron.r ~> chevron.l S' | H' | s'_1 chevron.r$)),
-  proof-tree(rule(name: "Seq2", $chevron.l S | H | #Skip ; s_2 chevron.r ~> chevron.l S | H | s_2 chevron.r$)),
+  proof-tree(rule(name: "Seq1", $#step($S$, $H$, $s_1; s_2$) ~> #step($S'$, $H'$, $s'_1; s_2$)$, $#step($S$, $H$, $s_1$) ~> #step($S'$, $H'$, $s'_1$)$)),
+  proof-tree(rule(name: "Seq2", $#step($S$, $H$, $#Skip ; s_2$) ~> #step($S$, $H$, $s_2$)$)),
 
   proof-tree(rule(name: "CallStmt", $chevron.l S | H | m(e_1, e_2, ...) chevron.r ~> chevron.l S | H | m(e_1)$, $m : (tau_1, tau_2, ...): sigma$, $chevron.l S | H | e_i : tau_i chevron.r$)),
 
-  proof-tree(rule(name: "While", $chevron.l S | H | #While c { s } chevron.r ~> chevron.l S | H | #If c #Then #InLoop (s, c, s) #Else #Skip chevron.r$)),
+  proof-tree(rule(name: "While", $#step($S$, $H$, $#While c { s }$) ~> #step($S$, $H$, $#If c #Then #InLoop (s, c, s) #Else #Skip$)$)),
 
-  proof-tree(rule(name: "InLoopStep", $chevron.l S | H | #InLoop (s, c, s_0) chevron.r ~> chevron.l S' | H' | #InLoop (s', c, s_0) chevron.r$, $chevron.l S | H | s chevron.r ~> chevron.l S' | H' | s' chevron.r$)),
-  proof-tree(rule(name: "InLoopDone", $chevron.l S | H | #InLoop (#Skip, c, s_0) chevron.r ~> chevron.l S | H | #While c { s_0 } chevron.r$)),
-  proof-tree(rule(name: "InLoopBreak", $chevron.l S | H | #InLoop (#Break, c, s_0) chevron.r ~> chevron.l S | H | #Skip chevron.r$)),
+  proof-tree(rule(name: "InLoopStep", $#step($S$, $H$, $#InLoop (s, c, s_0)$) ~> #step($S'$, $H'$, $#InLoop (s', c, s_0)$)$, $#step($S$, $H$, $s$) ~> #step($S'$, $H'$, $s'$)$)),
+  proof-tree(rule(name: "InLoopDone", $#step($S$, $H$, $#InLoop (#Skip, c, s_0)$) ~> #step($S$, $H$, $#While c { s_0 }$)$)),
+  proof-tree(rule(name: "InLoopBreak", $#step($S$, $H$, $#InLoop (#Break, c, s_0)$) ~> #step($S$, $H$, $#Skip$)$)),
 
-  proof-tree(rule(name: "BreakSeq", $chevron.l S | H | #Break; s_2 chevron.r ~> chevron.l S | H | #Break chevron.r$)),
+  proof-tree(rule(name: "BreakSeq", $#step($S$, $H$, $#Break; s_2$) ~> #step($S$, $H$, $#Break$)$)),
 
 )
 

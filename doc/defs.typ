@@ -22,7 +22,14 @@
   })
 }
 
-// Judgements
+// Judgement forms
+// Expression typing: Γ | Δ ⊢_σ e : τ ⊣ Γ' | Δ'
+#let typeExpr(gin, din, ret, e, t, gout, dout) = $#gin | #din tack.r_(#ret) #e : #t tack.l #gout | #dout$
+// Statement typing: Γ | Δ ⊢_σ s ⊣ Γ' | Δ'
+#let typeStmt(gin, din, ret, s, gout, dout) = $#gin | #din tack.r_(#ret) #s tack.l #gout | #dout$
+// Evaluation step: ⟨S | H | t⟩ ~> ⟨S' | H' | t'⟩
+#let step(s, h, t) = $chevron.l #s | #h | #t chevron.r$
+// Multi-step
 #let ms = $op(~>)^*$
 
 // Classes
