@@ -168,91 +168,231 @@ Note that we don't have strong normalisation, even for expressions; a method is 
 
 
 == Evaluation
-Evaluation of an #Lbase program begins with a pre-specified method name. For the rest of this document, we'll use "main". We define a small step store semantics.
+Evaluation of an #Lbase program begins with a pre-specified method name. For the rest of this document, we'll use "main". We define the operational semantics as a CESK machine; a state machine that makes evaluation order explicit via a continuation stack. We also introduce a run-time language, which extends the source language with syntactic forms for modelling non-local control flow, and address values for heap access.
 
-=== Stack and Heap
-We model two stores in our judgements; a stack $S$, which maps variables to values; and a heap $H$, which maps addresses to values. The stack is ordered so as to permit shadowing, and the heap is unordered.
+=== Runtime Language
+The CESK machine operates on a runtime language that extends the source syntax with runtime-only forms.
 
-$
-S ::=& dot && "Empty" \
-  |& S, x := v && "Variable Extension" \
-
-H ::=& dot && "Empty" \
-  |& H, a -> v && "Heap Extension" \
-$
-
-#jtodo[Early return?]
-
-Our small step evaluation judgement for a term $t$ is $#step($S$, $H$, $t$) ~> #step($S'$, $H'$, $t'$)$. We define a multi step judgement $ms$ in the usual way.
-
-Once again, method bodies are tracked globally when defined. We define a function $body(m)$, which returns the body of a method, and a function $args(m)$, which returns the argument names taken by a method.
-
-=== Values
-Values are terms that are fully evaluated. A value $v$ satisfies $#step($S$, $H$, $v$) ~> #step($S$, $H$, $v$)$. Addresses $a in cal(A)$ are runtime-only values that do not appear in the source language. $#True$, $#False$, $#Null$, $n in bb(N)$, and $a in cal(A)$ are values in #Lbase.
+==== Values
+Values are fully evaluated expressions. The source values $#True$, $#False$, $#Null$, and $n in bb(N)$ are joined by runtime-only addresses:
 
 $
 v ::=& a in cal(A) |& #True |& #False |& #Null |& n in bb(N)
 $
 
-=== Expression Evaluation
-#mathpar(
-  proof-tree(rule(name: "VarAccess", $#step($S, x := v$, $H$, $x$) ~> #step($S, x := v$, $H$, $v$)$)),
+Addresses $a in cal(A)$ are opaque references to objects in the store. They do not appear in the source program; they arise only during execution when objects are allocated.
 
-  proof-tree(rule(name: "FieldAccessE", $#step($S$, $H$, $p.f$) ~> #step($S'$, $H'$, $p'.f$)$, $#step($S$, $H$, $p$) ~> #step($S'$, $H'$, $p'$)$)),
-  proof-tree(rule(name: "FieldAccessV", $#step($S$, $H, a -> C(... f_i := v_i ...)$, $a.f_i$) ~> #step($S$, $H, a -> C(... f_i := v_i ...)$, $v_i$)$)),
+==== Signals
+Signals are runtime-only control forms produced during evaluation. They do not appear in the source program. We distinguish two kinds:
 
-  proof-tree(rule(name: "IfCond", $#step($S$, $H$, $#If e #Then s_1 #Else s_2$) ~> #step($S'$, $H'$, $#If e' #Then s_1 #Else s_2$)$, $#step($S$, $H$, $e$) ~> #step($S'$, $H'$, $e'$)$)),
-  proof-tree(rule(name: "IfThen", $#step($S$, $H$, $#If #True #Then s_1 #Else s_2$) ~> #step($S$, $H$, $s_1$)$)),
-  proof-tree(rule(name: "IfElse", $#step($S$, $H$, $#If #False #Then s_1 #Else s_2$) ~> #step($S$, $H$, $s_2$)$)),
+A completion signal is consumed by the immediately next continuation frame:
+$
+#Skip &&& "Statement completed normally"
+$
 
-  proof-tree(rule(name: "Return", $chevron.l S | H | #Return e tack.l S'$, $drop_square(S) = S'$, $square_tau$, $chevron.l S | H | e : tau chevron.r$)),
-)
-#jtodo[Double check stack contents on method return is correct here]
+Unwinding signals propagate through transparent frames until caught by a matching frame:
+$
+#breaking &&& "Loop exit (caught by " #loopK ")" \
+#returning (v) &&& "Method return carrying value " v " (caught by " #callK ")"
+$
 
-Note the rules for call expressions. #Lbase passes by value, and evaluates arguments left-to-right.
+Together, these form the signal grammar:
+$
+#sig ::=& #Skip |& #breaking |& #returning (v)
+$
 
-=== Statement Evaluation
-With small step operational semantics for expressions, we always know exactly which next step we can perform, even if we're looking at a value. Conversely, for rules such as VarDecl, VarAssign, and CallStmt, we don't know exactly what expression comes next, as it's presumably part of a sequencing operation higher up in the syntax tree.
+$#Skip$ signals that a statement has been fully executed: when a continuation frame expecting a statement result sees $#Skip$, it proceeds to its next action. $#breaking$ is produced when the source statement $#Break$ is executed. $#returning (v)$ is produced when $#Return e$ finishes evaluating $e$ to value $v$.
 
-To deal with this, we introduce a new statement form called $#Skip$, which denotes a fully evaluated statement. Operationally, it is a stuck state, but we're able to eliminate it and progress evaluation via Seq.
+=== Machine State
+The machine state is a 4-tuple $#cesk($C$, $E$, $S$, $K$)$:
 
-We also introduce a runtime-only statement form $#InLoop (s, c, s_0)$, which wraps the body of a loop during evaluation: $s$ is the current (partially evaluated) body, $c$ is the loop condition, and $s_0$ is the original body for re-entry.
-
-The naive unrolling $#While c { s } -> #If c #Then (s; #While c { s }) #Else #Skip$ places the body and the loop continuation in a flat sequence. This fails with $#Break$: BreakSeq discards the rest of the body, yielding $#Break ; #While c { s }$, which in turn reduces to $#Break$. $#Break$ has escaped the loop with nothing to catch it! If instead we made $#Break$ reduce to $#Skip$, then $#Skip; #While c { s }$ would restart the loop via Seq2, which is equally wrong.
-
-$#InLoop$ solves this by acting as a boundary between the iteration body and the loop itself. When the body finishes ($s = #Skip$), InLoopDone re-enters the loop via $#While c { s_0 }$. When the body breaks ($s = #Break$), InLoopBreak exits the loop by producing $#Skip$. $#Break$ never propagates past $#InLoop$.
-
-#mathpar(
-  proof-tree(rule(name: "VarDecl", $#step($S$, $H$, $#Var x : tau$) ~> #step($S$, $H$, $#Skip$)$)),
-
-  proof-tree(rule(name: "VarAssign1", $#step($S, x := \_$, $H$, $x = e$) ~> #step($S$, $H$, $x = e'$)$, $#step($S, x := \_$, $H$, $e$) ~> #step($S, x := \_$, $H$, $e'$)$)),
-  proof-tree(rule(name: "VarAssign2", $#step($S, x := \_$, $H$, $x = v$) ~> #step($S, x := v$, $H$, $#Skip$)$)),
-
-  proof-tree(rule(name: "Seq1", $#step($S$, $H$, $s_1; s_2$) ~> #step($S'$, $H'$, $s'_1; s_2$)$, $#step($S$, $H$, $s_1$) ~> #step($S'$, $H'$, $s'_1$)$)),
-  proof-tree(rule(name: "Seq2", $#step($S$, $H$, $#Skip ; s_2$) ~> #step($S$, $H$, $s_2$)$)),
-
-  proof-tree(rule(name: "CallStmt", $chevron.l S | H | m(e_1, e_2, ...) chevron.r ~> chevron.l S | H | m(e_1)$, $m : (tau_1, tau_2, ...): sigma$, $chevron.l S | H | e_i : tau_i chevron.r$)),
-
-  proof-tree(rule(name: "While", $#step($S$, $H$, $#While c { s }$) ~> #step($S$, $H$, $#If c #Then #InLoop (s, c, s) #Else #Skip$)$)),
-
-  proof-tree(rule(name: "InLoopStep", $#step($S$, $H$, $#InLoop (s, c, s_0)$) ~> #step($S'$, $H'$, $#InLoop (s', c, s_0)$)$, $#step($S$, $H$, $s$) ~> #step($S'$, $H'$, $s'$)$)),
-  proof-tree(rule(name: "InLoopDone", $#step($S$, $H$, $#InLoop (#Skip, c, s_0)$) ~> #step($S$, $H$, $#While c { s_0 }$)$)),
-  proof-tree(rule(name: "InLoopBreak", $#step($S$, $H$, $#InLoop (#Break, c, s_0)$) ~> #step($S$, $H$, $#Skip$)$)),
-
-  proof-tree(rule(name: "BreakSeq", $#step($S$, $H$, $#Break; s_2$) ~> #step($S$, $H$, $#Break$)$)),
-
+#table(
+  columns: (auto, auto, 1fr),
+  align: (center, left, left),
+  table.header([*Component*], [*Name*], [*Description*]),
+  [$C$], [Control], [The current expression, statement, value, or signal being processed],
+  [$E$], [Environment], [Ordered map from variables to values],
+  [$S$], [Store], [Unordered map from addresses to objects],
+  [$K$], [Continuation], [Stack of continutations],
 )
 
-#jtodo[CallStmt]
+==== Control
+The control component holds whatever syntactic construct the machine is currently processing:
 
-Variable declaration has no effect during evaluation. Indeed, type checking already ensures that all variables we refer to have already been declared.
+$
+C ::=& e && "Source expression (to evaluate)" \
+  |& s && "Source statement (to execute)" \
+  |& v && "Value (expression result)" \
+  |& #sig && "Signal"
+$
 
-The underscore in the LHS of VarAssign is a wildcard, and represents a value we don't care about.
+Expression evaluation terminates with a value $v$ in the control. Statement execution terminates with $#Skip$. Unwinding signals ($#breaking$ and $#returning (v)$) propagate through the continuation until caught.
+
+==== Environment ($E$)
+$
+E ::=& dot && "Empty" \
+  |& E, x := v && "Variable binding"
+$
+
+The environment is an ordered, rightwards-growing list of variable-to-value bindings. Lookup finds the rightmost binding for a given variable name (permitting shadowing). Update ($E[x |-> v]$) modifies the rightmost binding of $x$ in place.
+
+The environment is extended when variables are declared ($#Var x : tau$ adds $x := #Null$ to the rightmost position) and individual bindings are updated on assignment ($x = v$ updates the rightmost $x$). The environment is saved and restored across method calls: $#callK (E)$ preserves the caller's environment on the continuation, and restores it when the method returns.
+
+==== Store ($S$)
+$
+S ::=& dot && "Empty" \
+  |& S, a -> C(... f_i := v_i ...) && "Object mapping"
+$
+
+The store maps addresses to objects. An object $C(... f_i := v_i ...)$ records its class $C$ and the values of its fields.
+
+==== Continuation ($K$)
+The continuation is a stack of frames that describes what to do after the current control finishes:
+
+$
+K ::=& #halt && "Program complete" \
+  |& #fieldK (f) dot.c K && "After evaluating path, look up field" f \
+  |& #ifK (s_1, s_2) dot.c K && "After evaluating condition, branch" \
+  |& #returnK dot.c K && "After evaluating return expr, begin unwinding to most recent" #callK \
+  |& #assignK (x) dot.c K && "After evaluating RHS, assign to" x "in" E \
+  |& #seqK (s) dot.c K && "After first statement completes, continue with" s \
+  |& #loopK (c, s) dot.c K && "Loop boundary: condition" c ", original body" s \
+  |& #argK (m, overline(v), overline(e)) dot.c K && "Evaluating args: method, done, remaining" \
+  |& #callK (E) dot.c K && "Call boundary: saved caller environment" E
+$
+
+Method bodies are tracked globally when defined. We define a function $#body (m)$, which returns the body of a method, and a function $#args (m)$, which returns the argument names taken by a method.
+
+Frames are classified by which unwinding signals they catch:
+- $#loopK$ catches $#breaking$ $->$ produces $#Skip$
+- $#callK$ catches $#returning (v)$ $->$ restores saved environment, produces $#Skip$
+- All other frames are transparent to unwinding signals (signals pass through them)
+
+=== Transition Rules
+Our transition judgement is $#cesk($C$, $E$, $S$, $K$) ~> #cesk($C'$, $E'$, $S'$, $K'$)$. We define a multi-step judgement $ms$ in the usual way.
+
+==== Variable Access
+#mathpar(
+  proof-tree(rule(name: "Var", $#cesk($x$, $E$, $S$, $K$) ~> #cesk($E(x)$, $E$, $S$, $K$)$)),
+)
+Look up the rightmost binding of $x$ in $E$.
+
+==== Field Access
+#mathpar(
+  proof-tree(rule(name: "Field", $#cesk($p.f$, $E$, $S$, $K$) ~> #cesk($p$, $E$, $S$, $#fieldK (f) dot.c K$)$)),
+  proof-tree(rule(name: "FieldDone", $#cesk($a$, $E$, $S$, $#fieldK (f_i) dot.c K$) ~> #cesk($v_i$, $E$, $S$, $K$)$, $S(a) = C(... f_i := v_i ...)$)),
+)
+Chains compose naturally: $x.f.g$ pushes $#fieldK (g)$ then $#fieldK (f)$.
+
+==== If Expression
+#mathpar(
+  proof-tree(rule(name: "If", $#cesk($#If e #Then s_1 #Else s_2$, $E$, $S$, $K$) ~> #cesk($e$, $E$, $S$, $#ifK (s_1, s_2) dot.c K$)$)),
+  proof-tree(rule(name: "IfTrue", $#cesk($#True$, $E$, $S$, $#ifK (s_1, s_2) dot.c K$) ~> #cesk($s_1$, $E$, $S$, $K$)$)),
+  proof-tree(rule(name: "IfFalse", $#cesk($#False$, $E$, $S$, $#ifK (s_1, s_2) dot.c K$) ~> #cesk($s_2$, $E$, $S$, $K$)$)),
+)
+
+==== Return Expression
+#mathpar(
+  proof-tree(rule(name: "Return", $#cesk($#Return e$, $E$, $S$, $K$) ~> #cesk($e$, $E$, $S$, $#returnK dot.c K$)$)),
+  proof-tree(rule(name: "ReturnDone", $#cesk($v$, $E$, $S$, $#returnK dot.c K$) ~> #cesk($#returning (v)$, $E$, $S$, $K$)$)),
+)
+Evaluates $e$ to a value, then emits the $#returning (v)$ signal.
+
+==== Variable Declaration
+#mathpar(
+  proof-tree(rule(name: "VarDecl", $#cesk($#Var x : tau$, $E$, $S$, $K$) ~> #cesk($#Skip$, $E, x := #Null$, $S$, $K$)$)),
+)
+Extends $E$ with $x$ bound to $#Null$.
+
+==== Variable Assignment
+#mathpar(
+  proof-tree(rule(name: "Assign", $#cesk($x = e$, $E$, $S$, $K$) ~> #cesk($e$, $E$, $S$, $#assignK (x) dot.c K$)$)),
+  proof-tree(rule(name: "AssignDone", $#cesk($v$, $E$, $S$, $#assignK (x) dot.c K$) ~> #cesk($#Skip$, $E[x |-> v]$, $S$, $K$)$)),
+)
+$E[x |-> v]$ updates the rightmost binding of $x$ in $E$.
+
+==== Sequencing
+#mathpar(
+  proof-tree(rule(name: "Seq", $#cesk($s_1 ; s_2$, $E$, $S$, $K$) ~> #cesk($s_1$, $E$, $S$, $#seqK (s_2) dot.c K$)$)),
+  proof-tree(rule(name: "SeqDone", $#cesk($#Skip$, $E$, $S$, $#seqK (s_2) dot.c K$) ~> #cesk($s_2$, $E$, $S$, $K$)$)),
+)
+
+==== Break
+#mathpar(
+  proof-tree(rule(name: "Break", $#cesk($#Break$, $E$, $S$, $K$) ~> #cesk($#breaking$, $E$, $S$, $K$)$)),
+)
+The source statement $#Break$ immediately produces the $#breaking$ signal.
+
+==== While Loop
+#mathpar(
+  proof-tree(rule(name: "While", $#cesk($#While c { s }$, $E$, $S$, $K$) ~> #cesk($c$, $E$, $S$, $#loopK (c, s) dot.c K$)$)),
+  proof-tree(rule(name: "LoopTrue", $#cesk($#True$, $E$, $S$, $#loopK (c, s) dot.c K$) ~> #cesk($s$, $E$, $S$, $#loopK (c, s) dot.c K$)$)),
+  proof-tree(rule(name: "LoopFalse", $#cesk($#False$, $E$, $S$, $#loopK (c, s) dot.c K$) ~> #cesk($#Skip$, $E$, $S$, $K$)$)),
+  proof-tree(rule(name: "LoopCont", $#cesk($#Skip$, $E$, $S$, $#loopK (c, s) dot.c K$) ~> #cesk($c$, $E$, $S$, $#loopK (c, s) dot.c K$)$)),
+)
+LoopCont: when the body finishes ($#Skip$), the $#loopK$ frame re-evaluates the condition $c$ while keeping itself in place for the next iteration.
+
+==== Method Call
+#mathpar(
+  proof-tree(rule(name: [$"Call"_0$], $#cesk($m()$, $E$, $S$, $K$) ~> #cesk($#body (m)$, $dot$, $S$, $#callK (E) dot.c K$)$)),
+
+  proof-tree(rule(name: [$"Call"_N$], $#cesk($m(e_1, ..., e_n)$, $E$, $S$, $K$) ~> #cesk($e_1$, $E$, $S$, $#argK (m, epsilon, (e_2, ..., e_n)) dot.c K$)$, $n >= 1$)),
+
+  proof-tree(rule(name: "ArgNext", $#cesk($v$, $E$, $S$, $#argK (m, overline(v), (e, overline(e))) dot.c K$) ~> #cesk($e$, $E$, $S$, $#argK (m, overline(v) dot.c v, overline(e)) dot.c K$)$)),
+
+  proof-tree(rule(name: "ArgDone", $#cesk($v$, $E$, $S$, $#argK (m, overline(v), epsilon) dot.c K$) ~> #cesk($#body (m)$, $E_m$, $S$, $#callK (E) dot.c K$)$, $E_m = #args (m)_1 := overline(w)_1, ..., #args (m)_n := overline(w)_n$, $text("where") overline(w) = overline(v), v$)),
+)
+Arguments are evaluated left-to-right in the caller's environment. When all arguments are evaluated, the caller's environment is saved in $#callK (E)$, a fresh environment is created from the method parameters, and the body is entered.
+
+==== Method Return
+#mathpar(
+  proof-tree(rule(name: "ReturnCall", $#cesk($#returning (v)$, $E$, $S$, $#callK (E') dot.c K$) ~> #cesk($#Skip$, $E'$, $S$, $K$)$)),
+  proof-tree(rule(name: "ImplicitReturn", $#cesk($#Skip$, $E$, $S$, $#callK (E') dot.c K$) ~> #cesk($#Skip$, $E'$, $S$, $K$)$)),
+)
+ReturnCall: explicit return; restore caller environment, discard $v$ (method calls are statement-level). ImplicitReturn: method body completed without return; same effect.
+
+=== Signal Unwinding
+Unwinding signals ($#breaking$ and $#returning (v)$) propagate through the continuation by popping transparent frames until they reach a catching frame.
+
+==== $#breaking$ propagation (caught by $#loopK$)
+#mathpar(
+  proof-tree(rule(name: "BreakSeq", $#cesk($#breaking$, $E$, $S$, $#seqK (s) dot.c K$) ~> #cesk($#breaking$, $E$, $S$, $K$)$)),
+  proof-tree(rule(name: "BreakAssign", $#cesk($#breaking$, $E$, $S$, $#assignK (x) dot.c K$) ~> #cesk($#breaking$, $E$, $S$, $K$)$)),
+  proof-tree(rule(name: "BreakReturn", $#cesk($#breaking$, $E$, $S$, $#returnK dot.c K$) ~> #cesk($#breaking$, $E$, $S$, $K$)$)),
+  proof-tree(rule(name: "BreakArg", $#cesk($#breaking$, $E$, $S$, $#argK (m, overline(v), overline(e)) dot.c K$) ~> #cesk($#breaking$, $E$, $S$, $K$)$)),
+  proof-tree(rule(name: "BreakLoop", $#cesk($#breaking$, $E$, $S$, $#loopK (c, s) dot.c K$) ~> #cesk($#Skip$, $E$, $S$, $K$)$)),
+)
+$#breaking$ at $#callK$ is stuck; the type system guarantees this cannot happen ($#Break$ is only well-typed inside a loop body). $#breaking$ at $#fieldK$ is unreachable; paths are syntactically restricted to variable/field chains and cannot contain statements.
+
+==== $#returning (v)$ propagation (caught by $#callK$)
+#mathpar(
+  proof-tree(rule(name: "RetSeq", $#cesk($#returning (v)$, $E$, $S$, $#seqK (s) dot.c K$) ~> #cesk($#returning (v)$, $E$, $S$, $K$)$)),
+  proof-tree(rule(name: "RetAssign", $#cesk($#returning (v)$, $E$, $S$, $#assignK (x) dot.c K$) ~> #cesk($#returning (v)$, $E$, $S$, $K$)$)),
+  proof-tree(rule(name: "RetReturn", $#cesk($#returning (v)$, $E$, $S$, $#returnK dot.c K$) ~> #cesk($#returning (v)$, $E$, $S$, $K$)$)),
+  proof-tree(rule(name: "RetArg", $#cesk($#returning (v)$, $E$, $S$, $#argK (m, overline(v), overline(e)) dot.c K$) ~> #cesk($#returning (v)$, $E$, $S$, $K$)$)),
+  proof-tree(rule(name: "RetLoop", $#cesk($#returning (v)$, $E$, $S$, $#loopK (c, s) dot.c K$) ~> #cesk($#returning (v)$, $E$, $S$, $K$)$)),
+  proof-tree(rule(name: "ReturnCall", $#cesk($#returning (v)$, $E$, $S$, $#callK (E') dot.c K$) ~> #cesk($#Skip$, $E'$, $S$, $K$)$)),
+)
+$#returning (v)$ at $#fieldK$ is unreachable for the same reason as $#breaking$; paths cannot contain expressions that produce signals.
+
+Note: BreakAssign/RetAssign are reachable via $x = #If #True #Then #Break #Else #Skip$, and BreakReturn/RetReturn via $#Return (#If #True #Then #Break #Else 0)$; if-expressions have statement branches, so a signal in a branch propagates through the enclosing expression's frame.
+
+=== Initial and Terminal States
+
+$
+"Initial:" && #cesk($#body ("main")$, $dot$, $dot$, $#halt$) \
+"Terminal:" && #cesk($#Skip$, $E$, $S$, $#halt$) && "Normal completion" \
+ && #cesk($#returning (v)$, $E$, $S$, $#halt$) && "Main returned a value"
+$
+
+=== Design Note: Environment Scoping
+The environment $E$ grows monotonically; variables declared in inner scopes (loop bodies, if branches) remain in $E$ after scope exit. This is semantically safe because the type system prevents references to out-of-scope variables. However, for the eventual uniqueness/borrowing system, dangling bindings in $E$ to heap objects could interfere with aliasing analysis. If this becomes an issue, $#loopK$ and $#callK$ can be extended to save/restore $E$.
 
 === Theorems and Lemmata
-Given a well-typed program $P$:
+Given a well-typed program $P$ and a state $#cesk($C$, $E$, $S$, $K$)$ reachable from the initial state:
 
-$P$ should always have an evaluation step to perform, or otherwise have finished executing (return from the main method)
+*Progress:* either the state is terminal, or there exists a state $#cesk($C'$, $E'$, $S'$, $K'$)$ such that $#cesk($C$, $E$, $S$, $K$) ~> #cesk($C'$, $E'$, $S'$, $K'$)$.
 
 It should be impossible for $P$ to:
-- Escape from a method via return and retain locals on the stack
+- Have $#breaking$ reach a $#callK$ frame (guaranteed by the type system: $#Break$ is only well-typed inside a loop body)
+- Have $#returning (v)$ reach $#halt$ outside of the main method (guaranteed by $#callK$ catching returns at method boundaries)

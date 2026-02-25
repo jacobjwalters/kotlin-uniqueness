@@ -27,8 +27,9 @@
 #let typeExpr(gin, din, ret, e, t, gout, dout) = $#gin | #din tack.r_(#ret) #e : #t tack.l #gout | #dout$
 // Statement typing: Γ | Δ ⊢_σ s ⊣ Γ' | Δ'
 #let typeStmt(gin, din, ret, s, gout, dout) = $#gin | #din tack.r_(#ret) #s tack.l #gout | #dout$
-// Evaluation step: ⟨S | H | t⟩ ~> ⟨S' | H' | t'⟩
-#let step(s, h, t) = $chevron.l #s | #h | #t chevron.r$
+
+// CESK machine state: ⟨C | E | S | K⟩
+#let cesk(c, e, s, k) = $chevron.l #c | #e | #s | #k chevron.r$
 // Multi-step
 #let ms = $op(~>)^*$
 
@@ -58,7 +59,22 @@
 // Statements
 #let While = $sans("while")$
 #let Break = $sans("break")$
-#let InLoop = math.op("inloop")
+
+// CESK continuation frames
+#let fieldK = math.op("fieldK")
+#let ifK = math.op("ifK")
+#let returnK = $sans("returnK")$
+#let assignK = math.op("assignK")
+#let seqK = math.op("seqK")
+#let loopK = math.op("loopK")
+#let argK = math.op("argK")
+#let callK = math.op("callK")
+#let halt = $sans("halt")$
+
+// Runtime signals
+#let sig = $sans("sig")$
+#let breaking = $sans("breaking")$
+#let returning = $sans("returning")$
 
 // Rhetorical and definitional emphasis
 #let remph(body) = emph(body)
