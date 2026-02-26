@@ -8,6 +8,7 @@
 
 #set page(paper: "a4")
 #set text(font: "New Computer Modern")
+#set heading(numbering: "1.1")
 
 // Hyperlinks
 #show link: underline
