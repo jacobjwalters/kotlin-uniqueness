@@ -91,7 +91,7 @@ Since expressions may affect their context (via conditionals and returns), we us
   proof-tree(rule(name: "NatConst", typeExpr($Gamma$, $sigma$, $n$, $#Nat$, $Gamma$), $n in bb(N)$)),
   proof-tree(rule(name: "NullConst", typeExpr($Gamma$, $sigma$, $#Null$, $tau$, $Gamma$))),
 
-  proof-tree(rule(name: "VarAccess", typeExpr($Gamma, x : tau$, $sigma$, $x$, $tau$, $Gamma, x : tau$))),
+  proof-tree(rule(name: "VarAccess", typeExpr($Gamma$, $sigma$, $x$, $tau$, $Gamma$), $Gamma(x) = tau$)),
 
   proof-tree(rule(name: "FieldAccess", typeExpr($Gamma$, $sigma$, $p.f$, $tau$, $Gamma$), typeExpr($Gamma$, $sigma$, $p$, $C$, $Gamma$), $f : tau in #fields (C)$)),
 
@@ -108,7 +108,7 @@ Typing statements is more involved. Since statements may update their context, w
 
 #mathpar(
   proof-tree(rule(name: "VarDecl", typeStmt($Gamma$, $sigma$, $#Var x : tau$, $Gamma, x : tau$), $x in.not Gamma$)),
-  proof-tree(rule(name: "VarAssign", typeStmt($Gamma, x : tau$, $sigma$, $x = e$, $Gamma'$), typeExpr($Gamma, x : tau$, $sigma$, $e$, $tau$, $Gamma'$))),
+  proof-tree(rule(name: "VarAssign", typeStmt($Gamma$, $sigma$, $x = e$, $Gamma'$), $Gamma(x) = tau$, typeExpr($Gamma$, $sigma$, $e$, $tau$, $Gamma'$))),
 
   proof-tree(rule(name: "Seq", typeStmt($Gamma$, $sigma$, $s_1; s_2$, $Gamma''$), typeStmt($Gamma$, $sigma$, $s_1$, $Gamma'$), typeStmt($Gamma'$, $sigma$, $s_2$, $Gamma''$))),
 
