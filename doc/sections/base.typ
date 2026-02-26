@@ -40,7 +40,7 @@ Non-forgetful differences from the system described by @protopapa2024VerifyingKo
 For brevity's sake, we define $#Var x : tau = e$ as $#Var x : tau; x = e$. Additionally, we assume usual boolean/arithmetic operators are defined as method call expressions.
 
 == Typing Contexts
-Morally, typing contexts (hereafter contexts) in #Lbase are ordered, rightwards-growing lists of names and their associated types, split by control flow delimiters to denote the scopes in which variables are introduced. In particular, we have a (global) list of methods and associated method types#footnote[Since we don't have object-level function types, a method type is a list of argument types, paired with a return type, writ $m : (tau_1, tau_2, ...): sigma$], paired with a list of either variable names and their associated types, or control flow delimiters.
+Morally, typing contexts (hereafter contexts) in #Lbase are ordered, rightwards-growing lists of names and their associated types, split by a loop delimiter to denote the scopes in which variables are introduced. In particular, we have a (global) list of methods and associated method types#footnote[Since we don't have object-level function types, a method type is a list of argument types, paired with a return type, writ $m : (tau_1, tau_2, ...): sigma$], paired with a list of either variable names and their associated types, or a loop delimiter.
 
 Since method declarations are top level, we omit them from our treatment of contexts, and assume that the expression/statement theories are parameterised by a particular context of methods and method types. Methods are typed in empty contexts; the current return type is tracked as part of the statement typing judgement.
 
@@ -49,11 +49,10 @@ The grammar for contexts is as follows:
 $
 Gamma ::=& dot && "Empty" \
   |& Gamma, x : tau && "Variable Extension" \
-  |& Gamma, diamond_i && "If Delimiter" \
   |& Gamma, diamond_w && "Loop Delimiter"
 $
 
-Control flow delimiters are introduced when entering the branches of an if statement ($diamond_i$) or the body of a while loop ($diamond_w$), and are removed either at the end of the branch/body, or during early return.
+The loop delimiter is introduced when entering the body of a while loop ($diamond_w$), and is removed either at the end of the body, or during early return.
 
 In order to model heap allocations, we have a second typing context $Delta$ for things on the heap:
 $
@@ -66,7 +65,6 @@ We introduce a judgement $Gamma #ctx$, and $Delta #ctx$ to denote well formed co
 #mathpar(
   proof-tree(rule(name: "CtxEmp", $dot #ctx$)),
   proof-tree(rule(name: "CtxVarExt", $Gamma, x : tau #ctx$, $x in.not Gamma$, $Gamma #ctx$)),
-  proof-tree(rule(name: "CtxIfDelimiter", $Gamma, diamond_i #ctx$, $Gamma #ctx$)),
   proof-tree(rule(name: "CtxLoopDelimiter", $Gamma, diamond_w #ctx$, $Gamma #ctx$))
 )
 
@@ -80,15 +78,14 @@ $x in.not Gamma$ is bookkeeping for ensuring all names are distinct, and isn't s
 #jq[Do we want to allow name reuse (and thus shadowing)? How will this interact with borrowing later on? A: we need to investigate what happens with shadowing in Viper]
 
 === Removal
-When typing a $#Break$ statement, we need to strip all bindings introduced since the enclosing loop was entered. To do this, we define a recursive function $drop$ that walks backwards through the context, removing variable bindings and if-delimiters until it reaches the nearest loop delimiter $diamond_w$:
+When typing a $#Break$ statement, we need to strip all bindings introduced since the enclosing loop was entered. To do this, we define a recursive function $drop$ that walks backwards through the context, removing variable bindings until it reaches the nearest loop delimiter $diamond_w$:
 
 $
   drop (Gamma, diamond_w)  &= Gamma, diamond_w \
   drop (Gamma, x : tau)    &= drop (Gamma) \
-  drop (Gamma, diamond_i)  &= drop (Gamma) \
 $
 
-Note that $drop$ is undefined on $dot$, which ensures that $#Break$ is ill-typed outside of a loop body. Since $drop$ passes through if-delimiters $diamond_i$, a $#Break$ nested inside an if within a loop correctly reaches the enclosing loop's $diamond_w$.
+Note that $drop$ is undefined on $dot$, which ensures that $#Break$ is ill-typed outside of a loop body.
 
 == Type System
 Herein we discuss the type system of #Lbase. Mostly it's a straightforward approach; the interesting parts surround control flow and calling methods.
@@ -108,7 +105,7 @@ Since expressions may affect their context (via conditionals and returns), we us
 
   proof-tree(rule(name: "FieldAccess", typeExpr($Gamma$, $Delta$, $sigma$, $p.f$, $tau$, $Gamma$, $Delta$), typeExpr($Gamma$, $Delta$, $sigma$, $p$, $C$, $Gamma$, $Delta$), $f : tau in #fields (C)$)),
 
-  proof-tree(rule(name: "IfExpr", typeExpr($Gamma$, $Delta$, $sigma$, $#If e #Then s_1 #Else s_2$, $tau$, $Gamma'$, $Delta'$), typeExpr($Gamma$, $Delta$, $sigma$, $e$, $#Bool$, $Gamma$, $Delta$), typeStmt($Gamma, diamond_i$, $Delta$, $sigma$, $s_1$, $Gamma', diamond_i$, $Delta'$), typeStmt($Gamma, diamond_i$, $Delta$, $sigma$, $s_2$, $Gamma', diamond_i$, $Delta'$))),
+  proof-tree(rule(name: "IfExpr", typeExpr($Gamma$, $Delta$, $sigma$, $#If e #Then s_1 #Else s_2$, $tau$, $Gamma$, $Delta'$), typeExpr($Gamma$, $Delta$, $sigma$, $e$, $#Bool$, $Gamma$, $Delta$), typeStmt($Gamma$, $Delta$, $sigma$, $s_1$, $Gamma'_1$, $Delta'_1$), typeStmt($Gamma$, $Delta$, $sigma$, $s_2$, $Gamma'_2$, $Delta'_2$))),
 
   proof-tree(rule(name: "Return", typeExpr($Gamma$, $Delta$, $sigma$, $#Return e$, $tau$, $dot$, $Delta$), typeExpr($Gamma$, $Delta$, $sigma$, $e$, $sigma$, $Gamma$, $Delta$))),
 )
