@@ -2,8 +2,9 @@
 
 #import "@preview/curryst:0.3.0": rule, proof-tree
 
-// Language name
+// Language names
 #let Lbase = $cal(L)_sans("Base")$
+#let Lclass = $cal(L)_sans("Class")$
 
 // Contexts
 #let ctx = $thin upright("ctx")$

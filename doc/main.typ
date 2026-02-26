@@ -32,7 +32,12 @@
 #outline(indent: auto)
 
 // Content
+#pagebreak()
 #include "sections/base.typ"
 
+#pagebreak()
+#include "sections/class.typ"
+
+#pagebreak()
 // Bibliography
 #bibliography("refs.bib", title: "Bibliography", style: "apa")
