@@ -54,23 +54,13 @@ $
 
 The loop delimiter is introduced when entering the body of a while loop ($diamond_w$), and is removed either at the end of the body, or during early return.
 
-In order to model heap allocations, we have a second typing context $Delta$ for things on the heap:
-$
-Delta ::=& dot |& Delta, a : tau
-$
-
 === Well Formed Contexts
-We introduce a judgement $Gamma #ctx$, and $Delta #ctx$ to denote well formed contexts (WFCs) and heaps (WFHs). WFCs/WFHs are defined inductively:
+We introduce a judgement $Gamma #ctx$ to denote well formed contexts (WFCs). WFCs are defined inductively:
 
 #mathpar(
   proof-tree(rule(name: "CtxEmp", $dot #ctx$)),
   proof-tree(rule(name: "CtxVarExt", $Gamma, x : tau #ctx$, $x in.not Gamma$, $Gamma #ctx$)),
   proof-tree(rule(name: "CtxLoopDelimiter", $Gamma, diamond_w #ctx$, $Gamma #ctx$))
-)
-
-#mathpar(
-  proof-tree(rule(name: "HeapCtxEmp", $dot #ctx$)),
-  proof-tree(rule(name: "HeapCtxExt", $Delta, a : tau #ctx$, $a in.not Delta$, $Delta #ctx$)),
 )
 
 $x in.not Gamma$ is bookkeeping for ensuring all names are distinct, and isn't strictly needed. Membership checking and lookup are defined in the usual way.
@@ -93,40 +83,40 @@ Herein we discuss the type system of #Lbase. Mostly it's a straightforward appro
 The approach to type checking begins by adding all method declarations to a (global) context of methods, thereby assuming that method type declarations are always correct. Once this pass is done, the body of each method (if given) is checked according to the statement rules.
 
 === Expression Types
-Since expressions may affect their context (via conditionals and returns), we use the judgement form #typeExpr($Gamma$, $Delta$, $sigma$, $e$, $tau$, $Gamma'$, $Delta'$), where $sigma$ is the current method's return type. For most expressions, the output context is identical to the input.
+Since expressions may affect their context (via conditionals and returns), we use the judgement form #typeExpr($Gamma$, $sigma$, $e$, $tau$, $Gamma'$), where $sigma$ is the current method's return type. For most expressions, the output context is identical to the input.
 
 #mathpar(
-  proof-tree(rule(name: "TrueConst", typeExpr($Gamma$, $Delta$, $sigma$, $#True$, $#Bool$, $Gamma$, $Delta$))),
-  proof-tree(rule(name: "FalseConst", typeExpr($Gamma$, $Delta$, $sigma$, $#False$, $#Bool$, $Gamma$, $Delta$))),
-  proof-tree(rule(name: "NatConst", typeExpr($Gamma$, $Delta$, $sigma$, $n$, $#Nat$, $Gamma$, $Delta$), $n in bb(N)$)),
-  proof-tree(rule(name: "NullConst", typeExpr($Gamma$, $Delta$, $sigma$, $#Null$, $tau$, $Gamma$, $Delta$))),
+  proof-tree(rule(name: "TrueConst", typeExpr($Gamma$, $sigma$, $#True$, $#Bool$, $Gamma$))),
+  proof-tree(rule(name: "FalseConst", typeExpr($Gamma$, $sigma$, $#False$, $#Bool$, $Gamma$))),
+  proof-tree(rule(name: "NatConst", typeExpr($Gamma$, $sigma$, $n$, $#Nat$, $Gamma$), $n in bb(N)$)),
+  proof-tree(rule(name: "NullConst", typeExpr($Gamma$, $sigma$, $#Null$, $tau$, $Gamma$))),
 
-  proof-tree(rule(name: "VarAccess", typeExpr($Gamma, x : tau$, $Delta$, $sigma$, $x$, $tau$, $Gamma, x : tau$, $Delta$))),
+  proof-tree(rule(name: "VarAccess", typeExpr($Gamma, x : tau$, $sigma$, $x$, $tau$, $Gamma, x : tau$))),
 
-  proof-tree(rule(name: "FieldAccess", typeExpr($Gamma$, $Delta$, $sigma$, $p.f$, $tau$, $Gamma$, $Delta$), typeExpr($Gamma$, $Delta$, $sigma$, $p$, $C$, $Gamma$, $Delta$), $f : tau in #fields (C)$)),
+  proof-tree(rule(name: "FieldAccess", typeExpr($Gamma$, $sigma$, $p.f$, $tau$, $Gamma$), typeExpr($Gamma$, $sigma$, $p$, $C$, $Gamma$), $f : tau in #fields (C)$)),
 
-  proof-tree(rule(name: "IfExpr", typeExpr($Gamma$, $Delta$, $sigma$, $#If e #Then s_1 #Else s_2$, $tau$, $Gamma$, $Delta'$), typeExpr($Gamma$, $Delta$, $sigma$, $e$, $#Bool$, $Gamma$, $Delta$), typeStmt($Gamma$, $Delta$, $sigma$, $s_1$, $Gamma'_1$, $Delta'_1$), typeStmt($Gamma$, $Delta$, $sigma$, $s_2$, $Gamma'_2$, $Delta'_2$))),
+  proof-tree(rule(name: "IfExpr", typeExpr($Gamma$, $sigma$, $#If e #Then s_1 #Else s_2$, $tau$, $Gamma$), typeExpr($Gamma$, $sigma$, $e$, $#Bool$, $Gamma$), typeStmt($Gamma$, $sigma$, $s_1$, $Gamma'_1$), typeStmt($Gamma$, $sigma$, $s_2$, $Gamma'_2$))),
 
-  proof-tree(rule(name: "Return", typeExpr($Gamma$, $Delta$, $sigma$, $#Return e$, $tau$, $dot$, $Delta$), typeExpr($Gamma$, $Delta$, $sigma$, $e$, $sigma$, $Gamma$, $Delta$))),
+  proof-tree(rule(name: "Return", typeExpr($Gamma$, $sigma$, $#Return e$, $tau$, $dot$), typeExpr($Gamma$, $sigma$, $e$, $sigma$, $Gamma$))),
 )
 
 Note that $#Null$ is a member of all types in this system. $#Return$ has type $tau$ for any $tau$ since it never produces a value. $#If$ has type $tau$ for any $tau$ since its branches are statements.
 #jq[Subtyping with null?]
 
 === Statement Types
-Typing statements is more involved. Since statements may update their context, we use a "small-step" typing judgement form #typeStmt($Gamma$, $Delta$, $sigma$, $s$, $Gamma'$, $Delta'$), where $Gamma$ represents the context before the statement runs, $Gamma'$ represents the context after the statement runs (likewise for the heap $Delta$), and $sigma$ is the current method's return type.
+Typing statements is more involved. Since statements may update their context, we use a "small-step" typing judgement form #typeStmt($Gamma$, $sigma$, $s$, $Gamma'$), where $Gamma$ represents the context before the statement runs, $Gamma'$ represents the context after the statement runs, and $sigma$ is the current method's return type.
 
 #mathpar(
-  proof-tree(rule(name: "VarDecl", typeStmt($Gamma$, $Delta$, $sigma$, $#Var x : tau$, $Gamma, x : tau$, $Delta$), $x in.not Gamma$)),
-  proof-tree(rule(name: "VarAssign", typeStmt($Gamma, x : tau$, $Delta$, $sigma$, $x = e$, $Gamma'$, $Delta'$), typeExpr($Gamma, x : tau$, $Delta$, $sigma$, $e$, $tau$, $Gamma'$, $Delta'$))),
+  proof-tree(rule(name: "VarDecl", typeStmt($Gamma$, $sigma$, $#Var x : tau$, $Gamma, x : tau$), $x in.not Gamma$)),
+  proof-tree(rule(name: "VarAssign", typeStmt($Gamma, x : tau$, $sigma$, $x = e$, $Gamma'$), typeExpr($Gamma, x : tau$, $sigma$, $e$, $tau$, $Gamma'$))),
 
-  proof-tree(rule(name: "Seq", typeStmt($Gamma$, $Delta$, $sigma$, $s_1; s_2$, $Gamma''$, $Delta''$), typeStmt($Gamma$, $Delta$, $sigma$, $s_1$, $Gamma'$, $Delta'$), typeStmt($Gamma'$, $Delta'$, $sigma$, $s_2$, $Gamma''$, $Delta''$))),
+  proof-tree(rule(name: "Seq", typeStmt($Gamma$, $sigma$, $s_1; s_2$, $Gamma''$), typeStmt($Gamma$, $sigma$, $s_1$, $Gamma'$), typeStmt($Gamma'$, $sigma$, $s_2$, $Gamma''$))),
 
-  proof-tree(rule(name: "CallStmt", typeStmt($Gamma$, $Delta$, $sigma$, $m(e_1, e_2, ...)$, $Gamma$, $Delta$), $m : (tau_1, tau_2, ...): \_$, typeExpr($Gamma$, $Delta$, $sigma$, $e_i$, $tau_i$, $Gamma$, $Delta$))),
+  proof-tree(rule(name: "CallStmt", typeStmt($Gamma$, $sigma$, $m(e_1, e_2, ...)$, $Gamma$), $m : (tau_1, tau_2, ...): \_$, typeExpr($Gamma$, $sigma$, $e_i$, $tau_i$, $Gamma$))),
 
-  proof-tree(rule(name: "WhileLoop", typeStmt($Gamma$, $Delta$, $sigma$, $#While c { s }$, $Gamma$, $Delta'$), typeExpr($Gamma$, $Delta$, $sigma$, $c$, $#Bool$, $Gamma$, $Delta$), typeStmt($Gamma, diamond_w$, $Delta$, $sigma$, $s$, $Gamma'$, $Delta'$), $drop(Gamma') = Gamma, diamond_w$)),
+  proof-tree(rule(name: "WhileLoop", typeStmt($Gamma$, $sigma$, $#While c { s }$, $Gamma$), typeExpr($Gamma$, $sigma$, $c$, $#Bool$, $Gamma$), typeStmt($Gamma, diamond_w$, $sigma$, $s$, $Gamma'$), $drop(Gamma') = Gamma, diamond_w$)),
 
-  proof-tree(rule(name: "Break", typeStmt($Gamma$, $Delta$, $sigma$, $#Break$, $drop(Gamma)$, $Delta$))),
+  proof-tree(rule(name: "Break", typeStmt($Gamma$, $sigma$, $#Break$, $drop(Gamma)$))),
 )
 
 #jc[IfExpr is very restrictive; we should check with Komi to see exactly what we want here, especially since classes will make things a lot more complicated. Likely we will need some type unification over contexts/heaps here for the branches.]
@@ -151,7 +141,7 @@ Consider carefully a method with the body $#Return #Null ; #Return 1$. We obviou
 We introduce a final typing judgement $tack.r m(x_i : tau_i): sigma { s }$ to ascribe types for method definitions.
 
 #mathpar(
-  proof-tree(rule(name: "Method", $tack.r m(x_i : tau_i): sigma { s }$, typeStmt($x_i : tau_i$, $Delta$, $sigma$, $s$, $dot$, $Delta'$)))
+  proof-tree(rule(name: "Method", $tack.r m(x_i : tau_i): sigma { s }$, typeStmt($x_i : tau_i$, $sigma$, $s$, $dot$)))
 )
 
 Since methods are typed in empty contexts, the body is checked with only the arguments in scope and the return type $sigma$ annotating the judgement. The output context must be $dot$, forcing all arguments and local definitions to be dropped, which in turn means that we can only exit a method via an explicit return statement.

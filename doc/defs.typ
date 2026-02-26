@@ -23,10 +23,10 @@
 }
 
 // Judgement forms
-// Expression typing: Γ | Δ ⊢_σ e : τ ⊣ Γ' | Δ'
-#let typeExpr(gin, din, ret, e, t, gout, dout) = $#gin | #din tack.r_(#ret) #e : #t tack.l #gout | #dout$
-// Statement typing: Γ | Δ ⊢_σ s ⊣ Γ' | Δ'
-#let typeStmt(gin, din, ret, s, gout, dout) = $#gin | #din tack.r_(#ret) #s tack.l #gout | #dout$
+// Expression typing: Γ ⊢_σ e : τ ⊣ Γ'
+#let typeExpr(gin, ret, e, t, gout) = $#gin tack.r_(#ret) #e : #t tack.l #gout$
+// Statement typing: Γ ⊢_σ s ⊣ Γ'
+#let typeStmt(gin, ret, s, gout) = $#gin tack.r_(#ret) #s tack.l #gout$
 
 // CESK machine state: ⟨C | E | S | K⟩
 #let cesk(c, e, s, k) = $chevron.l #c | #e | #s | #k chevron.r$
