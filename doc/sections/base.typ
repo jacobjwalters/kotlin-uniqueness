@@ -216,7 +216,7 @@ The machine state is a 4-tuple $#cesk($C$, $E$, $S$, $K$)$:
   [$K$], [Continuation], [Stack of continutations],
 )
 
-==== Control
+==== Control ($C$)
 The control component holds whatever syntactic construct the machine is currently processing:
 
 $
