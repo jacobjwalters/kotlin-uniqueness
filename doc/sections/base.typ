@@ -223,7 +223,7 @@ $
 
 The environment is an ordered, rightwards-growing list of variable-to-value bindings. Lookup finds the rightmost binding for a given variable name (permitting shadowing). Update ($E[x |-> v]$) modifies the rightmost binding of $x$ in place.
 
-The environment is extended when variables are declared ($#Var x : tau$ adds $x := #Null$ to the rightmost position) and individual bindings are updated on assignment ($x = v$ updates the rightmost $x$). The environment is saved and restored across method calls: $#callK (E)$ preserves the caller's environment on the continuation, and restores it when the method returns.
+The environment is extended when variables are declared ($#Var x : tau$ adds $x := #Null$ to the rightmost position) and individual bindings are updated on assignment ($x = v$ updates the rightmost $x$). We write $|E|$ for the number of bindings in $E$, and $#trunc($E$, $n$)$ for $E$ truncated to its first $n$ bindings. The environment is saved and restored across method calls: $#callK (E)$ preserves the caller's environment on the continuation, and restores it when the method returns.
 
 ==== Store ($S$)
 $
@@ -239,7 +239,8 @@ The continuation is a stack of frames that describes what to do after the curren
 $
 K ::=& #halt && "Program complete" \
   |& #fieldK (f) dot.c K && "After evaluating path, look up field" f \
-  |& #ifK (s_1, s_2) dot.c K && "After evaluating condition, branch" \
+  |& #ifCondK (s_1, s_2) dot.c K && "After evaluating condition, branch" \
+  |& #ifDoneK (n) dot.c K && "After branch completes, truncate" E "to" n "bindings" \
   |& #returnK dot.c K && "After evaluating return expr, begin unwinding to most recent" #callK \
   |& #assignK (x) dot.c K && "After evaluating RHS, assign to" x "in" E \
   |& #seqK (s) dot.c K && "After first statement completes, continue with" s \
@@ -273,10 +274,18 @@ Chains compose naturally: $x.f.g$ pushes $#fieldK (g)$ then $#fieldK (f)$.
 
 ==== If Expression
 #mathpar(
-  proof-tree(rule(name: "If", $#cesk($#If e #Then s_1 #Else s_2$, $E$, $S$, $K$) ~> #cesk($e$, $E$, $S$, $#ifK (s_1, s_2) dot.c K$)$)),
-  proof-tree(rule(name: "IfTrue", $#cesk($#True$, $E$, $S$, $#ifK (s_1, s_2) dot.c K$) ~> #cesk($s_1$, $E$, $S$, $K$)$)),
-  proof-tree(rule(name: "IfFalse", $#cesk($#False$, $E$, $S$, $#ifK (s_1, s_2) dot.c K$) ~> #cesk($s_2$, $E$, $S$, $K$)$)),
+  proof-tree(rule(name: "If", $#cesk($#If e #Then s_1 #Else s_2$, $E$, $S$, $K$) ~> #cesk($e$, $E$, $S$, $#ifCondK (s_1, s_2) dot.c K$)$)),
+  proof-tree(rule(name: "IfTrue", $#cesk($#True$, $E$, $S$, $#ifCondK (s_1, s_2) dot.c K$) ~> #cesk($s_1$, $E$, $S$, $#ifDoneK (|E|) dot.c K$)$)),
+  proof-tree(rule(name: "IfFalse", $#cesk($#False$, $E$, $S$, $#ifCondK (s_1, s_2) dot.c K$) ~> #cesk($s_2$, $E$, $S$, $#ifDoneK (|E|) dot.c K$)$)),
+  proof-tree(rule(name: "IfNull", $#cesk($#Null$, $E$, $S$, $#ifCondK (s_1, s_2) dot.c K$) ~> #cesk($s_2$, $E$, $S$, $#ifDoneK (|E|) dot.c K$)$)),
 )
+$#Null$ is treated as falsy.
+
+When a branch completes, the environment is truncated to its pre-branch scope depth, dropping branch-local declarations while preserving mutations to outer-scope variables:
+#mathpar(
+  proof-tree(rule(name: "IfDone", $#cesk($#Skip$, $E$, $S$, $#ifDoneK (n) dot.c K$) ~> #cesk($#Skip$, $#trunc($E$, $n$)$, $S$, $K$)$)),
+)
+This ensures branch-local declarations are truly local at run-time, matching the typing discipline.
 
 ==== Return Expression
 #mathpar(
@@ -347,6 +356,8 @@ Unwinding signals ($#breaking$ and $#returning (v)$) propagate through the conti
   proof-tree(rule(name: "BreakAssign", $#cesk($#breaking$, $E$, $S$, $#assignK (x) dot.c K$) ~> #cesk($#breaking$, $E$, $S$, $K$)$)),
   proof-tree(rule(name: "BreakReturn", $#cesk($#breaking$, $E$, $S$, $#returnK dot.c K$) ~> #cesk($#breaking$, $E$, $S$, $K$)$)),
   proof-tree(rule(name: "BreakArg", $#cesk($#breaking$, $E$, $S$, $#argK (m, overline(v), overline(e)) dot.c K$) ~> #cesk($#breaking$, $E$, $S$, $K$)$)),
+  proof-tree(rule(name: "BreakIfCond", $#cesk($#breaking$, $E$, $S$, $#ifCondK (s_1, s_2) dot.c K$) ~> #cesk($#breaking$, $E$, $S$, $K$)$)),
+  proof-tree(rule(name: "BreakIfDone", $#cesk($#breaking$, $E$, $S$, $#ifDoneK (n) dot.c K$) ~> #cesk($#breaking$, $E$, $S$, $K$)$)),
   proof-tree(rule(name: "BreakLoop", $#cesk($#breaking$, $E$, $S$, $#loopK (c, s) dot.c K$) ~> #cesk($#Skip$, $E$, $S$, $K$)$)),
 )
 $#breaking$ at $#callK$ is stuck; the type system guarantees this cannot happen ($#Break$ is only well-typed inside a loop body). $#breaking$ at $#fieldK$ is unreachable; paths are syntactically restricted to variable/field chains and cannot contain statements.
@@ -357,6 +368,8 @@ $#breaking$ at $#callK$ is stuck; the type system guarantees this cannot happen 
   proof-tree(rule(name: "RetAssign", $#cesk($#returning (v)$, $E$, $S$, $#assignK (x) dot.c K$) ~> #cesk($#returning (v)$, $E$, $S$, $K$)$)),
   proof-tree(rule(name: "RetReturn", $#cesk($#returning (v)$, $E$, $S$, $#returnK dot.c K$) ~> #cesk($#returning (v)$, $E$, $S$, $K$)$)),
   proof-tree(rule(name: "RetArg", $#cesk($#returning (v)$, $E$, $S$, $#argK (m, overline(v), overline(e)) dot.c K$) ~> #cesk($#returning (v)$, $E$, $S$, $K$)$)),
+  proof-tree(rule(name: "RetIfCond", $#cesk($#returning (v)$, $E$, $S$, $#ifCondK (s_1, s_2) dot.c K$) ~> #cesk($#returning (v)$, $E$, $S$, $K$)$)),
+  proof-tree(rule(name: "RetIfDone", $#cesk($#returning (v)$, $E$, $S$, $#ifDoneK (n) dot.c K$) ~> #cesk($#returning (v)$, $E$, $S$, $K$)$)),
   proof-tree(rule(name: "RetLoop", $#cesk($#returning (v)$, $E$, $S$, $#loopK (c, s) dot.c K$) ~> #cesk($#returning (v)$, $E$, $S$, $K$)$)),
   proof-tree(rule(name: "ReturnCall", $#cesk($#returning (v)$, $E$, $S$, $#callK (E') dot.c K$) ~> #cesk($#Skip$, $E'$, $S$, $K$)$)),
 )
@@ -373,7 +386,7 @@ $
 $
 
 === Design Note: Environment Scoping
-The environment $E$ grows monotonically; variables declared in inner scopes (loop bodies, if branches) remain in $E$ after scope exit. This is semantically safe because the type system prevents references to out-of-scope variables. However, for the eventual uniqueness/borrowing system, dangling bindings in $E$ to heap objects could interfere with aliasing analysis. If this becomes an issue, $#loopK$ and $#callK$ can be extended to save/restore $E$.
+Loop bodies grow $E$ monotonically; variables declared in a loop body remain in $E$ after the loop exits. This is semantically safe because the type system prevents references to out-of-scope variables. However, for the eventual uniqueness/borrowing system, dangling bindings in $E$ to heap objects could interfere with aliasing analysis. If this becomes an issue, $#loopK$ can be extended to save/restore $E$ similarly to $#ifDoneK$.
 
 === Theorems and Lemmata
 Given a well-typed program $P$ and a state $#cesk($C$, $E$, $S$, $K$)$ reachable from the initial state:

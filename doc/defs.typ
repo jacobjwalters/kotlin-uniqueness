@@ -8,6 +8,7 @@
 // Contexts
 #let ctx = $thin upright("ctx")$
 #let drop = math.op("drop")
+#let trunc(e, n) = $#e attach(arrow.b, br: #n)$
 #let normalise = math.op("normalise")
 #let body = math.op("body")
 #let args = math.op("args")
@@ -62,7 +63,8 @@
 
 // CESK continuation frames
 #let fieldK = math.op("fieldK")
-#let ifK = math.op("ifK")
+#let ifCondK = math.op("ifCondK")
+#let ifDoneK = math.op("ifDoneK")
 #let returnK = $sans("returnK")$
 #let assignK = math.op("assignK")
 #let seqK = math.op("seqK")
