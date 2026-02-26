@@ -2,7 +2,7 @@
 
 = #Lbase
 
-#Lbase is a simple typed language consisting of sequentially ordered statements with classes and method calls. There are no modes, and no lambdas
+#Lbase is a simple typed language consisting of sequentially ordered statements with classes and method calls. There are no modes, and no lambdas.
 
 == Syntax
 

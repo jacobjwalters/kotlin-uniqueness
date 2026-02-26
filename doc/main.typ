@@ -7,7 +7,8 @@
 )
 
 #set page(paper: "a4")
-#set text(font: "New Computer Modern")
+//#set text(font: "New Computer Modern")
+#set page(numbering: "1")
 #set heading(numbering: "1.1")
 
 // Hyperlinks
