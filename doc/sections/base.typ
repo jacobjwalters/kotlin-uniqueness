@@ -95,21 +95,27 @@ Sequencing threads the context produced as the output of the first statement int
 
 - *Output Context Determinacy:* if #typeStmt($Gamma$, $s$, $Gamma_1$) and #typeStmt($Gamma$, $s$, $Gamma_2$), then $Gamma_1 = Gamma_2$.
 
-- *Expression Weakening (Extension):* if #typeExpr($Gamma$, $e$, $tau$) and $Gamma$ is a prefix of $Gamma'$, then #typeExpr($Gamma'$, $e$, $tau$).
+- *Expression Weakening (Extension):* if #typeExpr($Gamma$, $e$, $tau$) and $Gamma$ is a suffix of $Gamma'$, then #typeExpr($Gamma'$, $e$, $tau$).
 
 - *Expression Weakening (Permutation):* if #typeExpr($Gamma$, $e$, $tau$) and for all $x in op("dom")(Gamma)$, $Gamma(x) = Gamma'(x)$, then #typeExpr($Gamma'$, $e$, $tau$).
 
-- *Statement Weakening (Extension):* if #typeStmt($Gamma$, $s$, $Gamma, Delta$) and $Gamma$ is a prefix of $Gamma'$, then #typeStmt($Gamma'$, $s$, $Gamma', Delta$).
+- *Statement Weakening (Extension):* if #typeStmt($Gamma$, $s$, $Gamma, Delta$) and $Gamma$ is a suffix of $Gamma'$, then #typeStmt($Gamma'$, $s$, $Gamma', Delta$).
 
 - *Statement Weakening (Permutation):* if #typeStmt($Gamma$, $s$, $Gamma, Delta$) and for all $x in op("dom")(Gamma)$, $Gamma(x) = Gamma'(x)$, then #typeStmt($Gamma'$, $s$, $Gamma', Delta$).
 
 Note that in the statement weakening properties, $Gamma, Delta$ refers to $Gamma$ concatenated with another context $Delta$; $Delta$ is *not* a heap. We can't extend by a single variable as in the expression weakening rules since compound statements may extend $Gamma$ with any number of new variables.
 
+- *Scope Marker Weakening (Expressions):* if #typeExpr($Gamma$, $e$, $tau$), then #typeExpr($Gamma, #scopeMark($ell$)$, $e$, $tau$).
+
+- *Scope Marker Weakening (Statements):* if #typeStmt($Gamma$, $s$, $Gamma, Delta$), then #typeStmt($Gamma, #scopeMark($ell$)$, $s$, $Gamma, #scopeMark($ell$), Delta$).
+
+Inserting a scope marker preserves typing since lookup skips markers. These properties bridge the source-level typing (without markers) and the continuation typing (with markers).
+
 == Evaluation
 Evaluation of an #Lbase program begins with a program statement $s$. We define the operational semantics as a CEK machine; a state machine that makes evaluation order explicit via a continuation stack. We also introduce a run-time language.
 
 === Run-time Language
-The CEK machine operates on a run-time language that extends the source syntax with run-time-only forms. This language is a strict extension of the source language; it has one additional syntactic construct, with a corresponding typing rule. We should show all of the properties of the source langauge's type system hold for the run-time language's type system.
+The CEK machine operates on a run-time language that extends the source syntax with run-time-only forms. This language is a strict extension of the source language; it has one additional syntactic construct, with a corresponding typing rule. We should show all of the properties of the source language's type system hold for the run-time language's type system.
 
 ==== Values
 Values are fully evaluated expressions:
@@ -117,6 +123,8 @@ Values are fully evaluated expressions:
 $
 v ::=& #True |& #False |& n in bb(N)
 $
+
+We write $tack.r v : tau$ for value typing: $tack.r #True : #Bool$, $tack.r #False : #Bool$, and $tack.r n : #Nat$ for $n in bb(N)$.
 
 ==== Completion Marker
 $#Skip$ is a run-time-only completion marker indicating that a statement has been fully executed. It does not appear in the source program. Since $#Skip$ can appear in the control during evaluation, it needs a typing rule:
@@ -190,8 +198,6 @@ $
 - $#declK (x : tau)$ waits for the initialiser expression to evaluate to a value $v$ of type $tau$, then extends the environment with $x := v$.
 - $#assignK (x)$ waits for the RHS expression to evaluate to a value $v$, then updates the environment with $E[x |-> v]$.
 - $#seqK (s)$ waits for the first statement to complete, then loads $s$ into the control.
-
-These notes model the stack as an explicit list. For formalisation purposes, it may be easier to model the stack as an implicit list, where each continuation has a "next" field.
 
 === Transition Rules
 We define a multi-step judgement $ms$ in the usual way.
