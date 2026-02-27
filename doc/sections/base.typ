@@ -7,8 +7,13 @@
 #let typeStmt(gin, s, gout) = $#gin tack.r #s tack.l #gout$
 // CEK machine state: ⟨C | E | K⟩ (no store S)
 #let cek(c, e, k) = $chevron.l #c | #e | #k chevron.r$
-// Local continuation frame for variable declaration
+// Local continuation frames
 #let declK = math.op("declK")
+#let jumpK = math.op("jumpK")
+// Scope marker: ◇_ℓ
+#let scopeMark(l) = $diamond.stroked_#l$
+// Pop operation: pop(E, ℓ)
+#let pop(e, l) = $op("pop") (#e, #l)$
 
 = #Lbase
 
@@ -140,12 +145,21 @@ Expression evaluation terminates with a value $v$ in the control. Statement exec
 ==== Environment ($E$)
 $
 E ::=& dot && "Empty" \
-  |& E, x := v && "Variable binding"
+  |& E, x := v && "Variable binding" \
+  |& E, #scopeMark($ell$) && "Scope boundary (labeled" ell ")"
 $
 
-The environment is an ordered, rightwards-growing list of variable-to-value bindings. Lookup finds the rightmost binding for a given variable name (permitting shadowing). Update ($E[x |-> v]$) modifies the rightmost binding of $x$ in place.
+The environment is an ordered, rightwards-growing list of variable-to-value bindings interspersed with labeled scope markers. Lookup and update scan right-to-left, skipping scope markers. Lookup finds the rightmost binding for a given variable name (permitting shadowing). Update ($E[x |-> v]$) modifies the rightmost binding of $x$ in place.
 
-The environment is extended when variables are declared ($#Var x : tau = e$ adds $x := v$ to the rightmost position, where $v$ is the value of $e$) and individual bindings are updated on assignment ($x = v$ updates the rightmost $x$). We write $|E|$ for the number of bindings in $E$, and $#trunc($E$, $n$)$ for $E$ truncated to its first $n$ bindings.
+The environment is extended when variables are declared ($#Var x : tau = e$ adds $x := v$ to the rightmost position, where $v$ is the value of $e$) and individual bindings are updated on assignment ($x = v$ updates the rightmost $x$). Scoping constructs push a labeled scope marker $#scopeMark($ell$)$ before entering a new scope. The operation $#pop($E$, $ell$)$ removes everything from the rightmost $#scopeMark($ell$)$ (inclusive) to the end of $E$:
+
+$
+#pop($E, #scopeMark($ell$)$, $ell$) &= E \
+#pop($E, x := v$, $ell$) &= #pop($E$, $ell$) \
+#pop($E, #scopeMark($ell'$)$, $ell$) &= #pop($E$, $ell$) && quad ell' != ell
+$
+
+Note that $#pop($dot$, $ell$)$ is undefined; the type system ensures a matching marker is always present.
 
 ==== Continuation ($K$)
 The continuation is a stack of frames that describes what to do after the current control finishes:
@@ -153,7 +167,7 @@ The continuation is a stack of frames that describes what to do after the curren
 $
 K ::=& #halt && "Program complete" \
   |& #ifCondK (s_1, s_2) dot.c K && "After evaluating condition, branch" \
-  |& #ifDoneK (n) dot.c K && "After branch completes, truncate" E "to" n "bindings" \
+  |& #jumpK (ell) dot.c K && "After scoped block completes, pop to" #scopeMark($ell$) \
   |& #declK (x) dot.c K && "After evaluating initialiser, bind" x "in" E \
   |& #assignK (x) dot.c K && "After evaluating RHS, assign to" x "in" E \
   |& #seqK (s) dot.c K && "After first statement completes, continue with" s
@@ -161,7 +175,7 @@ $
 
 - $#halt$ signals that the program is finished; a terminal state is $#cek($#Skip$, $E$, $#halt$)$.
 - $#ifCondK (s_1, s_2)$ waits for the condition expression to evaluate to a value, then dispatches to the appropriate branch.
-- $#ifDoneK (n)$ waits for the chosen branch to complete, then truncates the environment to its first $n$ bindings, dropping branch-local declarations while preserving mutations to outer-scope variables.
+- $#jumpK (ell)$ waits for a scoped block to complete, then pops the environment to the rightmost $#scopeMark($ell$)$, dropping scope-local declarations while preserving mutations to outer-scope variables.
 - $#declK (x)$ waits for the initialiser expression to evaluate to a value $v$, then extends the environment with $x := v$.
 - $#assignK (x)$ waits for the RHS expression to evaluate to a value $v$, then updates the environment with $E[x |-> v]$.
 - $#seqK (s)$ waits for the first statement to complete, then loads $s$ into the control.
@@ -178,15 +192,16 @@ Look up the rightmost binding of $x$ in $E$.
 ==== If Statement
 #mathpar(
   proof-tree(rule(name: "If", $#cek($#If e #Then s_1 #Else s_2$, $E$, $K$) ~> #cek($e$, $E$, $#ifCondK (s_1, s_2) dot.c K$)$)),
-  proof-tree(rule(name: "IfTrue", $#cek($#True$, $E$, $#ifCondK (s_1, s_2) dot.c K$) ~> #cek($s_1$, $E$, $#ifDoneK (|E|) dot.c K$)$)),
-  proof-tree(rule(name: "IfFalse", $#cek($#False$, $E$, $#ifCondK (s_1, s_2) dot.c K$) ~> #cek($s_2$, $E$, $#ifDoneK (|E|) dot.c K$)$)),
+  proof-tree(rule(name: "IfTrue", $#cek($#True$, $E$, $#ifCondK (s_1, s_2) dot.c K$) ~> #cek($s_1$, $E, #scopeMark($"if"$)$, $#jumpK ("if") dot.c K$)$)),
+  proof-tree(rule(name: "IfFalse", $#cek($#False$, $E$, $#ifCondK (s_1, s_2) dot.c K$) ~> #cek($s_2$, $E, #scopeMark($"if"$)$, $#jumpK ("if") dot.c K$)$)),
 )
+When dispatching to a branch, a scope marker $#scopeMark($"if"$)$ is pushed onto the environment and $#jumpK ("if")$ onto the continuation.
 
-When a branch completes, the environment is truncated to its pre-branch scope depth, dropping branch-local declarations while preserving mutations to existing variables:
+==== Scope Pop
 #mathpar(
-  proof-tree(rule(name: "IfDone", $#cek($#Skip$, $E$, $#ifDoneK (n) dot.c K$) ~> #cek($#Skip$, $#trunc($E$, $n$)$, $K$)$)),
+  proof-tree(rule(name: "ScopeDone", $#cek($#Skip$, $E$, $#jumpK (ell) dot.c K$) ~> #cek($#Skip$, $#pop($E$, $ell$)$, $K$)$)),
 )
-This ensures branch-local declarations are truly local at run-time, while mutations to outer-scope variables remain visible, matching the typing discipline.
+When a scoped block completes, $#pop($E$, $ell$)$ removes everything from the rightmost $#scopeMark($ell$)$ to the end of $E$, dropping scope-local declarations while preserving mutations to outer-scope variables.
 
 ==== Variable Declaration
 #mathpar(
@@ -217,7 +232,7 @@ $
 
 === Properties
 
-We say $E$ _models_ $Gamma$ when $E$ and $Gamma$ bind the same variables in the same order and for all $x in op("dom")(Gamma)$, $tack.r E(x) : Gamma(x)$.
+We say $E$ _models_ $Gamma$ when the variable bindings of $E$ (ignoring scope markers) correspond to $Gamma$ in order, and for all $x in op("dom")(Gamma)$, $tack.r E(x) : Gamma(x)$.
 
 Given a well-typed program $s$ and a state $#cek($C$, $E$, $K$)$ reachable from the initial state over $s$:
 
@@ -229,7 +244,7 @@ Given a well-typed program $s$ and a state $#cek($C$, $E$, $K$)$ reachable from 
 
 - *Value Type Correctness:* if $E$ models $Gamma$ and $Gamma(x) = tau$, then $tack.r E(x) : tau$. (Immediate from the definition of modelling.)
 
-- *Truncation Preserves Modelling:* if $E$ models $Gamma'$ where $Gamma$ is a prefix of $Gamma'$ and $n = |Gamma|$, then $#trunc($E$, $n$)$ models $Gamma$.
+- *Pop Preserves Modelling:* if $E, #scopeMark($ell$), E'$ models $Gamma, Delta$ and $E$ models $Gamma$ (ignoring markers in $E$), then $#pop($E, #scopeMark($ell$), E'$, $ell$)$ models $Gamma$.
 
 - *Strong Normalisation:* the machine starting at $#cek($s$, $dot$, $#halt$)$ reaches a terminal state in finitely many steps.
 
