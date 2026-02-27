@@ -184,6 +184,8 @@ $
 - $#assignK (x)$ waits for the RHS expression to evaluate to a value $v$, then updates the environment with $E[x |-> v]$.
 - $#seqK (s)$ waits for the first statement to complete, then loads $s$ into the control.
 
+These notes model the stack as an explicit list. For formalisation purposes, it may be easier to model the stack as an implicit list, where each continuation has a "next" field.
+
 === Transition Rules
 We define a multi-step judgement $ms$ in the usual way.
 
