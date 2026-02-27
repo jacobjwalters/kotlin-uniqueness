@@ -16,6 +16,8 @@
 #let scopeMark(l) = $diamond.stroked_#l$
 // Pop operation: pop(E, ℓ)
 #let pop(e, l) = $op("pop") (#e, #l)$
+// Coherence: E ~ Γ
+#let coh(e, g) = $#e tilde #g$
 
 = #Lbase
 
@@ -216,7 +218,15 @@ $
 
 === Properties
 
-We say $E$ _models_ $Gamma$ when the variable bindings of $E$ (ignoring scope markers) correspond to $Gamma$ in order, and for all $x in op("dom")(Gamma)$, $tack.r E(x) : Gamma(x)$.
+We define _coherence_ between an environment and a context, written $#coh($E$, $Gamma$)$, inductively:
+
+#mathpar(
+  proof-tree(rule(name: "CohEmp", $#coh($dot$, $dot$)$)),
+  proof-tree(rule(name: "CohBind", $#coh($E, x := v$, $Gamma, x : tau$)$, $#coh($E$, $Gamma$)$, $tack.r v : tau$)),
+  proof-tree(rule(name: "CohMark", $#coh($E, #scopeMark($ell$)$, $Gamma$)$, $#coh($E$, $Gamma$)$)),
+)
+
+Scope markers in $E$ are transparent to coherence; they have no counterpart in $Gamma$.
 
 Given a well-typed program $s$ and a state $#cek($C$, $E$, $K$)$ reachable from the initial state over $s$:
 
@@ -224,11 +234,9 @@ Given a well-typed program $s$ and a state $#cek($C$, $E$, $K$)$ reachable from 
 
 - *Preservation:* if the state is well-typed and can step, the resulting state is also well-typed (with the same type).
 
-- *Statement Execution Preserves Modelling:* if $E$ models $Gamma$, #typeStmt($Gamma$, $s$, $Gamma'$), and $#cekE($s$, $E$, $K$) #ms #cekC($#Skip$, $E'$, $K$)$, then $E'$ models $Gamma'$.
+- *Statement Execution Preserves Coherence:* if $#coh($E$, $Gamma$)$, #typeStmt($Gamma$, $s$, $Gamma'$), and $#cekE($s$, $E$, $K$) #ms #cekC($#Skip$, $E'$, $K$)$, then $#coh($E'$, $Gamma'$)$.
 
-- *Value Type Correctness:* if $E$ models $Gamma$ and $Gamma(x) = tau$, then $tack.r E(x) : tau$. (Immediate from the definition of modelling.)
-
-- *Pop Preserves Modelling:* if $E, #scopeMark($ell$), E'$ models $Gamma, Delta$ and $E$ models $Gamma$ (ignoring markers in $E$), then $#pop($E, #scopeMark($ell$), E'$, $ell$)$ models $Gamma$.
+- *Pop Preserves Coherence:* if $#coh($E, #scopeMark($ell$), E'$, $Gamma, Delta$)$ and $#coh($E$, $Gamma$)$, then $#coh($#pop($E, #scopeMark($ell$), E'$, $ell$)$, $Gamma$)$.
 
 - *Strong Normalisation:* the machine starting at $#cekE($s$, $dot$, $#halt$)$ reaches a terminal state in finitely many steps.
 
