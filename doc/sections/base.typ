@@ -5,8 +5,10 @@
 #let typeExpr(gin, e, t) = $#gin tack.r #e : #t$
 // Statement typing: Γ ⊢ s ⊣ Γ' (no heap Δ, no return type σ)
 #let typeStmt(gin, s, gout) = $#gin tack.r #s tack.l #gout$
-// CEK machine state: ⟨C | E | K⟩ (no store S)
+// CEK machine state: ⟨C | E | K⟩ with phase subscripts
 #let cek(c, e, k) = $chevron.l #c | #e | #k chevron.r$
+#let cekE(c, e, k) = $chevron.l #c | #e | #k chevron.r_e$
+#let cekC(c, e, k) = $chevron.l #c | #e | #k chevron.r_c$
 // Local continuation frames
 #let declK = math.op("declK")
 #let jumpK = math.op("jumpK")
@@ -119,7 +121,7 @@ $#Skip$ is a run-time-only completion marker indicating that a statement has bee
 $#Skip$ preserves the context unchanged.
 
 === Machine State
-The machine state is a 3-tuple $#cek($C$, $E$, $K$)$:
+The machine state is a 3-tuple $#cek($C$, $E$, $K$)$. The machine operates in one of two phases, indicated by a subscript on the state. In _Expr_ mode ($#cekE($C$, $E$, $K$)$), the control holds a source expression or statement to be decomposed. In _Cont_ mode ($#cekC($C$, $E$, $K$)$), the control holds a value or completion marker and the machine dispatches on the continuation.
 
 #table(
   columns: (auto, auto, 1fr),
@@ -173,7 +175,7 @@ K ::=& #halt && "Program complete" \
   |& #seqK (s) dot.c K && "After first statement completes, continue with" s
 $
 
-- $#halt$ signals that the program is finished; a terminal state is $#cek($#Skip$, $E$, $#halt$)$.
+- $#halt$ signals that the program is finished; a terminal state is $#cekC($#Skip$, $E$, $#halt$)$.
 - $#ifCondK (s_1, s_2)$ waits for the condition expression to evaluate to a value, then dispatches to the appropriate branch.
 - $#jumpK (ell)$ waits for a scoped block to complete, then pops the environment to the rightmost $#scopeMark($ell$)$, dropping scope-local declarations while preserving mutations to outer-scope variables.
 - $#declK (x)$ waits for the initialiser expression to evaluate to a value $v$, then extends the environment with $x := v$.
@@ -181,53 +183,35 @@ $
 - $#seqK (s)$ waits for the first statement to complete, then loads $s$ into the control.
 
 === Transition Rules
-Our transition judgement is $#cek($C$, $E$, $K$) ~> #cek($C'$, $E'$, $K'$)$. We define a multi-step judgement $ms$ in the usual way.
+We define a multi-step judgement $ms$ in the usual way.
 
-==== Variable Access
+==== Expr
 #mathpar(
-  proof-tree(rule(name: "Var", $#cek($x$, $E$, $K$) ~> #cek($E(x)$, $E$, $K$)$)),
+  proof-tree(rule(name: "Val", $#cekE($v$, $E$, $K$) ~> #cekC($v$, $E$, $K$)$)),
+  proof-tree(rule(name: "Var", $#cekE($x$, $E$, $K$) ~> #cekC($E(x)$, $E$, $K$)$)),
+  proof-tree(rule(name: "If", $#cekE($#If e #Then s_1 #Else s_2$, $E$, $K$) ~> #cekE($e$, $E$, $#ifCondK (s_1, s_2) dot.c K$)$)),
+  proof-tree(rule(name: "VarDecl", $#cekE($#Var x : tau = e$, $E$, $K$) ~> #cekE($e$, $E$, $#declK (x) dot.c K$)$)),
+  proof-tree(rule(name: "Assign", $#cekE($x = e$, $E$, $K$) ~> #cekE($e$, $E$, $#assignK (x) dot.c K$)$)),
+  proof-tree(rule(name: "Seq", $#cekE($s_1 ; s_2$, $E$, $K$) ~> #cekE($s_1$, $E$, $#seqK (s_2) dot.c K$)$)),
 )
-Look up the rightmost binding of $x$ in $E$.
+Val transitions a source value expression ($#True$, $#False$, $n$) into Cont mode. Var looks up the rightmost binding of $x$ in $E$. The remaining rules decompose a compound form by pushing a continuation frame.
 
-==== If Statement
+==== Cont
 #mathpar(
-  proof-tree(rule(name: "If", $#cek($#If e #Then s_1 #Else s_2$, $E$, $K$) ~> #cek($e$, $E$, $#ifCondK (s_1, s_2) dot.c K$)$)),
-  proof-tree(rule(name: "IfTrue", $#cek($#True$, $E$, $#ifCondK (s_1, s_2) dot.c K$) ~> #cek($s_1$, $E, #scopeMark($"if"$)$, $#jumpK ("if") dot.c K$)$)),
-  proof-tree(rule(name: "IfFalse", $#cek($#False$, $E$, $#ifCondK (s_1, s_2) dot.c K$) ~> #cek($s_2$, $E, #scopeMark($"if"$)$, $#jumpK ("if") dot.c K$)$)),
+  proof-tree(rule(name: "IfTrue", $#cekC($#True$, $E$, $#ifCondK (s_1, s_2) dot.c K$) ~> #cekE($s_1$, $E, #scopeMark($"if"$)$, $#jumpK ("if") dot.c K$)$)),
+  proof-tree(rule(name: "IfFalse", $#cekC($#False$, $E$, $#ifCondK (s_1, s_2) dot.c K$) ~> #cekE($s_2$, $E, #scopeMark($"if"$)$, $#jumpK ("if") dot.c K$)$)),
+  proof-tree(rule(name: "ScopeDone", $#cekC($#Skip$, $E$, $#jumpK (ell) dot.c K$) ~> #cekC($#Skip$, $#pop($E$, $ell$)$, $K$)$)),
+  proof-tree(rule(name: "VarDeclDone", $#cekC($v$, $E$, $#declK (x) dot.c K$) ~> #cekC($#Skip$, $E, x := v$, $K$)$)),
+  proof-tree(rule(name: "AssignDone", $#cekC($v$, $E$, $#assignK (x) dot.c K$) ~> #cekC($#Skip$, $E[x |-> v]$, $K$)$)),
+  proof-tree(rule(name: "SeqDone", $#cekC($#Skip$, $E$, $#seqK (s_2) dot.c K$) ~> #cekE($s_2$, $E$, $K$)$)),
 )
-When dispatching to a branch, a scope marker $#scopeMark($"if"$)$ is pushed onto the environment and $#jumpK ("if")$ onto the continuation.
-
-==== Scope Pop
-#mathpar(
-  proof-tree(rule(name: "ScopeDone", $#cek($#Skip$, $E$, $#jumpK (ell) dot.c K$) ~> #cek($#Skip$, $#pop($E$, $ell$)$, $K$)$)),
-)
-When a scoped block completes, $#pop($E$, $ell$)$ removes everything from the rightmost $#scopeMark($ell$)$ to the end of $E$, dropping scope-local declarations while preserving mutations to outer-scope variables.
-
-==== Variable Declaration
-#mathpar(
-  proof-tree(rule(name: "VarDecl", $#cek($#Var x : tau = e$, $E$, $K$) ~> #cek($e$, $E$, $#declK (x) dot.c K$)$)),
-  proof-tree(rule(name: "VarDeclDone", $#cek($v$, $E$, $#declK (x) dot.c K$) ~> #cek($#Skip$, $E, x := v$, $K$)$)),
-)
-Evaluates the initialiser $e$ to a value $v$, then extends $E$ with $x := v$.
-
-==== Variable Assignment
-#mathpar(
-  proof-tree(rule(name: "Assign", $#cek($x = e$, $E$, $K$) ~> #cek($e$, $E$, $#assignK (x) dot.c K$)$)),
-  proof-tree(rule(name: "AssignDone", $#cek($v$, $E$, $#assignK (x) dot.c K$) ~> #cek($#Skip$, $E[x |-> v]$, $K$)$)),
-)
-$E[x |-> v]$ updates the rightmost binding of $x$ in $E$.
-
-==== Sequencing
-#mathpar(
-  proof-tree(rule(name: "Seq", $#cek($s_1 ; s_2$, $E$, $K$) ~> #cek($s_1$, $E$, $#seqK (s_2) dot.c K$)$)),
-  proof-tree(rule(name: "SeqDone", $#cek($#Skip$, $E$, $#seqK (s_2) dot.c K$) ~> #cek($s_2$, $E$, $K$)$)),
-)
+IfTrue/IfFalse push a scope marker $#scopeMark($"if"$)$ and $#jumpK ("if")$ before entering a branch. ScopeDone pops the environment to the rightmost $#scopeMark($ell$)$. $E[x |-> v]$ updates the rightmost binding of $x$ in $E$.
 
 === Initial and Terminal States
 
 $
-"Initial:" && #cek($s$, $dot$, $#halt$) && "where" s "is the program" \
-"Terminal:" && #cek($#Skip$, $E$, $#halt$)
+"Initial:" && #cekE($s$, $dot$, $#halt$) && "where" s "is the program" \
+"Terminal:" && #cekC($#Skip$, $E$, $#halt$)
 $
 
 === Properties
@@ -236,16 +220,16 @@ We say $E$ _models_ $Gamma$ when the variable bindings of $E$ (ignoring scope ma
 
 Given a well-typed program $s$ and a state $#cek($C$, $E$, $K$)$ reachable from the initial state over $s$:
 
-- *Progress:* either the state is terminal, or there exists a state $#cek($C'$, $E'$, $K'$)$ such that $#cek($C$, $E$, $K$) ~> #cek($C'$, $E'$, $K'$)$.
+- *Progress:* either the state is terminal, or there exists a next state such that the current state can step.
 
 - *Preservation:* if the state is well-typed and can step, the resulting state is also well-typed (with the same type).
 
-- *Statement Execution Preserves Modelling:* if $E$ models $Gamma$, #typeStmt($Gamma$, $s$, $Gamma'$), and $#cek($s$, $E$, $K$) #ms #cek($#Skip$, $E'$, $K$)$, then $E'$ models $Gamma'$.
+- *Statement Execution Preserves Modelling:* if $E$ models $Gamma$, #typeStmt($Gamma$, $s$, $Gamma'$), and $#cekE($s$, $E$, $K$) #ms #cekC($#Skip$, $E'$, $K$)$, then $E'$ models $Gamma'$.
 
 - *Value Type Correctness:* if $E$ models $Gamma$ and $Gamma(x) = tau$, then $tack.r E(x) : tau$. (Immediate from the definition of modelling.)
 
 - *Pop Preserves Modelling:* if $E, #scopeMark($ell$), E'$ models $Gamma, Delta$ and $E$ models $Gamma$ (ignoring markers in $E$), then $#pop($E, #scopeMark($ell$), E'$, $ell$)$ models $Gamma$.
 
-- *Strong Normalisation:* the machine starting at $#cek($s$, $dot$, $#halt$)$ reaches a terminal state in finitely many steps.
+- *Strong Normalisation:* the machine starting at $#cekE($s$, $dot$, $#halt$)$ reaches a terminal state in finitely many steps.
 
-- *Determinacy of Normalisation:* the terminal state is unique: if $#cek($s$, $dot$, $#halt$) #ms #cek($#Skip$, $E_1$, $#halt$)$ and $#cek($s$, $dot$, $#halt$) #ms #cek($#Skip$, $E_2$, $#halt$)$, then $E_1 = E_2$.
+- *Determinacy of Normalisation:* the terminal state is unique: if $#cekE($s$, $dot$, $#halt$) #ms #cekC($#Skip$, $E_1$, $#halt$)$ and $#cekE($s$, $dot$, $#halt$) #ms #cekC($#Skip$, $E_2$, $#halt$)$, then $E_1 = E_2$.
