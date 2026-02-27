@@ -16,8 +16,13 @@
 #let scopeMark(l) = $diamond.stroked_#l$
 // Pop operation: pop(E, ℓ)
 #let pop(e, l) = $op("pop") (#e, #l)$
+// Drop operation on contexts: drop(Γ, ℓ)
+#let drop(g, l) = $op("drop") (#g, #l)$
 // Coherence: E ~ Γ
 #let coh(e, g) = $#e tilde #g$
+// Continuation typing: Γ ⊢_e K and Γ ⊢_c K
+#let typeContE(gin, k) = $#gin tack.r_e #k$
+#let typeContC(gin, k) = $#gin tack.r_c #k$
 
 = #Lbase
 
@@ -150,12 +155,12 @@ Expression evaluation terminates with a value $v$ in the control. Statement exec
 $
 E ::=& dot && "Empty" \
   |& E, x := v && "Variable binding" \
-  |& E, #scopeMark($ell$) && "Scope boundary (labeled" ell ")"
+  |& E, #scopeMark($ell$) && "Scope boundary (labelled" ell")"
 $
 
-The environment is an ordered, rightwards-growing list of variable-to-value bindings interspersed with labeled scope markers. Lookup and update scan right-to-left, skipping scope markers. Lookup finds the rightmost binding for a given variable name (permitting shadowing). Update ($E[x |-> v]$) modifies the rightmost binding of $x$ in place.
+The environment is an ordered, rightwards-growing list of variable-to-value bindings interspersed with labelled scope markers. Lookup and update scan right-to-left, skipping scope markers. Lookup finds the rightmost binding for a given variable name (permitting shadowing). Update ($E[x |-> v]$) modifies the rightmost binding of $x$ in place.
 
-The environment is extended when variables are declared ($#Var x : tau = e$ adds $x := v$ to the rightmost position, where $v$ is the value of $e$) and individual bindings are updated on assignment ($x = v$ updates the rightmost $x$). Scoping constructs push a labeled scope marker $#scopeMark($ell$)$ before entering a new scope. The operation $#pop($E$, $ell$)$ removes everything from the rightmost $#scopeMark($ell$)$ (inclusive) to the end of $E$:
+The environment is extended when variables are declared ($#Var x : tau = e$ adds $x := v$ to the rightmost position, where $v$ is the value of $e$) and individual bindings are updated on assignment ($x = v$ updates the rightmost $x$). Scoping constructs push a labelled scope marker $#scopeMark($ell$)$ before entering a new scope. The operation $#pop($E$, $ell$)$ removes everything from the rightmost $#scopeMark($ell$)$ (inclusive) to the end of $E$:
 
 $
 #pop($E, #scopeMark($ell$)$, $ell$) &= E \
@@ -165,6 +170,8 @@ $
 
 Note that $#pop($dot$, $ell$)$ is undefined; the type system ensures a matching marker is always present.
 
+The scope markers $#scopeMark($ell$)$ are notational devices for delineating scopes within a flat list. A formalisation may prefer to represent environments explicitly as a stack of frames (i.e. a list of lists), where push/pop correspond to cons/uncons on the outer list.
+
 ==== Continuation ($K$)
 The continuation is a stack of frames that describes what to do after the current control finishes:
 
@@ -172,7 +179,7 @@ $
 K ::=& #halt && "Program complete" \
   |& #ifCondK (s_1, s_2) dot.c K && "After evaluating condition, branch" \
   |& #jumpK (ell) dot.c K && "After scoped block completes, pop to" #scopeMark($ell$) \
-  |& #declK (x) dot.c K && "After evaluating initialiser, bind" x "in" E \
+  |& #declK (x : tau) dot.c K && "After evaluating initialiser of type" tau ", bind" x "in" E \
   |& #assignK (x) dot.c K && "After evaluating RHS, assign to" x "in" E \
   |& #seqK (s) dot.c K && "After first statement completes, continue with" s
 $
@@ -180,7 +187,7 @@ $
 - $#halt$ signals that the program is finished; a terminal state is $#cekC($#Skip$, $E$, $#halt$)$.
 - $#ifCondK (s_1, s_2)$ waits for the condition expression to evaluate to a value, then dispatches to the appropriate branch.
 - $#jumpK (ell)$ waits for a scoped block to complete, then pops the environment to the rightmost $#scopeMark($ell$)$, dropping scope-local declarations while preserving mutations to outer-scope variables.
-- $#declK (x)$ waits for the initialiser expression to evaluate to a value $v$, then extends the environment with $x := v$.
+- $#declK (x : tau)$ waits for the initialiser expression to evaluate to a value $v$ of type $tau$, then extends the environment with $x := v$.
 - $#assignK (x)$ waits for the RHS expression to evaluate to a value $v$, then updates the environment with $E[x |-> v]$.
 - $#seqK (s)$ waits for the first statement to complete, then loads $s$ into the control.
 
@@ -194,7 +201,7 @@ We define a multi-step judgement $ms$ in the usual way.
   proof-tree(rule(name: "Val", $#cekE($v$, $E$, $K$) ~> #cekC($v$, $E$, $K$)$)),
   proof-tree(rule(name: "Var", $#cekE($x$, $E$, $K$) ~> #cekC($E(x)$, $E$, $K$)$)),
   proof-tree(rule(name: "If", $#cekE($#If e #Then s_1 #Else s_2$, $E$, $K$) ~> #cekE($e$, $E$, $#ifCondK (s_1, s_2) dot.c K$)$)),
-  proof-tree(rule(name: "VarDecl", $#cekE($#Var x : tau = e$, $E$, $K$) ~> #cekE($e$, $E$, $#declK (x) dot.c K$)$)),
+  proof-tree(rule(name: "VarDecl", $#cekE($#Var x : tau = e$, $E$, $K$) ~> #cekE($e$, $E$, $#declK (x : tau) dot.c K$)$)),
   proof-tree(rule(name: "Assign", $#cekE($x = e$, $E$, $K$) ~> #cekE($e$, $E$, $#assignK (x) dot.c K$)$)),
   proof-tree(rule(name: "Seq", $#cekE($s_1 ; s_2$, $E$, $K$) ~> #cekE($s_1$, $E$, $#seqK (s_2) dot.c K$)$)),
 )
@@ -205,7 +212,7 @@ Val transitions a source value expression ($#True$, $#False$, $n$) into Cont mod
   proof-tree(rule(name: "IfTrue", $#cekC($#True$, $E$, $#ifCondK (s_1, s_2) dot.c K$) ~> #cekE($s_1$, $E, #scopeMark($"if"$)$, $#jumpK ("if") dot.c K$)$)),
   proof-tree(rule(name: "IfFalse", $#cekC($#False$, $E$, $#ifCondK (s_1, s_2) dot.c K$) ~> #cekE($s_2$, $E, #scopeMark($"if"$)$, $#jumpK ("if") dot.c K$)$)),
   proof-tree(rule(name: "ScopeDone", $#cekC($#Skip$, $E$, $#jumpK (ell) dot.c K$) ~> #cekC($#Skip$, $#pop($E$, $ell$)$, $K$)$)),
-  proof-tree(rule(name: "VarDeclDone", $#cekC($v$, $E$, $#declK (x) dot.c K$) ~> #cekC($#Skip$, $E, x := v$, $K$)$)),
+  proof-tree(rule(name: "VarDeclDone", $#cekC($v$, $E$, $#declK (x : tau) dot.c K$) ~> #cekC($#Skip$, $E, x := v$, $K$)$)),
   proof-tree(rule(name: "AssignDone", $#cekC($v$, $E$, $#assignK (x) dot.c K$) ~> #cekC($#Skip$, $E[x |-> v]$, $K$)$)),
   proof-tree(rule(name: "SeqDone", $#cekC($#Skip$, $E$, $#seqK (s_2) dot.c K$) ~> #cekE($s_2$, $E$, $K$)$)),
 )
@@ -218,27 +225,72 @@ $
 "Terminal:" && #cekC($#Skip$, $E$, $#halt$)
 $
 
-=== Properties
+=== Continuation Typing
+
+For runtime typing purposes, we use the same scope marker device as environments: contexts may be extended with $#scopeMark($ell$)$ to delineate scopes. The source-level typing rules work unchanged on extended contexts since lookup skips markers. We define $#drop($Gamma$, $ell$)$ as the context-level counterpart of $#pop($E$, $ell$)$:
+
+$
+#drop($Gamma, #scopeMark($ell$)$, $ell$) &= Gamma \
+#drop($Gamma, x : tau$, $ell$) &= #drop($Gamma$, $ell$) \
+#drop($Gamma, #scopeMark($ell'$)$, $ell$) &= #drop($Gamma$, $ell$) && quad ell' != ell
+$
+
+As with environments, a formalisation may prefer a stack-of-frames representation over explicit markers.
+
+We define well-typedness for continuations with two judgement forms mirroring the machine phases. _Statement continuations_ (#typeContC($Gamma$, $K$)) accept $#Skip$ in context $Gamma$. _Expression continuations_ (#typeContE($Gamma$, $K$)) accept a value in context $Gamma$; the expected type is determined internally by each frame.
+
+==== Statement Continuations
+
+#mathpar(
+  proof-tree(rule(name: "KHalt", typeContC($Gamma$, $#halt$))),
+  proof-tree(rule(name: "KJump", typeContC($Gamma$, $#jumpK (ell) dot.c K$), typeContC($#drop($Gamma$, $ell$)$, $K$))),
+  proof-tree(rule(name: "KSeq", typeContC($Gamma$, $#seqK (s) dot.c K$), typeStmt($Gamma$, $s$, $Gamma'$), typeContC($Gamma'$, $K$))),
+)
+
+KJump uses $#drop($Gamma$, $ell$)$ to strip the context to the matching scope marker, mirroring $#pop($E$, $ell$)$ on environments. The tail $K$ is typed at the resulting outer context.
+
+==== Expression Continuations
+
+#mathpar(
+  proof-tree(rule(name: "KIfCond", typeContE($Gamma$, $#ifCondK (s_1, s_2) dot.c K$), typeStmt($Gamma, #scopeMark($"if"$)$, $s_1$, $Gamma'$), typeStmt($Gamma, #scopeMark($"if"$)$, $s_2$, $Gamma''$), typeContC($Gamma$, $K$))),
+  proof-tree(rule(name: "KDecl", typeContE($Gamma$, $#declK (x : tau) dot.c K$), typeContC($Gamma, x : tau$, $K$))),
+  proof-tree(rule(name: "KAssign", typeContE($Gamma$, $#assignK (x) dot.c K$), $Gamma(x) = tau$, typeContC($Gamma$, $K$))),
+)
+
+KIfCond types both branches under $Gamma, #scopeMark($"if"$)$ (with a scope marker); the tail $K$ accepts $#Skip$ in $Gamma$ since the if-statement's output context is $Gamma$. KDecl extends the context with $x : tau$ for the tail. KAssign preserves the context since assignment does not change it.
+
+=== Environment-Context Coherence
 
 We define _coherence_ between an environment and a context, written $#coh($E$, $Gamma$)$, inductively:
 
 #mathpar(
   proof-tree(rule(name: "CohEmp", $#coh($dot$, $dot$)$)),
   proof-tree(rule(name: "CohBind", $#coh($E, x := v$, $Gamma, x : tau$)$, $#coh($E$, $Gamma$)$, $tack.r v : tau$)),
-  proof-tree(rule(name: "CohMark", $#coh($E, #scopeMark($ell$)$, $Gamma$)$, $#coh($E$, $Gamma$)$)),
+  proof-tree(rule(name: "CohMark", $#coh($E, #scopeMark($ell$)$, $Gamma, #scopeMark($ell$)$)$, $#coh($E$, $Gamma$)$)),
 )
 
-Scope markers in $E$ are transparent to coherence; they have no counterpart in $Gamma$.
+Scope markers must match between $E$ and $Gamma$.
 
-Given a well-typed program $s$ and a state $#cek($C$, $E$, $K$)$ reachable from the initial state over $s$:
+==== Well Typed States
 
-- *Progress:* either the state is terminal, or there exists a next state such that the current state can step.
+A machine state is _well-typed_ when coherence bridges the environment to a context $Gamma$ that types both the control and the continuation:
 
-- *Preservation:* if the state is well-typed and can step, the resulting state is also well-typed (with the same type).
+#mathpar(
+  proof-tree(rule(name: "WtExprE", $tack.r #cekE($e$, $E$, $K$) "ok"$, $#coh($E$, $Gamma$)$, typeExpr($Gamma$, $e$, $tau$), typeContE($Gamma$, $K$))),
+  proof-tree(rule(name: "WtExprS", $tack.r #cekE($s$, $E$, $K$) "ok"$, $#coh($E$, $Gamma$)$, typeStmt($Gamma$, $s$, $Gamma'$), typeContC($Gamma'$, $K$))),
+  proof-tree(rule(name: "WtContV", $tack.r #cekC($v$, $E$, $K$) "ok"$, $#coh($E$, $Gamma$)$, $tack.r v : tau$, typeContE($Gamma$, $K$))),
+  proof-tree(rule(name: "WtContS", $tack.r #cekC($#Skip$, $E$, $K$) "ok"$, $#coh($E$, $Gamma$)$, typeContC($Gamma$, $K$))),
+)
+
+=== Properties
+
+- *Progress:* if $tack.r S "ok"$ and $S$ is not terminal, then there exists $S'$ such that $S ~> S'$.
+
+- *Preservation:* if $tack.r S "ok"$ and $S ~> S'$, then $tack.r S' "ok"$.
 
 - *Statement Execution Preserves Coherence:* if $#coh($E$, $Gamma$)$, #typeStmt($Gamma$, $s$, $Gamma'$), and $#cekE($s$, $E$, $K$) #ms #cekC($#Skip$, $E'$, $K$)$, then $#coh($E'$, $Gamma'$)$.
 
-- *Pop Preserves Coherence:* if $#coh($E, #scopeMark($ell$), E'$, $Gamma, Delta$)$ and $#coh($E$, $Gamma$)$, then $#coh($#pop($E, #scopeMark($ell$), E'$, $ell$)$, $Gamma$)$.
+- *Pop/Drop Preserves Coherence:* if $#coh($E$, $Gamma$)$, then $#coh($#pop($E$, $ell$)$, $#drop($Gamma$, $ell$)$)$.
 
 - *Strong Normalisation:* the machine starting at $#cekE($s$, $dot$, $#halt$)$ reaches a terminal state in finitely many steps.
 
