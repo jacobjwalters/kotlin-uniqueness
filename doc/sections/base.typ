@@ -45,7 +45,7 @@ s ::=& #Var x : tau = e && "(Mutable) Variable Declaration" \
   |& #If e #Then s_1 #Else s_2 && "If/Then/Else" \
 $
 
-A program $P$ is a statement $s$. $x$ represents an infinite set of variable names.
+A program $P$ is a statement $s$. $x$ represents an infinite set of variable names. While we write names as strings in this document, for formalisation purposes, we use de Bruijn indices.
 
 We write $plus.o$ to range over binary operators ${+, ∸, ==}$ and unary operators ${#IsZero}$. The meta-level function $#delta$ maps an operator and its argument value(s) to the result:
 
