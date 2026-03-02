@@ -57,6 +57,7 @@
 #let Else = $sans("else")$
 #let True = $sans("true")$
 #let False = $sans("false")$
+#let IsZero = math.op("iszero")
 
 // Statements
 #let While = $sans("while")$
@@ -72,7 +73,13 @@
 #let loopK = math.op("loopK")
 #let argK = math.op("argK")
 #let callK = math.op("callK")
+#let binopLK = math.op("binopLK")
+#let binopRK = math.op("binopRK")
+#let unopK = math.op("unopK")
 #let halt = $sans("halt")$
+
+// Meta-level operator application
+#let delta = $delta$
 
 // Runtime signals
 #let sig = $sans("sig")$

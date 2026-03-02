@@ -37,6 +37,8 @@ e ::=& x && "Variable Access" \
   |& #True \
   |& #False \
   |& n in bb(N) && "Natural Numbers" \
+  |& e_1 plus.o e_2 && "Binary Operator" \
+  |& plus.o (e) && "Unary Operator" \
 s ::=& #Var x : tau = e && "(Mutable) Variable Declaration" \
   |& x = e && "Variable Assignment/Mutation" \
   |& s_1; s_2 && "Statement Sequencing" \
@@ -45,7 +47,14 @@ $
 
 A program $P$ is a statement $s$. $x$ represents an infinite set of variable names.
 
-We assume usual boolean/arithmetic operators are defined as primitive expressions.
+We write $plus.o$ to range over binary operators ${+, ∸, ==}$ and unary operators ${#IsZero}$. The meta-level function $#delta$ maps an operator and its argument value(s) to the result:
+
+$
+#delta (+, n_1, n_2) &= n_1 + n_2 \
+#delta (∸, n_1, n_2) &= max(n_1 - n_2, 0) \
+#delta (==, v_1, v_2) &= cases(#True &"if" v_1 = v_2, #False &"otherwise") \
+#delta (#IsZero, n) &= cases(#True &"if" n = 0, #False &"otherwise")
+$
 
 == Typing Contexts
 Typing contexts (hereafter contexts) in #Lbase are ordered, rightwards-growing lists of names and their associated types.
@@ -71,7 +80,14 @@ Since expressions in the simplified language are pure, we use the judgement form
   proof-tree(rule(name: "NatConst", typeExpr($Gamma$, $n$, $#Nat$), $n in bb(N)$)),
 
   proof-tree(rule(name: "VarAccess", typeExpr($Gamma$, $x$, $tau$), $Gamma(x) = tau$)),
+
+  proof-tree(rule(name: "Add", typeExpr($Gamma$, $e_1 + e_2$, $#Nat$), typeExpr($Gamma$, $e_1$, $#Nat$), typeExpr($Gamma$, $e_2$, $#Nat$))),
+  proof-tree(rule(name: "Sub", typeExpr($Gamma$, $e_1 ∸ e_2$, $#Nat$), typeExpr($Gamma$, $e_1$, $#Nat$), typeExpr($Gamma$, $e_2$, $#Nat$))),
+  proof-tree(rule(name: "IsZero", typeExpr($Gamma$, $#IsZero (e)$, $#Bool$), typeExpr($Gamma$, $e$, $#Nat$))),
+  proof-tree(rule(name: "Eq", typeExpr($Gamma$, $e_1 == e_2$, $#Bool$), typeExpr($Gamma$, $e_1$, $tau$), typeExpr($Gamma$, $e_2$, $tau$), $tau in {#Nat, #Bool}$)),
 )
+
+The Eq rule restricts equality to ground types ($tau in {#Nat, #Bool}$). This side condition is necessary because future extensions (e.g. function types) may not admit decidable equality.
 
 === Statement Types
 Since statements may update their context, we use a "small-step" typing judgement form #typeStmt($Gamma$, $s$, $Gamma'$), where $Gamma$ represents the context before the statement runs and $Gamma'$ represents the context after.
@@ -189,7 +205,10 @@ K ::=& #halt && "Program complete" \
   |& #jumpK (ell) dot.c K && "After scoped block completes, pop to" #scopeMark($ell$) \
   |& #declK (x : tau) dot.c K && "After evaluating initialiser of type" tau ", bind" x "in" E \
   |& #assignK (x) dot.c K && "After evaluating RHS, assign to" x "in" E \
-  |& #seqK (s) dot.c K && "After first statement completes, continue with" s
+  |& #seqK (s) dot.c K && "After first statement completes, continue with" s \
+  |& #binopLK (plus.o, e_2) dot.c K && "After evaluating left operand of" plus.o", evaluate" e_2 \
+  |& #binopRK (plus.o, v_1) dot.c K && "After evaluating right operand of" plus.o", apply to" v_1 \
+  |& #unopK (plus.o) dot.c K && "After evaluating operand of unary" plus.o", apply"
 $
 
 - $#halt$ signals that the program is finished; a terminal state is $#cekC($#Skip$, $E$, $#halt$)$.
@@ -198,6 +217,9 @@ $
 - $#declK (x : tau)$ waits for the initialiser expression to evaluate to a value $v$ of type $tau$, then extends the environment with $x := v$.
 - $#assignK (x)$ waits for the RHS expression to evaluate to a value $v$, then updates the environment with $E[x |-> v]$.
 - $#seqK (s)$ waits for the first statement to complete, then loads $s$ into the control.
+- $#binopLK (plus.o, e_2)$ waits for the left operand to evaluate to $v_1$, then begins evaluating $e_2$ with $#binopRK (plus.o, v_1)$ on the stack.
+- $#binopRK (plus.o, v_1)$ waits for the right operand to evaluate to $v_2$, then computes $#delta (plus.o, v_1, v_2)$.
+- $#unopK (plus.o)$ waits for the operand to evaluate to $v$, then computes $#delta (plus.o, v)$.
 
 === Transition Rules
 We define a multi-step judgement $ms$ in the usual way.
@@ -210,8 +232,11 @@ We define a multi-step judgement $ms$ in the usual way.
   proof-tree(rule(name: "VarDecl", $#cekE($#Var x : tau = e$, $E$, $K$) ~> #cekE($e$, $E$, $#declK (x : tau) dot.c K$)$)),
   proof-tree(rule(name: "Assign", $#cekE($x = e$, $E$, $K$) ~> #cekE($e$, $E$, $#assignK (x) dot.c K$)$)),
   proof-tree(rule(name: "Seq", $#cekE($s_1 ; s_2$, $E$, $K$) ~> #cekE($s_1$, $E$, $#seqK (s_2) dot.c K$)$)),
+
+  proof-tree(rule(name: "BinOp", $#cekE($e_1 plus.o e_2$, $E$, $K$) ~> #cekE($e_1$, $E$, $#binopLK (plus.o, e_2) dot.c K$)$)),
+  proof-tree(rule(name: "UnOp", $#cekE($#IsZero (e)$, $E$, $K$) ~> #cekE($e$, $E$, $#unopK (#IsZero) dot.c K$)$)),
 )
-Val transitions a source value expression ($#True$, $#False$, $n$) into Cont mode. Var looks up the rightmost binding of $x$ in $E$. The remaining rules decompose a compound form by pushing a continuation frame.
+Val transitions a source value expression ($#True$, $#False$, $n$) into Cont mode. Var looks up the rightmost binding of $x$ in $E$. The remaining rules decompose a compound form by pushing a continuation frame. BinOp evaluates the left operand first (left-to-right evaluation order). UnOp evaluates its single operand.
 
 ==== Cont
 #mathpar(
@@ -221,8 +246,12 @@ Val transitions a source value expression ($#True$, $#False$, $n$) into Cont mod
   proof-tree(rule(name: "VarDeclDone", $#cekC($v$, $E$, $#declK (x : tau) dot.c K$) ~> #cekC($#Skip$, $E, x := v$, $K$)$)),
   proof-tree(rule(name: "AssignDone", $#cekC($v$, $E$, $#assignK (x) dot.c K$) ~> #cekC($#Skip$, $E[x |-> v]$, $K$)$)),
   proof-tree(rule(name: "SeqDone", $#cekC($#Skip$, $E$, $#seqK (s_2) dot.c K$) ~> #cekE($s_2$, $E$, $K$)$)),
+
+  proof-tree(rule(name: "BinOpL", $#cekC($v_1$, $E$, $#binopLK (plus.o, e_2) dot.c K$) ~> #cekE($e_2$, $E$, $#binopRK (plus.o, v_1) dot.c K$)$)),
+  proof-tree(rule(name: "BinOpR", $#cekC($v_2$, $E$, $#binopRK (plus.o, v_1) dot.c K$) ~> #cekC($#delta (plus.o, v_1, v_2)$, $E$, $K$)$)),
+  proof-tree(rule(name: "UnOpDone", $#cekC($v$, $E$, $#unopK (plus.o) dot.c K$) ~> #cekC($#delta (plus.o, v)$, $E$, $K$)$)),
 )
-IfTrue/IfFalse push a scope marker $#scopeMark($"if"$)$ and $#jumpK ("if")$ before entering a branch. ScopeDone pops the environment to the rightmost $#scopeMark($ell$)$. $E[x |-> v]$ updates the rightmost binding of $x$ in $E$.
+IfTrue/IfFalse push a scope marker $#scopeMark($"if"$)$ and $#jumpK ("if")$ before entering a branch. ScopeDone pops the environment to the rightmost $#scopeMark($ell$)$. $E[x |-> v]$ updates the rightmost binding of $x$ in $E$. BinOpL/BinOpR implement left-to-right evaluation of binary operators: BinOpL saves the left value and begins the right operand; BinOpR applies $#delta$ to both values. UnOpDone applies $#delta$ to the single operand value.
 
 === Initial and Terminal States
 
@@ -261,9 +290,13 @@ KJump uses $#drop($Gamma$, $ell$)$ to strip the context to the matching scope ma
   proof-tree(rule(name: "KIfCond", typeContE($Gamma$, $#ifCondK (s_1, s_2) dot.c K$), typeStmt($Gamma, #scopeMark($"if"$)$, $s_1$, $Gamma'$), typeStmt($Gamma, #scopeMark($"if"$)$, $s_2$, $Gamma''$), typeContC($Gamma$, $K$))),
   proof-tree(rule(name: "KDecl", typeContE($Gamma$, $#declK (x : tau) dot.c K$), typeContC($Gamma, x : tau$, $K$))),
   proof-tree(rule(name: "KAssign", typeContE($Gamma$, $#assignK (x) dot.c K$), $Gamma(x) = tau$, typeContC($Gamma$, $K$))),
+
+  proof-tree(rule(name: "KBinOpL", typeContE($Gamma$, $#binopLK (plus.o, e_2) dot.c K$), $plus.o : tau_1 times tau_2 -> tau_3$, typeExpr($Gamma$, $e_2$, $tau_2$), typeContE($Gamma$, $K$))),
+  proof-tree(rule(name: "KBinOpR", typeContE($Gamma$, $#binopRK (plus.o, v_1) dot.c K$), $plus.o : tau_1 times tau_2 -> tau_3$, $tack.r v_1 : tau_1$, typeContE($Gamma$, $K$))),
+  proof-tree(rule(name: "KUnOp", typeContE($Gamma$, $#unopK (plus.o) dot.c K$), typeContE($Gamma$, $K$))),
 )
 
-KIfCond types both branches under $Gamma, #scopeMark($"if"$)$ (with a scope marker); the tail $K$ accepts $#Skip$ in $Gamma$ since the if-statement's output context is $Gamma$. KDecl extends the context with $x : tau$ for the tail. KAssign preserves the context since assignment does not change it.
+KIfCond types both branches under $Gamma, #scopeMark($"if"$)$ (with a scope marker); the tail $K$ accepts $#Skip$ in $Gamma$ since the if-statement's output context is $Gamma$. KDecl extends the context with $x : tau$ for the tail. KAssign preserves the context since assignment does not change it. KBinOpL checks the pending right operand $e_2$ and requires the tail $K$ to accept the result. KBinOpR checks the saved left value $v_1$ against the operator's left domain. KUnOp simply requires the tail to accept the result. The operator signature premise $plus.o : tau_1 times tau_2 -> tau_3$ is determined by the fixed set of operators.
 
 === Environment-Context Coherence
 
