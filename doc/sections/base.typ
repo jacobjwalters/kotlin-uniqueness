@@ -121,11 +121,6 @@ Sequencing threads the context produced as the output of the first statement int
 
 Note that in the statement weakening properties, $Gamma, Delta$ refers to $Gamma$ concatenated with another context $Delta$; $Delta$ is *not* a heap. We can't extend by a single variable as in the expression weakening rules since compound statements may extend $Gamma$ with any number of new variables.
 
-- *Scope Marker Weakening (Expressions):* if #typeExpr($Gamma$, $e$, $tau$), then #typeExpr($Gamma, #scopeMark($ell$)$, $e$, $tau$).
-
-- *Scope Marker Weakening (Statements):* if #typeStmt($Gamma$, $s$, $Gamma, Delta$), then #typeStmt($Gamma, #scopeMark($ell$)$, $s$, $Gamma, #scopeMark($ell$), Delta$).
-
-Inserting a scope marker preserves typing since lookup skips markers. These properties bridge the source-level typing (without markers) and the continuation typing (with markers).
 
 == Evaluation
 Evaluation of an #Lbase program begins with a program statement $s$. We define the operational semantics as a CEK machine; a state machine that makes evaluation order explicit via a continuation stack. We also introduce a run-time language.
