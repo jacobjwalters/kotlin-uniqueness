@@ -9,13 +9,6 @@
 #let cek(c, e, k) = $chevron.l #c | #e | #k chevron.r$
 #let cekE(c, e, k) = $chevron.l #c | #e | #k chevron.r_e$
 #let cekC(c, e, k) = $chevron.l #c | #e | #k chevron.r_c$
-// Local continuation frames
-#let declK = math.op("declK")
-#let jumpK = math.op("jumpK")
-// Scope marker: ◇_ℓ
-#let scopeMark(l) = $diamond.stroked_#l$
-// Pop operation: pop(E, ℓ)
-#let pop(e, l) = $op("pop") (#e, #l)$
 // Drop operation on contexts: drop(Γ, ℓ)
 #let drop(g, l) = $op("drop") (#g, #l)$
 // Coherence: E ~ Γ
@@ -26,7 +19,7 @@
 
 = #Lbase
 
-#Lbase is a simple typed language consisting of sequentially ordered statements with conditionals. There are no classes, methods, modes, or lambdas.
+#Lbase is a simple typed language consisting of sequentially ordered statements with conditionals and loops. There are no classes, methods, modes, or lambdas.
 
 == Syntax
 
@@ -43,6 +36,7 @@ s ::=& #Var x : tau = e && "(Mutable) Variable Declaration" \
   |& x = e && "Variable Assignment/Mutation" \
   |& s_1; s_2 && "Statement Sequencing" \
   |& #If e #Then s_1 #Else s_2 && "If/Then/Else" \
+  |& #While c brace.l s brace.r && "While Loop" \
 $
 
 A program $P$ is a statement $s$. $x$ represents an infinite set of variable names. While we write names as strings in this document, for formalisation purposes, we use de Bruijn indices.
@@ -99,6 +93,8 @@ Since statements may update their context, we use a "small-step" typing judgemen
   proof-tree(rule(name: "Seq", typeStmt($Gamma$, $s_1; s_2$, $Gamma''$), typeStmt($Gamma$, $s_1$, $Gamma'$), typeStmt($Gamma'$, $s_2$, $Gamma''$))),
 
   proof-tree(rule(name: "IfStmt", typeStmt($Gamma$, $#If e #Then s_1 #Else s_2$, $Gamma$), typeExpr($Gamma$, $e$, $#Bool$), typeStmt($Gamma$, $s_1$, $Gamma'$), typeStmt($Gamma$, $s_2$, $Gamma''$))),
+
+  proof-tree(rule(name: "WhileStmt", typeStmt($Gamma$, $#While c brace.l s brace.r$, $Gamma$), typeExpr($Gamma$, $c$, $#Bool$), typeStmt($Gamma$, $s$, $Gamma'$))),
 )
 
 Variable declarations check the initialiser expression against the declared type, then extend the context, possibly shadowing an existing binding.
@@ -106,6 +102,8 @@ Variable declarations check the initialiser expression against the declared type
 Variable assignment requires that $x : tau$ is present somewhere in the context via membership lookup. The expression $e$ is typed under the same context $Gamma$, which includes $x$; this allows self mutation (such as $x = x + 1$). The output context is unchanged.
 
 Sequencing threads the context produced as the output of the first statement into the input of the second statement.
+
+The while loop checks its condition against $#Bool$ and types the body under $Gamma$. The body may extend the context to $Gamma'$, but the output context of the whole loop is $Gamma$ since the body is scoped per iteration.
 
 === Properties
 
@@ -203,7 +201,8 @@ K ::=& #halt && "Program complete" \
   |& #seqK (s) dot.c K && "After first statement completes, continue with" s \
   |& #binopLK (plus.o, e_2) dot.c K && "After evaluating left operand of" plus.o", evaluate" e_2 \
   |& #binopRK (plus.o, v_1) dot.c K && "After evaluating right operand of" plus.o", apply to" v_1 \
-  |& #unopK (plus.o) dot.c K && "After evaluating operand of unary" plus.o", apply"
+  |& #unopK (plus.o) dot.c K && "After evaluating operand of unary" plus.o", apply" \
+  |& #loopK (c, s) dot.c K && "After evaluating while condition, dispatch or re-enter"
 $
 
 - $#halt$ signals that the program is finished; a terminal state is $#cekC($#Skip$, $E$, $#halt$)$.
@@ -215,6 +214,7 @@ $
 - $#binopLK (plus.o, e_2)$ waits for the left operand to evaluate to $v_1$, then begins evaluating $e_2$ with $#binopRK (plus.o, v_1)$ on the stack.
 - $#binopRK (plus.o, v_1)$ waits for the right operand to evaluate to $v_2$, then computes $#delta (plus.o, v_1, v_2)$.
 - $#unopK (plus.o)$ waits for the operand to evaluate to $v$, then computes $#delta (plus.o, v)$.
+- $#loopK (c, s)$ serves dual roles: as an expression continuation, it receives the condition value ($#True$ enters the body, $#False$ exits); as a statement continuation, it receives $#Skip$ after the body completes (via $#jumpK$) and re-evaluates $c$.
 
 === Transition Rules
 We define a multi-step judgement $ms$ in the usual way.
@@ -230,6 +230,8 @@ We define a multi-step judgement $ms$ in the usual way.
 
   proof-tree(rule(name: "BinOp", $#cekE($e_1 plus.o e_2$, $E$, $K$) ~> #cekE($e_1$, $E$, $#binopLK (plus.o, e_2) dot.c K$)$)),
   proof-tree(rule(name: "UnOp", $#cekE($#IsZero (e)$, $E$, $K$) ~> #cekE($e$, $E$, $#unopK (#IsZero) dot.c K$)$)),
+
+  proof-tree(rule(name: "While", $#cekE($#While c brace.l s brace.r$, $E$, $K$) ~> #cekE($c$, $E$, $#loopK (c, s) dot.c K$)$)),
 )
 Val transitions a source value expression ($#True$, $#False$, $n$) into Cont mode. Var looks up the rightmost binding of $x$ in $E$. The remaining rules decompose a compound form by pushing a continuation frame. BinOp evaluates the left operand first (left-to-right evaluation order). UnOp evaluates its single operand.
 
@@ -245,8 +247,14 @@ Val transitions a source value expression ($#True$, $#False$, $n$) into Cont mod
   proof-tree(rule(name: "BinOpL", $#cekC($v_1$, $E$, $#binopLK (plus.o, e_2) dot.c K$) ~> #cekE($e_2$, $E$, $#binopRK (plus.o, v_1) dot.c K$)$)),
   proof-tree(rule(name: "BinOpR", $#cekC($v_2$, $E$, $#binopRK (plus.o, v_1) dot.c K$) ~> #cekC($#delta (plus.o, v_1, v_2)$, $E$, $K$)$)),
   proof-tree(rule(name: "UnOpDone", $#cekC($v$, $E$, $#unopK (plus.o) dot.c K$) ~> #cekC($#delta (plus.o, v)$, $E$, $K$)$)),
+
+  proof-tree(rule(name: "LoopTrue", $#cekC($#True$, $E$, $#loopK (c, s) dot.c K$) ~> #cekE($s$, $E, #scopeMark($"wh"$)$, $#jumpK ("wh") dot.c #loopK (c, s) dot.c K$)$)),
+  proof-tree(rule(name: "LoopFalse", $#cekC($#False$, $E$, $#loopK (c, s) dot.c K$) ~> #cekC($#Skip$, $E$, $K$)$)),
+  proof-tree(rule(name: "LoopCont", $#cekC($#Skip$, $E$, $#loopK (c, s) dot.c K$) ~> #cekE($c$, $E$, $#loopK (c, s) dot.c K$)$)),
 )
-IfTrue/IfFalse push a scope marker $#scopeMark($"if"$)$ and $#jumpK ("if")$ before entering a branch. ScopeDone pops the environment to the rightmost $#scopeMark($ell$)$. $E[x |-> v]$ updates the rightmost binding of $x$ in $E$. BinOpL/BinOpR implement left-to-right evaluation of binary operators: BinOpL saves the left value and begins the right operand; BinOpR applies $#delta$ to both values. UnOpDone applies $#delta$ to the single operand value.
+IfTrue/IfFalse push a scope marker $#scopeMark($"if"$)$ and $#jumpK ("if")$ before entering a branch. ScopeDone pops the environment to the rightmost $#scopeMark($ell$)$. $E[x |-> v]$ updates the rightmost binding of $x$ in $E$. BinOpL/BinOpR implement left-to-right evaluation of binary operators: BinOpL saves the left value and begins the right operand; BinOpR applies $#delta$ to both values. UnOpDone applies $#delta$ to the single operand value. LoopTrue pushes a scope marker $#scopeMark($"wh"$)$ and enters the body with $#jumpK ("wh") dot.c #loopK (c, s)$ on the stack; after the body completes, ScopeDone pops the iteration scope and LoopCont re-evaluates the condition. LoopFalse exits the loop with $#Skip$.
+
+The lifecycle of a while loop proceeds as follows. The While rule evaluates the condition $c$, pushing $#loopK (c, s)$ onto the continuation. If the condition is $#False$, LoopFalse produces $#Skip$ and the loop terminates. If the condition is $#True$, LoopTrue pushes a scope marker $#scopeMark($"wh"$)$ onto the environment and begins executing the body $s$ with the continuation $#jumpK ("wh") dot.c #loopK (c, s) dot.c K$. When the body completes with $#Skip$, ScopeDone fires on $#jumpK ("wh")$, popping the environment back to $#scopeMark($"wh"$)$ and discarding any variables declared during the iteration. The resulting $#Skip$ then reaches $#loopK (c, s)$, which triggers LoopCont to re-evaluate the condition $c$, beginning the next iteration. The $#loopK$ frame remains on the stack throughout, avoiding any per-iteration allocation.
 
 === Initial and Terminal States
 
@@ -275,9 +283,10 @@ We define well-typedness for continuations with two judgement forms mirroring th
   proof-tree(rule(name: "KHalt", typeContC($Gamma$, $#halt$))),
   proof-tree(rule(name: "KJump", typeContC($Gamma$, $#jumpK (ell) dot.c K$), typeContC($#drop($Gamma$, $ell$)$, $K$))),
   proof-tree(rule(name: "KSeq", typeContC($Gamma$, $#seqK (s) dot.c K$), typeStmt($Gamma$, $s$, $Gamma'$), typeContC($Gamma'$, $K$))),
+  proof-tree(rule(name: "KLoop", typeContC($Gamma$, $#loopK (c, s) dot.c K$), typeExpr($Gamma$, $c$, $#Bool$), typeStmt($Gamma$, $s$, $Gamma'$), typeContC($Gamma$, $K$))),
 )
 
-KJump uses $#drop($Gamma$, $ell$)$ to strip the context to the matching scope marker, mirroring $#pop($E$, $ell$)$ on environments. The tail $K$ is typed at the resulting outer context.
+KJump uses $#drop($Gamma$, $ell$)$ to strip the context to the matching scope marker, mirroring $#pop($E$, $ell$)$ on environments. The tail $K$ is typed at the resulting outer context. KLoop checks the condition and body under $Gamma$; the tail $K$ is typed at $Gamma$ since the loop preserves the context.
 
 ==== Expression Continuations
 
@@ -289,9 +298,10 @@ KJump uses $#drop($Gamma$, $ell$)$ to strip the context to the matching scope ma
   proof-tree(rule(name: "KBinOpL", typeContE($Gamma$, $#binopLK (plus.o, e_2) dot.c K$), $plus.o : tau_1 times tau_2 -> tau_3$, typeExpr($Gamma$, $e_2$, $tau_2$), typeContE($Gamma$, $K$))),
   proof-tree(rule(name: "KBinOpR", typeContE($Gamma$, $#binopRK (plus.o, v_1) dot.c K$), $plus.o : tau_1 times tau_2 -> tau_3$, $tack.r v_1 : tau_1$, typeContE($Gamma$, $K$))),
   proof-tree(rule(name: "KUnOp", typeContE($Gamma$, $#unopK (plus.o) dot.c K$), typeContE($Gamma$, $K$))),
+  proof-tree(rule(name: "KLoopE", typeContE($Gamma$, $#loopK (c, s) dot.c K$), typeExpr($Gamma$, $c$, $#Bool$), typeStmt($Gamma$, $s$, $Gamma'$), typeContC($Gamma$, $K$))),
 )
 
-KIfCond types both branches under $Gamma, #scopeMark($"if"$)$ (with a scope marker); the tail $K$ accepts $#Skip$ in $Gamma$ since the if-statement's output context is $Gamma$. KDecl extends the context with $x : tau$ for the tail. KAssign preserves the context since assignment does not change it. KBinOpL checks the pending right operand $e_2$ and requires the tail $K$ to accept the result. KBinOpR checks the saved left value $v_1$ against the operator's left domain. KUnOp simply requires the tail to accept the result. The operator signature premise $plus.o : tau_1 times tau_2 -> tau_3$ is determined by the fixed set of operators.
+KIfCond types both branches under $Gamma, #scopeMark($"if"$)$ (with a scope marker); the tail $K$ accepts $#Skip$ in $Gamma$ since the if-statement's output context is $Gamma$. KDecl extends the context with $x : tau$ for the tail. KAssign preserves the context since assignment does not change it. KBinOpL checks the pending right operand $e_2$ and requires the tail $K$ to accept the result. KBinOpR checks the saved left value $v_1$ against the operator's left domain. KUnOp simply requires the tail to accept the result. The operator signature premise $plus.o : tau_1 times tau_2 -> tau_3$ is determined by the fixed set of operators. KLoopE has the same premises as KLoop but appears as an expression continuation because $#loopK$ receives the condition value (a $#Bool$); the tail $K$ uses #typeContC because the loop ultimately produces $#Skip$.
 
 === Environment-Context Coherence
 
@@ -326,6 +336,4 @@ A machine state is _well-typed_ when coherence bridges the environment to a cont
 
 - *Pop/Drop Preserves Coherence:* if $#coh($E$, $Gamma$)$, then $#coh($#pop($E$, $ell$)$, $#drop($Gamma$, $ell$)$)$.
 
-- *Strong Normalisation:* the machine starting at $#cekE($s$, $dot$, $#halt$)$ reaches a terminal state in finitely many steps.
-
-- *Determinacy of Normalisation:* the terminal state is unique: if $#cekE($s$, $dot$, $#halt$) #ms #cekC($#Skip$, $E_1$, $#halt$)$ and $#cekE($s$, $dot$, $#halt$) #ms #cekC($#Skip$, $E_2$, $#halt$)$, then $E_1 = E_2$.
+- *Determinacy:* each machine state has at most one successor (the transition relation is deterministic). Consequently, if the machine terminates, the terminal state is unique.

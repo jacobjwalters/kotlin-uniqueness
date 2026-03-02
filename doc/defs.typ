@@ -10,6 +10,9 @@
 #let ctx = $thin upright("ctx")$
 #let drop = math.op("drop")
 #let trunc(e, n) = $#e attach(arrow.b, br: #n)$
+// Scope markers and pop
+#let scopeMark(l) = $diamond.stroked_#l$
+#let pop(e, l) = $op("pop") (#e, #l)$
 #let normalise = math.op("normalise")
 #let body = math.op("body")
 #let args = math.op("args")
@@ -66,7 +69,8 @@
 // CESK continuation frames
 #let fieldK = math.op("fieldK")
 #let ifCondK = math.op("ifCondK")
-#let ifDoneK = math.op("ifDoneK")
+#let jumpK = math.op("jumpK")
+#let declK = math.op("declK")
 #let returnK = $sans("returnK")$
 #let assignK = math.op("assignK")
 #let seqK = math.op("seqK")
