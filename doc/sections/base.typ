@@ -13,8 +13,8 @@
 #let drop(g, l) = $op("drop") (#g, #l)$
 // Coherence: E ~ Γ
 #let coh(e, g) = $#e tilde #g$
-// Continuation typing: Γ ⊢_e K and Γ ⊢_c K
-#let typeContE(gin, k) = $#gin tack.r_e #k$
+// Continuation typing: Γ ⊢_e K : τ̄ and Γ ⊢_c K
+#let typeContE(gin, k, t) = $#gin tack.r_e #k : overline(#t)$
 #let typeContC(gin, k) = $#gin tack.r_c #k$
 
 = #Lbase
@@ -75,13 +75,22 @@ Since expressions in the simplified language are pure, we use the judgement form
 
   proof-tree(rule(name: "VarAccess", typeExpr($Gamma$, $x$, $tau$), $Gamma(x) = tau$)),
 
-  proof-tree(rule(name: "Add", typeExpr($Gamma$, $e_1 + e_2$, $#Nat$), typeExpr($Gamma$, $e_1$, $#Nat$), typeExpr($Gamma$, $e_2$, $#Nat$))),
-  proof-tree(rule(name: "Sub", typeExpr($Gamma$, $e_1 ∸ e_2$, $#Nat$), typeExpr($Gamma$, $e_1$, $#Nat$), typeExpr($Gamma$, $e_2$, $#Nat$))),
-  proof-tree(rule(name: "IsZero", typeExpr($Gamma$, $#IsZero (e)$, $#Bool$), typeExpr($Gamma$, $e$, $#Nat$))),
-  proof-tree(rule(name: "Eq", typeExpr($Gamma$, $e_1 == e_2$, $#Bool$), typeExpr($Gamma$, $e_1$, $tau$), typeExpr($Gamma$, $e_2$, $tau$), $tau in {#Nat, #Bool}$)),
+  proof-tree(rule(name: "BinOp", typeExpr($Gamma$, $e_1 plus.o e_2$, $tau_3$), typeExpr($Gamma$, $e_1$, $tau_1$), typeExpr($Gamma$, $e_2$, $tau_2$), $plus.o : tau_1 times tau_2 -> tau_3$)),
+  proof-tree(rule(name: "UnOp", typeExpr($Gamma$, $plus.o (e)$, $tau_2$), typeExpr($Gamma$, $e$, $tau_1$), $plus.o : tau_1 -> tau_2$)),
 )
 
-The Eq rule restricts equality to ground types ($tau in {#Nat, #Bool}$). This side condition is necessary because future extensions (e.g. function types) may not admit decidable equality.
+The operator signature premise $plus.o : tau_1 times tau_2 -> tau_3$ (or $plus.o : tau_1 -> tau_2$ for unary) is grounded by the operator typing rules below.
+
+=== Operator Typing
+
+The meta-level function $#delta$ is typed by the following rules, which define the operator signatures referenced in both the expression typing and the continuation typing:
+
+#mathpar(
+  proof-tree(rule(name: "DeltaAdd", $tack.r #delta (+, v_1, v_2) : #Nat$, $tack.r v_1 : #Nat$, $tack.r v_2 : #Nat$)),
+  proof-tree(rule(name: "DeltaSub", $tack.r #delta (∸, v_1, v_2) : #Nat$, $tack.r v_1 : #Nat$, $tack.r v_2 : #Nat$)),
+  proof-tree(rule(name: "DeltaEq", $tack.r #delta (==, v_1, v_2) : #Bool$, $tack.r v_1 : tau$, $tack.r v_2 : tau$, $tau in {#Nat, #Bool}$)),
+  proof-tree(rule(name: "DeltaIsZero", $tack.r #delta (#IsZero, v) : #Bool$, $tack.r v : #Nat$)),
+)
 
 === Statement Types
 Since statements may update their context, we use a "small-step" typing judgement form #typeStmt($Gamma$, $s$, $Gamma'$), where $Gamma$ represents the context before the statement runs and $Gamma'$ represents the context after.
@@ -275,33 +284,33 @@ $
 
 As with environments, a formalisation may prefer a stack-of-frames representation over explicit markers.
 
-We define well-typedness for continuations with two judgement forms mirroring the machine phases. _Statement continuations_ (#typeContC($Gamma$, $K$)) accept $#Skip$ in context $Gamma$. _Expression continuations_ (#typeContE($Gamma$, $K$)) accept a value in context $Gamma$; the expected type is determined internally by each frame.
-
-==== Statement Continuations
-
-#mathpar(
-  proof-tree(rule(name: "KHalt", typeContC($Gamma$, $#halt$))),
-  proof-tree(rule(name: "KJump", typeContC($Gamma$, $#jumpK (ell) dot.c K$), typeContC($#drop($Gamma$, $ell$)$, $K$))),
-  proof-tree(rule(name: "KSeq", typeContC($Gamma$, $#seqK (s) dot.c K$), typeStmt($Gamma$, $s$, $Gamma'$), typeContC($Gamma'$, $K$))),
-  proof-tree(rule(name: "KLoop", typeContC($Gamma$, $#loopK (c, s) dot.c K$), typeExpr($Gamma$, $c$, $#Bool$), typeStmt($Gamma$, $s$, $Gamma'$), typeContC($Gamma$, $K$))),
-)
-
-KJump uses $#drop($Gamma$, $ell$)$ to strip the context to the matching scope marker, mirroring $#pop($E$, $ell$)$ on environments. The tail $K$ is typed at the resulting outer context. KLoop checks the condition and body under $Gamma$; the tail $K$ is typed at $Gamma$ since the loop preserves the context.
+We define well-typedness for continuations with two judgement forms mirroring the machine phases. _Expression continuations_ (#typeContE($Gamma$, $K$, $tau$)) accept a value of type $tau$ in context $Gamma$. The overline on $overline(tau)$ indicates the type is in negative position — consumed by the continuation, not produced. _Statement continuations_ (#typeContC($Gamma$, $K$)) accept $#Skip$ in context $Gamma$.
 
 ==== Expression Continuations
 
 #mathpar(
-  proof-tree(rule(name: "KIfCond", typeContE($Gamma$, $#ifCondK (s_1, s_2) dot.c K$), typeStmt($Gamma, #scopeMark($"if"$)$, $s_1$, $Gamma'$), typeStmt($Gamma, #scopeMark($"if"$)$, $s_2$, $Gamma''$), typeContC($Gamma$, $K$))),
-  proof-tree(rule(name: "KDecl", typeContE($Gamma$, $#declK (x : tau) dot.c K$), typeContC($Gamma, x : tau$, $K$))),
-  proof-tree(rule(name: "KAssign", typeContE($Gamma$, $#assignK (x) dot.c K$), $Gamma(x) = tau$, typeContC($Gamma$, $K$))),
+  proof-tree(rule(name: "IfCondK", typeContE($Gamma$, $#ifCondK (s_1, s_2) dot.c K$, $#Bool$), typeStmt($Gamma, #scopeMark($"if"$)$, $s_1$, $Gamma'$), typeStmt($Gamma, #scopeMark($"if"$)$, $s_2$, $Gamma''$), typeContC($Gamma$, $K$))),
+  proof-tree(rule(name: "DeclK", typeContE($Gamma$, $#declK (x : tau) dot.c K$, $tau$), typeContC($Gamma, x : tau$, $K$))),
+  proof-tree(rule(name: "AssignK", typeContE($Gamma$, $#assignK (x) dot.c K$, $tau$), $Gamma(x) = tau$, typeContC($Gamma$, $K$))),
 
-  proof-tree(rule(name: "KBinOpL", typeContE($Gamma$, $#binopLK (plus.o, e_2) dot.c K$), $plus.o : tau_1 times tau_2 -> tau_3$, typeExpr($Gamma$, $e_2$, $tau_2$), typeContE($Gamma$, $K$))),
-  proof-tree(rule(name: "KBinOpR", typeContE($Gamma$, $#binopRK (plus.o, v_1) dot.c K$), $plus.o : tau_1 times tau_2 -> tau_3$, $tack.r v_1 : tau_1$, typeContE($Gamma$, $K$))),
-  proof-tree(rule(name: "KUnOp", typeContE($Gamma$, $#unopK (plus.o) dot.c K$), typeContE($Gamma$, $K$))),
-  proof-tree(rule(name: "KLoopE", typeContE($Gamma$, $#loopK (c, s) dot.c K$), typeExpr($Gamma$, $c$, $#Bool$), typeStmt($Gamma$, $s$, $Gamma'$), typeContC($Gamma$, $K$))),
+  proof-tree(rule(name: "BinOpLK", typeContE($Gamma$, $#binopLK (plus.o, e_2) dot.c K$, $tau_1$), $plus.o : tau_1 times tau_2 -> tau_3$, typeExpr($Gamma$, $e_2$, $tau_2$), typeContE($Gamma$, $K$, $tau_3$))),
+  proof-tree(rule(name: "BinOpRK", typeContE($Gamma$, $#binopRK (plus.o, v_1) dot.c K$, $tau_2$), $plus.o : tau_1 times tau_2 -> tau_3$, $tack.r v_1 : tau_1$, typeContE($Gamma$, $K$, $tau_3$))),
+  proof-tree(rule(name: "UnOpK", typeContE($Gamma$, $#unopK (plus.o) dot.c K$, $tau_1$), $plus.o : tau_1 -> tau_2$, typeContE($Gamma$, $K$, $tau_2$))),
+  proof-tree(rule(name: "LoopEK", typeContE($Gamma$, $#loopK (c, s) dot.c K$, $#Bool$), typeExpr($Gamma$, $c$, $#Bool$), typeStmt($Gamma$, $s$, $Gamma'$), typeContC($Gamma$, $K$))),
 )
 
-KIfCond types both branches under $Gamma, #scopeMark($"if"$)$ (with a scope marker); the tail $K$ accepts $#Skip$ in $Gamma$ since the if-statement's output context is $Gamma$. KDecl extends the context with $x : tau$ for the tail. KAssign preserves the context since assignment does not change it. KBinOpL checks the pending right operand $e_2$ and requires the tail $K$ to accept the result. KBinOpR checks the saved left value $v_1$ against the operator's left domain. KUnOp simply requires the tail to accept the result. The operator signature premise $plus.o : tau_1 times tau_2 -> tau_3$ is determined by the fixed set of operators. KLoopE has the same premises as KLoop but appears as an expression continuation because $#loopK$ receives the condition value (a $#Bool$); the tail $K$ uses #typeContC because the loop ultimately produces $#Skip$.
+IfCondK accepts $#Bool$ (the condition) and types both branches under $Gamma, #scopeMark($"if"$)$. DeclK accepts a value of the declared type $tau$. AssignK accepts a value matching the variable's type. For operators, the negative-position type threads through the evaluation chain: BinOpLK accepts $tau_1$ (the left operand type), requires $e_2 : tau_2$, and the tail $K$ must accept $tau_3$ (the result type). BinOpRK accepts $tau_2$ (the right operand type), checks $v_1 : tau_1$, and again the tail accepts $tau_3$. UnOpK accepts $tau_1$ and the tail accepts $tau_2$ per the unary signature $plus.o : tau_1 -> tau_2$. LoopEK accepts $#Bool$ (the condition); the tail $K$ uses #typeContC because the loop ultimately produces $#Skip$.
+
+==== Statement Continuations
+
+#mathpar(
+  proof-tree(rule(name: "HaltK", typeContC($Gamma$, $#halt$))),
+  proof-tree(rule(name: "JumpK", typeContC($Gamma$, $#jumpK (ell) dot.c K$), typeContC($#drop($Gamma$, $ell$)$, $K$))),
+  proof-tree(rule(name: "SeqK", typeContC($Gamma$, $#seqK (s) dot.c K$), typeStmt($Gamma$, $s$, $Gamma'$), typeContC($Gamma'$, $K$))),
+  proof-tree(rule(name: "LoopK", typeContC($Gamma$, $#loopK (c, s) dot.c K$), typeExpr($Gamma$, $c$, $#Bool$), typeStmt($Gamma$, $s$, $Gamma'$), typeContC($Gamma$, $K$))),
+)
+
+JumpK uses $#drop($Gamma$, $ell$)$ to strip the context to the matching scope marker, mirroring $#pop($E$, $ell$)$ on environments. The tail $K$ is typed at the resulting outer context. LoopK checks the condition and body under $Gamma$; the tail $K$ is typed at $Gamma$ since the loop preserves the context.
 
 === Environment-Context Coherence
 
@@ -320,9 +329,9 @@ Scope markers must match between $E$ and $Gamma$.
 A machine state is _well-typed_ when coherence bridges the environment to a context $Gamma$ that types both the control and the continuation:
 
 #mathpar(
-  proof-tree(rule(name: "WtExprE", $tack.r #cekE($e$, $E$, $K$) "ok"$, $#coh($E$, $Gamma$)$, typeExpr($Gamma$, $e$, $tau$), typeContE($Gamma$, $K$))),
+  proof-tree(rule(name: "WtExprE", $tack.r #cekE($e$, $E$, $K$) "ok"$, $#coh($E$, $Gamma$)$, typeExpr($Gamma$, $e$, $tau$), typeContE($Gamma$, $K$, $tau$))),
   proof-tree(rule(name: "WtExprS", $tack.r #cekE($s$, $E$, $K$) "ok"$, $#coh($E$, $Gamma$)$, typeStmt($Gamma$, $s$, $Gamma'$), typeContC($Gamma'$, $K$))),
-  proof-tree(rule(name: "WtContV", $tack.r #cekC($v$, $E$, $K$) "ok"$, $#coh($E$, $Gamma$)$, $tack.r v : tau$, typeContE($Gamma$, $K$))),
+  proof-tree(rule(name: "WtContV", $tack.r #cekC($v$, $E$, $K$) "ok"$, $#coh($E$, $Gamma$)$, $tack.r v : tau$, typeContE($Gamma$, $K$, $tau$))),
   proof-tree(rule(name: "WtContS", $tack.r #cekC($#Skip$, $E$, $K$) "ok"$, $#coh($E$, $Gamma$)$, typeContC($Gamma$, $K$))),
 )
 
