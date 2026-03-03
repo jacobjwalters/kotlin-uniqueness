@@ -37,6 +37,7 @@ s ::=& #Var x : tau = e && "(Mutable) Variable Declaration" \
   |& s_1; s_2 && "Statement Sequencing" \
   |& #If e #Then s_1 #Else s_2 && "If/Then/Else" \
   |& #While c brace.l s brace.r && "While Loop" \
+  |& #Break && "Loop Break" \
 $
 
 A program $P$ is a statement $s$. $x$ represents an infinite set of variable names. While we write names as strings in this document, for formalisation purposes, we use de Bruijn indices.
@@ -104,6 +105,8 @@ Since statements may update their context, we use a "small-step" typing judgemen
   proof-tree(rule(name: "IfStmt", typeStmt($Gamma$, $#If e #Then s_1 #Else s_2$, $Gamma$), typeExpr($Gamma$, $e$, $#Bool$), typeStmt($Gamma$, $s_1$, $Gamma'$), typeStmt($Gamma$, $s_2$, $Gamma''$))),
 
   proof-tree(rule(name: "WhileStmt", typeStmt($Gamma$, $#While c brace.l s brace.r$, $Gamma$), typeExpr($Gamma$, $c$, $#Bool$), typeStmt($Gamma$, $s$, $Gamma'$))),
+
+  proof-tree(rule(name: "BreakStmt", typeStmt($Gamma$, $#Break$, $Gamma'$))),
 )
 
 Variable declarations check the initialiser expression against the declared type, then extend the context, possibly shadowing an existing binding.
@@ -113,6 +116,8 @@ Variable assignment requires that $x : tau$ is present somewhere in the context 
 Sequencing threads the context produced as the output of the first statement into the input of the second statement.
 
 The while loop checks its condition against $#Bool$ and types the body under $Gamma$. The body may extend the context to $Gamma'$, but the output context of the whole loop is $Gamma$ since the body is scoped per iteration.
+
+The $#Break$ statement has an unconstrained output context $Gamma'$ because it never continues normally — it pops to the enclosing loop boundary. Code following $#Break$ in a sequence is unreachable but still type-checked via Seq threading $Gamma'$.
 
 === Properties
 
@@ -196,6 +201,15 @@ $
 
 Note that $#pop($dot$, $ell$)$ is undefined; the type system ensures a matching marker is always present.
 
+The analogous operation $#popK($K$, $ell$)$ scans the continuation for the first $#jumpK (ell)$ and returns the tail after it:
+
+$
+#popK($#jumpK (ell) dot.c K$, $ell$) &= K \
+#popK($F dot.c K$, $ell$) &= #popK($K$, $ell$) && quad F != #jumpK (ell)
+$
+
+$#popK($#halt$, $ell$)$ is undefined; the type system ensures a matching $#jumpK$ is always present when $#Break$ executes.
+
 The scope markers $#scopeMark($ell$)$ are notational devices for delineating scopes within a flat list. A formalisation may prefer to represent environments explicitly as a stack of frames (i.e. a list of lists), where push/pop correspond to cons/uncons on the outer list.
 
 ==== Continuation ($K$)
@@ -223,7 +237,7 @@ $
 - $#binopLK (plus.o, e_2)$ waits for the left operand to evaluate to $v_1$, then begins evaluating $e_2$ with $#binopRK (plus.o, v_1)$ on the stack.
 - $#binopRK (plus.o, v_1)$ waits for the right operand to evaluate to $v_2$, then computes $#delta (plus.o, v_1, v_2)$.
 - $#unopK (plus.o)$ waits for the operand to evaluate to $v$, then computes $#delta (plus.o, v)$.
-- $#loopK (c, s)$ serves dual roles: as an expression continuation, it receives the condition value ($#True$ enters the body, $#False$ exits); as a statement continuation, it receives $#Skip$ after the body completes (via $#jumpK$) and re-evaluates $c$.
+- $#loopK (c, s)$ serves dual roles: as an expression continuation, it receives the condition value ($#True$ enters the body, $#False$ exits); as a statement continuation, it receives $#Skip$ after the body completes and resets the environment before re-evaluating $c$. The While rule places $#jumpK ("loop")$ after $#loopK$ on the continuation; $#Break$ uses $#popK$ to jump directly to this $#jumpK$, exiting the loop in a single step.
 
 === Transition Rules
 We define a multi-step judgement $ms$ in the usual way.
@@ -240,7 +254,8 @@ We define a multi-step judgement $ms$ in the usual way.
   proof-tree(rule(name: "BinOp", $#cekE($e_1 plus.o e_2$, $E$, $K$) ~> #cekE($e_1$, $E$, $#binopLK (plus.o, e_2) dot.c K$)$)),
   proof-tree(rule(name: "UnOp", $#cekE($#IsZero (e)$, $E$, $K$) ~> #cekE($e$, $E$, $#unopK (#IsZero) dot.c K$)$)),
 
-  proof-tree(rule(name: "While", $#cekE($#While c brace.l s brace.r$, $E$, $K$) ~> #cekE($c$, $E$, $#loopK (c, s) dot.c K$)$)),
+  proof-tree(rule(name: "While", $#cekE($#While c brace.l s brace.r$, $E$, $K$) ~> #cekE($c$, $E, #scopeMark($"loop"$)$, $#loopK (c, s) dot.c #jumpK ("loop") dot.c K$)$)),
+  proof-tree(rule(name: "Break", $#cekE($#Break$, $E$, $K$) ~> #cekC($#Skip$, $#pop($E$, $"loop"$)$, $#popK($K$, $"loop"$)$)$)),
 )
 Val transitions a source value expression ($#True$, $#False$, $n$) into Cont mode. Var looks up the rightmost binding of $x$ in $E$. The remaining rules decompose a compound form by pushing a continuation frame. BinOp evaluates the left operand first (left-to-right evaluation order). UnOp evaluates its single operand.
 
@@ -257,13 +272,13 @@ Val transitions a source value expression ($#True$, $#False$, $n$) into Cont mod
   proof-tree(rule(name: "BinOpR", $#cekC($v_2$, $E$, $#binopRK (plus.o, v_1) dot.c K$) ~> #cekC($#delta (plus.o, v_1, v_2)$, $E$, $K$)$)),
   proof-tree(rule(name: "UnOpDone", $#cekC($v$, $E$, $#unopK (plus.o) dot.c K$) ~> #cekC($#delta (plus.o, v)$, $E$, $K$)$)),
 
-  proof-tree(rule(name: "LoopTrue", $#cekC($#True$, $E$, $#loopK (c, s) dot.c K$) ~> #cekE($s$, $E, #scopeMark($"wh"$)$, $#jumpK ("wh") dot.c #loopK (c, s) dot.c K$)$)),
+  proof-tree(rule(name: "LoopTrue", $#cekC($#True$, $E$, $#loopK (c, s) dot.c K$) ~> #cekE($s$, $E$, $#loopK (c, s) dot.c K$)$)),
   proof-tree(rule(name: "LoopFalse", $#cekC($#False$, $E$, $#loopK (c, s) dot.c K$) ~> #cekC($#Skip$, $E$, $K$)$)),
-  proof-tree(rule(name: "LoopCont", $#cekC($#Skip$, $E$, $#loopK (c, s) dot.c K$) ~> #cekE($c$, $E$, $#loopK (c, s) dot.c K$)$)),
+  proof-tree(rule(name: "LoopCont", $#cekC($#Skip$, $E$, $#loopK (c, s) dot.c K$) ~> #cekE($c$, $#pop($E$, $"loop"$), #scopeMark($"loop"$)$, $#loopK (c, s) dot.c K$)$)),
 )
-IfTrue/IfFalse push a scope marker $#scopeMark($"if"$)$ and $#jumpK ("if")$ before entering a branch. ScopeDone pops the environment to the rightmost $#scopeMark($ell$)$. $E[x |-> v]$ updates the rightmost binding of $x$ in $E$. BinOpL/BinOpR implement left-to-right evaluation of binary operators: BinOpL saves the left value and begins the right operand; BinOpR applies $#delta$ to both values. UnOpDone applies $#delta$ to the single operand value. LoopTrue pushes a scope marker $#scopeMark($"wh"$)$ and enters the body with $#jumpK ("wh") dot.c #loopK (c, s)$ on the stack; after the body completes, ScopeDone pops the iteration scope and LoopCont re-evaluates the condition. LoopFalse exits the loop with $#Skip$.
+IfTrue/IfFalse push a scope marker $#scopeMark($"if"$)$ and $#jumpK ("if")$ before entering a branch. ScopeDone pops the environment to the rightmost $#scopeMark($ell$)$. $E[x |-> v]$ updates the rightmost binding of $x$ in $E$. BinOpL/BinOpR implement left-to-right evaluation of binary operators: BinOpL saves the left value and begins the right operand; BinOpR applies $#delta$ to both values. UnOpDone applies $#delta$ to the single operand value. LoopTrue enters the body directly. LoopFalse produces $#Skip$, which reaches $#jumpK ("loop")$ via the existing ScopeDone rule, popping $#scopeMark($"loop"$)$. LoopCont resets the environment between iterations by popping to $#scopeMark($"loop"$)$ and re-pushing it, discarding iteration-local variables while preserving outer mutations. Break pops both the environment and the continuation to the $"loop"$ label in a single step, fully exiting the loop.
 
-The lifecycle of a while loop proceeds as follows. The While rule evaluates the condition $c$, pushing $#loopK (c, s)$ onto the continuation. If the condition is $#False$, LoopFalse produces $#Skip$ and the loop terminates. If the condition is $#True$, LoopTrue pushes a scope marker $#scopeMark($"wh"$)$ onto the environment and begins executing the body $s$ with the continuation $#jumpK ("wh") dot.c #loopK (c, s) dot.c K$. When the body completes with $#Skip$, ScopeDone fires on $#jumpK ("wh")$, popping the environment back to $#scopeMark($"wh"$)$ and discarding any variables declared during the iteration. The resulting $#Skip$ then reaches $#loopK (c, s)$, which triggers LoopCont to re-evaluate the condition $c$, beginning the next iteration. The $#loopK$ frame remains on the stack throughout, avoiding any per-iteration allocation.
+The lifecycle of a while loop proceeds as follows. The While rule pushes $#scopeMark($"loop"$)$ onto the environment and places $#loopK (c, s) dot.c #jumpK ("loop")$ on the continuation, then evaluates the condition $c$. If the condition is $#False$, LoopFalse produces $#Skip$; this reaches $#jumpK ("loop")$ and ScopeDone pops $#scopeMark($"loop"$)$, cleaning up the loop scope. If the condition is $#True$, LoopTrue enters the body $s$ directly. Variables declared in the body accumulate in $E$ during the iteration. When the body completes with $#Skip$, LoopCont fires: it pops $E$ to $#scopeMark($"loop"$)$ (discarding iteration-local bindings) and re-pushes $#scopeMark($"loop"$)$ to begin the next iteration, then re-evaluates $c$. If $#Break$ is executed inside the body, it pops $E$ to $#scopeMark($"loop"$)$ via $#pop$ and pops $K$ to $#jumpK ("loop")$ via $#popK$, producing $#Skip$ in a clean state — the loop is fully exited in a single transition. For nested loops, $#pop$ finds the rightmost (innermost) $#scopeMark($"loop"$)$ and $#popK$ finds the topmost (innermost) $#jumpK ("loop")$, so $#Break$ exits the innermost enclosing loop.
 
 === Initial and Terminal States
 
@@ -344,5 +359,7 @@ A machine state is _well-typed_ when coherence bridges the environment to a cont
 - *Statement Execution Preserves Coherence:* if $#coh($E$, $Gamma$)$, #typeStmt($Gamma$, $s$, $Gamma'$), and $#cekE($s$, $E$, $K$) #ms #cekC($#Skip$, $E'$, $K$)$, then $#coh($E'$, $Gamma'$)$.
 
 - *Pop/Drop Preserves Coherence:* if $#coh($E$, $Gamma$)$, then $#coh($#pop($E$, $ell$)$, $#drop($Gamma$, $ell$)$)$.
+
+- *PopK/Drop Preserves Continuation Typing:* if #typeContC($Gamma$, $K$) and $K$ contains $#jumpK (ell)$, then #typeContC($#drop($Gamma$, $ell$)$, $#popK($K$, $ell$)$). Analogous to Pop/Drop Preserves Coherence but for continuations.
 
 - *Determinacy:* each machine state has at most one successor (the transition relation is deterministic). Consequently, if the machine terminates, the terminal state is unique.

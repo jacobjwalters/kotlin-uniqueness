@@ -13,6 +13,7 @@
 // Scope markers and pop
 #let scopeMark(l) = $diamond.stroked_#l$
 #let pop(e, l) = $op("pop") (#e, #l)$
+#let popK(k, l) = $op("popK") (#k, #l)$
 #let normalise = math.op("normalise")
 #let body = math.op("body")
 #let args = math.op("args")
