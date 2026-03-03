@@ -311,10 +311,10 @@ We define well-typedness for continuations with two judgement forms mirroring th
   proof-tree(rule(name: "BinOpLK", typeContE($Gamma$, $#binopLK (plus.o, e_2) dot.c K$, $tau_1$), $plus.o : tau_1 times tau_2 -> tau_3$, typeExpr($Gamma$, $e_2$, $tau_2$), typeContE($Gamma$, $K$, $tau_3$))),
   proof-tree(rule(name: "BinOpRK", typeContE($Gamma$, $#binopRK (plus.o, v_1) dot.c K$, $tau_2$), $plus.o : tau_1 times tau_2 -> tau_3$, $tack.r v_1 : tau_1$, typeContE($Gamma$, $K$, $tau_3$))),
   proof-tree(rule(name: "UnOpK", typeContE($Gamma$, $#unopK (plus.o) dot.c K$, $tau_1$), $plus.o : tau_1 -> tau_2$, typeContE($Gamma$, $K$, $tau_2$))),
-  proof-tree(rule(name: "LoopEK", typeContE($Gamma$, $#loopK (c, s) dot.c K$, $#Bool$), typeExpr($Gamma$, $c$, $#Bool$), typeStmt($Gamma$, $s$, $Gamma'$), typeContC($Gamma$, $K$))),
+  proof-tree(rule(name: "LoopCondK", typeContE($Gamma$, $#loopK (c, s) dot.c K$, $#Bool$), typeExpr($Gamma$, $c$, $#Bool$), typeStmt($Gamma$, $s$, $Gamma'$), typeContC($Gamma$, $K$))),
 )
 
-IfCondK accepts $#Bool$ (the condition) and types both branches under $Gamma, #scopeMark($"if"$)$. DeclK accepts a value of the declared type $tau$. AssignK accepts a value matching the variable's type. For operators, the negative-position type threads through the evaluation chain: BinOpLK accepts $tau_1$ (the left operand type), requires $e_2 : tau_2$, and the tail $K$ must accept $tau_3$ (the result type). BinOpRK accepts $tau_2$ (the right operand type), checks $v_1 : tau_1$, and again the tail accepts $tau_3$. UnOpK accepts $tau_1$ and the tail accepts $tau_2$ per the unary signature $plus.o : tau_1 -> tau_2$. LoopEK accepts $#Bool$ (the condition); the tail $K$ uses #typeContC because the loop ultimately produces $#Skip$.
+IfCondK accepts $#Bool$ (the condition) and types both branches under $Gamma, #scopeMark($"if"$)$. DeclK accepts a value of the declared type $tau$. AssignK accepts a value matching the variable's type. For operators, the negative-position type threads through the evaluation chain: BinOpLK accepts $tau_1$ (the left operand type), requires $e_2 : tau_2$, and the tail $K$ must accept $tau_3$ (the result type). BinOpRK accepts $tau_2$ (the right operand type), checks $v_1 : tau_1$, and again the tail accepts $tau_3$. UnOpK accepts $tau_1$ and the tail accepts $tau_2$ per the unary signature $plus.o : tau_1 -> tau_2$. LoopCondK accepts $#Bool$ (the condition); the tail $K$ uses #typeContC because the loop ultimately produces $#Skip$.
 
 ==== Statement Continuations
 
@@ -322,10 +322,10 @@ IfCondK accepts $#Bool$ (the condition) and types both branches under $Gamma, #s
   proof-tree(rule(name: "HaltK", typeContC($Gamma$, $#halt$))),
   proof-tree(rule(name: "JumpK", typeContC($Gamma$, $#jumpK (ell) dot.c K$), typeContC($#drop($Gamma$, $ell$)$, $K$))),
   proof-tree(rule(name: "SeqK", typeContC($Gamma$, $#seqK (s) dot.c K$), typeStmt($Gamma$, $s$, $Gamma'$), typeContC($Gamma'$, $K$))),
-  proof-tree(rule(name: "LoopK", typeContC($Gamma$, $#loopK (c, s) dot.c K$), typeExpr($Gamma$, $c$, $#Bool$), typeStmt($Gamma$, $s$, $Gamma'$), typeContC($Gamma$, $K$))),
+  proof-tree(rule(name: "LoopBodyK", typeContC($Gamma$, $#loopK (c, s) dot.c K$), typeExpr($Gamma$, $c$, $#Bool$), typeStmt($Gamma$, $s$, $Gamma'$), typeContC($Gamma$, $K$))),
 )
 
-JumpK uses $#drop($Gamma$, $ell$)$ to strip the context to the matching scope marker, mirroring $#pop($E$, $ell$)$ on environments. The tail $K$ is typed at the resulting outer context. LoopK checks the condition and body under $Gamma$; the tail $K$ is typed at $Gamma$ since the loop preserves the context.
+JumpK uses $#drop($Gamma$, $ell$)$ to strip the context to the matching scope marker, mirroring $#pop($E$, $ell$)$ on environments. The tail $K$ is typed at the resulting outer context. LoopBodyK checks the condition and body under $Gamma$; the tail $K$ is typed at $Gamma$ since the loop preserves the context.
 
 === Environment-Context Coherence
 
