@@ -9,8 +9,11 @@
 // Contexts
 #let ctx = $thin upright("ctx")$
 #let drop = math.op("drop")
-#let trunc(e, n) = $#e attach(arrow.b, br: #n)$
-#let normalise = math.op("normalise")
+// Scope markers and pop
+#let scopeMark(l) = $diamond.stroked_#l$
+#let pop(e, l) = $op("pop") (#e, #l)$
+#let popK(k, l) = $op("popK") (#k, #l)$
+#let popCallK(k) = $op("popCallK") (#k)$
 #let body = math.op("body")
 #let args = math.op("args")
 #let fields = math.op("fields")
@@ -42,15 +45,10 @@
 #let Nat = $sans("Nat")$
 #let Bool = $sans("Bool")$
 
-// Modalities
-#let Unique = $sans("unique")$
-#let Aliased = $sans("aliased")$
-#let Borrowed = $sans("borrowed")$
-
 // Exprs
 #let Skip = $sans("skip")$
 #let Return = $sans("return")$
-#let Null = $sans("null")$
+#let New = $sans("new")$
 #let Var = $sans("var")$
 #let If = $sans("if")$
 #let Then = $sans("then")$
@@ -66,13 +64,15 @@
 // CESK continuation frames
 #let fieldK = math.op("fieldK")
 #let ifCondK = math.op("ifCondK")
-#let ifDoneK = math.op("ifDoneK")
+#let jumpK = math.op("jumpK")
+#let declK = math.op("declK")
 #let returnK = $sans("returnK")$
 #let assignK = math.op("assignK")
 #let seqK = math.op("seqK")
 #let loopK = math.op("loopK")
 #let argK = math.op("argK")
 #let callK = math.op("callK")
+#let newK = math.op("newK")
 #let binopLK = math.op("binopLK")
 #let binopRK = math.op("binopRK")
 #let unopK = math.op("unopK")
@@ -81,10 +81,6 @@
 // Meta-level operator application
 #let delta = $delta$
 
-// Runtime signals
-#let sig = $sans("sig")$
-#let breaking = $sans("breaking")$
-#let returning = $sans("returning")$
 
 // Rhetorical and definitional emphasis
 #let remph(body) = emph(body)
