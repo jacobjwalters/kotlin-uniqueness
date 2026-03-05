@@ -313,6 +313,12 @@ def liftValue : Value → Expr
 | .False => .False
 | .Nat (n : Nat) => .Nat n
 
+def ValueType : Value → τ → Prop
+| .True, .Bool => True
+| .False, .Bool => True
+| .Nat _, .Nat => True
+| _, _ => False
+
 inductive Control
 | sourceExpr (e : Expr)
 | sourceStmt (s : Stmt)
@@ -429,6 +435,10 @@ inductive Eval : CEK → CEK → Prop
   Eval
     ⟨.value v₂, E, .binopRK op v₁ :: K⟩
     ⟨.value (op.run v₁ v₂), E, K⟩
+| UnOpDone (op : UnOp) (v : Value) :
+  Eval
+    ⟨.value v, E, .unopK op :: K⟩
+    ⟨.value (op.run v), E, K⟩
 | LoopTrue (body : Stmt) (c : Expr) :
   Eval
     ⟨.value .True, E, .loopK c body :: K⟩
@@ -445,3 +455,56 @@ inductive Eval : CEK → CEK → Prop
 def init_state (s : Stmt) : CEK := ⟨.sourceStmt s, [], []⟩
 
 def terminal_state (E : Environment) : CEK := ⟨.skip, E, []⟩
+
+-- # Statement Continuations
+
+def List.gcat (inp : List Γ) : Γ := inp.foldl (· ++ ·) []
+
+inductive ContStmtType : List Γ → List Cont → Prop
+| HaltK (Γ₁ : List Γ) :
+  ContStmtType Γ₁ []
+| JumpK (Γ₁ : List Γ) (l : Nat) :
+  ContStmtType (Γ₁.drop (Γ₁.length - l)) K →
+  ContStmtType Γ₁ (.jumpK l :: K)
+| SeqK (Γ₁ : List Γ) (Γ₂ : List Γ) (s : Stmt) :
+  StmtType Γ₁.gcat s Γ₂.gcat →
+  ContStmtType Γ₂ K →
+  ContStmtType Γ₁ (.seqK s :: K)
+| LoopBodyK (Γ₁ : List Γ) (Γ₂ : List Γ) (body : Stmt) (c : Expr) :
+  ExprType Γ₁.gcat c .Bool →
+  StmtType Γ₁.gcat body Γ₂.gcat →
+  ContStmtType Γ₁ K →
+  ContStmtType Γ₁ (.loopK c body :: K)
+
+-- # Expression Continuations
+
+inductive ContExprType : List Γ → List Cont → τ → Prop
+-- check with the loop framing
+| IfCondK (s₁ : Stmt) (s₂ : Stmt) (Γ₁ Γ₂ Γ₃ : List Γ) :
+  StmtType Γ₁.gcat s₁ Γ₂.gcat →
+  StmtType Γ₁.gcat s₂ Γ₃.gcat →
+  ContStmtType Γ₁ K →
+  ContExprType Γ₁ (.ifCondK s₁ s₂ :: K) .Bool
+| DeclK (x : VarName) (type : τ) (Γ₁ : Γ) (Γ₂ : List Γ) :
+  ContStmtType ((⟨x, type⟩ :: Γ₁) :: Γ₂) K →
+  ContExprType (Γ₁ :: Γ₂) (.declK x type :: K) type
+| AssignK (x : VarName) (type : τ) (Γ₁ : List Γ) :
+  (Γ₁.gcat(x) = type) →
+  ContStmtType Γ₁ K →
+  ContExprType Γ₁ (.assignK x :: K) type
+| BinOpLK (Γ₁ : List Γ) (op : BinOp) (e₂ : Expr) :
+  ExprType Γ₁.gcat e₂ op.arg2 →
+  ContExprType Γ₁ K op.out →
+  ContExprType Γ₁ (.binopLK op e₂ :: K) op.arg1
+| BinOpRK (Γ₁ : List Γ) (op : BinOp) (v₁ : Value) :
+  ValueType v₁ op.arg1 →
+  ContExprType Γ₁ K op.out →
+  ContExprType Γ₁ (.binopRK op v₁ :: K) op.arg2
+| UnOpK (Γ₁ : List Γ) (op : UnOp) :
+  ContExprType Γ₁ K op.out →
+  ContExprType Γ₁ (.unopK op :: K) op.arg
+| LoopCondK (Γ₁ : List Γ) (Γ₂ : List Γ) (body : Stmt) (c : Expr) :
+  ExprType Γ₁.gcat c .Bool →
+  StmtType Γ₁.gcat body Γ₂.gcat →
+  ContStmtType Γ₁ K →
+  ContExprType Γ₁ (.loopK c body :: K) .Bool
