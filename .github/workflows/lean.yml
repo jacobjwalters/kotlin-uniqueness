@@ -1,0 +1,27 @@
+name: Check Lean formalization
+
+on:
+  push:
+    paths:
+      - 'lean-formalisation/**'
+  pull_request:
+    paths:
+      - 'lean-formalisation/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: lean-formalisation
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install elan
+        run: |
+          curl https://elan-init.netlify.app/ -sSf | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> $GITHUB_PATH
+
+      - name: Build project
+        run: lake build

@@ -4,17 +4,8 @@
 # Editor cruft
 **/*.*~
 
-# LaTeX build outputs
-**/*.aux
-**/*.fdb_latexmk
-**/*.fls
-**/*.log
-**/*.out
+# Build outputs
 **/*.pdf
-**/*.toc
-**/*.bbl*
-**/*.bcf*
-**/*.blg
-**/*.dvi
-**/*.run.xml
-**/*.tdo
+
+# Lean
+lean-formalisation/.lake/
