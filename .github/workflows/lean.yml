@@ -18,10 +18,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install elan
-        run: |
-          curl https://elan-init.netlify.app/ -sSf | sh -s -- -y --default-toolchain none
-          echo "$HOME/.elan/bin" >> $GITHUB_PATH
-
-      - name: Build project
-        run: lake build
+      - name: Build Lean project
+        uses: leanprover/lean4-action@v1
+        with:
+          build-args: ''
+          lake-package-directory: lean-formalisation
