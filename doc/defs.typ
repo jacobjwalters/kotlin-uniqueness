@@ -92,6 +92,21 @@
 #let popLoopK(k) = $op("popLoopK") (#k)$
 #let truncate(e, n) = $#e bar.v_#n$
 
+// Continuation typing rule names (used in proof-tree labels and prose)
+#let IfCondK = math.op("IfCondK")
+#let DeclK = math.op("DeclK")
+#let AssignK = math.op("AssignK")
+#let BinOpLK = math.op("BinOpLK")
+#let BinOpRK = math.op("BinOpRK")
+#let UnOpK = math.op("UnOpK")
+#let LoopK = math.op("LoopK")
+#let LoopContK = math.op("LoopContK")
+#let ScopeExitK = math.op("ScopeExitK")
+#let ExprStmtK = math.op("ExprStmtK")
+#let HaltK = math.op("HaltK")
+#let SeqK = math.op("SeqK")
+#let ScopeBodyK = math.op("ScopeBodyK")
+
 // Meta-level operator application
 #let delta = $delta$
 

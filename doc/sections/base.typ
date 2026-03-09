@@ -95,7 +95,7 @@ Since expressions do not modify the typing context, we use the judgement form #t
 
 $#If$ expressions require both branches to have the same type $tau$; the condition must be $#Bool$. $#While$ expressions have type $#Unit$; the body must have type $#Unit$. $#Break$ has type $tau$ for any $tau$ since it never produces a value, and any code that consumes it is dead code as far as evaluation is concerned.
 
-Note that BreakExpr places no restriction on $Gamma$, so $#Break$ is well-typed even outside a loop body; such programs get stuck at runtime (see Progress below). $#Scope$ expressions run a sequence of statements $s$ (which may extend the context from $Gamma$ to $Gamma'$), then evaluate a trailing expression $e$ in the extended context $Gamma'$. The overall type is the type of $e$; the scope's local declarations are not visible outside.
+Note: BreakExpr places no restriction on $Gamma$, so $#Break$ is well-typed even outside a loop body; such programs get stuck at runtime (see Progress below). $#Scope$ expressions run a sequence of statements $s$ (which may extend the context from $Gamma$ to $Gamma'$), then evaluate a trailing expression $e$ in the extended context $Gamma'$. The overall type is the type of $e$; the scope's local declarations are not visible outside.
 
 The operator signature premise $plus.o : tau_1 times tau_2 -> tau_3$ (or $plus.o : tau_1 -> tau_2$ for unary) is grounded by the operator typing rules below.
 
@@ -149,7 +149,7 @@ Note that in the statement weakening properties, $Gamma, Delta$ refers to $Gamma
 Evaluation of an #Lbase program begins with a program statement $s$. We define the operational semantics as a CEK machine; a state machine that makes evaluation order explicit via a continuation stack. We also introduce a run-time language.
 
 === Run-time Language
-The CEK machine operates on a run-time language that extends the source syntax with run-time-only forms. This language is a strict extension of the source language; it has one additional syntactic construct, with a corresponding typing rule. We should show all of the properties of the source language's type system hold for the run-time language's type system.
+The CEK machine operates on a run-time language that extends the source syntax with run-time-only forms. This language is a strict extension of the source language; it has one additional syntactic construct $#Skip$, with a corresponding typing rule. We should show all of the properties of the source language's type system hold for the run-time language's type system too.
 
 ==== Values
 Values are fully evaluated expressions:
@@ -265,7 +265,9 @@ $
 & quad "where" op("popLoopK") (K) = (n, K') \
 #cekE($#Scope brace.l s ; e brace.r$, $E$, $K$) &~> #cekE($s$, $E$, $#scopeBodyK (e, |E|) dot.c K$) && "Scope"
 $
-Val transitions a source value expression ($#True$, $#False$, $n$, $#UnitVal$) into Cont mode. Var looks up the rightmost binding of $x$ in $E$. The remaining rules decompose a compound form by pushing a continuation frame. BinOp evaluates the left operand first (left-to-right evaluation order). UnOp evaluates its single operand. If evaluates the condition; the branches are expressions, so no scope markers are needed. While records $|E|$ in $#loopK$ for later truncation. Break uses $#popLoopK$ to find the enclosing loop, truncates $E$ to the loop's saved size, and produces $#UnitVal$. Scope records $|E|$ and evaluates the statement body.
+Val transitions a source value expression ($#True$, $#False$, $n$, $#UnitVal$) into Cont mode. Var looks up the rightmost binding of $x$ in $E$.
+
+The remaining rules decompose a compound form by pushing a continuation frame. BinOp evaluates the left operand first (left-to-right evaluation order). UnOp evaluates its single operand. If evaluates the condition; the branches are expressions, so no scope markers are needed. While records $|E|$ in $#loopK$ for later truncation. Break uses $#popLoopK$ to find the enclosing loop, truncates $E$ to the loop's saved size, and produces $#UnitVal$. Scope records $|E|$ and evaluates the statement body.
 
 ==== Cont
 $
@@ -284,7 +286,9 @@ $
 #cekC($#Skip$, $E$, $#scopeBodyK (e, n) dot.c K$) &~> #cekE($e$, $E$, $#scopeExitK (n) dot.c K$) && "ScopeBody" \
 #cekC($v$, $E$, $#scopeExitK (n) dot.c K$) &~> #cekC($v$, $#truncate($E$, $n$)$, $K$) && "ScopeExit"
 $
-$E[x |-> v]$ updates the rightmost binding of $x$ in $E$. BinOpL/BinOpR implement left-to-right evaluation of binary operators. IfTrue/IfFalse dispatch directly to the branch expression; no scope markers are pushed since branches are expressions. LoopTrue enters the body expression via $#loopContK$. LoopFalse truncates $E$ to the saved size $n$ and produces $#UnitVal$. LoopCont re-evaluates the condition; no truncation is needed since the body is a pure expression and any local variables were cleaned up by inner scope expressions.
+$E[x |-> v]$ updates the rightmost binding of $x$ in $E$. BinOpL/BinOpR implement left-to-right evaluation of binary operators. IfTrue/IfFalse dispatch directly to the branch expression.
+
+LoopTrue enters the body expression via $#loopContK$. LoopFalse truncates $E$ to the saved size $n$ and produces $#UnitVal$. LoopCont re-evaluates the condition; no truncation is needed since any local variables were cleaned up by inner scope expressions.
 
 ScopeBody loads the trailing expression after the scope's statements complete. ScopeExit truncates $E$ to the saved size $n$, dropping scope-local bindings, and passes the value through.
 
@@ -304,44 +308,44 @@ We write $#truncate($Gamma$, $n$)$ for the first $n$ bindings of $Gamma$, mirror
 Expression continuations (#typeContE($Gamma$, $K$, $tau$)) _consume_ a value of type $tau$ in context $Gamma$; the overline denotes that $tau$ is in negative position.
 
 #mathpar(
-  proof-tree(rule(name: "IfCondK", typeContE($Gamma$, $#ifCondK (e_1, e_2) dot.c K$, $#Bool$), typeExpr($Gamma$, $e_1$, $tau$), typeExpr($Gamma$, $e_2$, $tau$), typeContE($Gamma$, $K$, $tau$))),
+  proof-tree(rule(name: $#IfCondK$, typeContE($Gamma$, $#ifCondK (e_1, e_2) dot.c K$, $#Bool$), typeExpr($Gamma$, $e_1$, $tau$), typeExpr($Gamma$, $e_2$, $tau$), typeContE($Gamma$, $K$, $tau$))),
 
-  proof-tree(rule(name: "DeclK", typeContE($Gamma$, $#declK (x : tau) dot.c K$, $tau$), typeContC($Gamma, x : tau$, $K$))),
-  proof-tree(rule(name: "AssignK", typeContE($Gamma$, $#assignK (x) dot.c K$, $tau$), $Gamma(x) = tau$, typeContC($Gamma$, $K$))),
+  proof-tree(rule(name: $#DeclK$, typeContE($Gamma$, $#declK (x : tau) dot.c K$, $tau$), typeContC($Gamma, x : tau$, $K$))),
+  proof-tree(rule(name: $#AssignK$, typeContE($Gamma$, $#assignK (x) dot.c K$, $tau$), $Gamma(x) = tau$, typeContC($Gamma$, $K$))),
 
-  proof-tree(rule(name: "BinOpLK", typeContE($Gamma$, $#binopLK (plus.o, e_2) dot.c K$, $tau_1$), $plus.o : tau_1 times tau_2 -> tau_3$, typeExpr($Gamma$, $e_2$, $tau_2$), typeContE($Gamma$, $K$, $tau_3$))),
-  proof-tree(rule(name: "BinOpRK", typeContE($Gamma$, $#binopRK (plus.o, v_1) dot.c K$, $tau_2$), $plus.o : tau_1 times tau_2 -> tau_3$, $tack.r v_1 : tau_1$, typeContE($Gamma$, $K$, $tau_3$))),
-  proof-tree(rule(name: "UnOpK", typeContE($Gamma$, $#unopK (plus.o) dot.c K$, $tau_1$), $plus.o : tau_1 -> tau_2$, typeContE($Gamma$, $K$, $tau_2$))),
+  proof-tree(rule(name: $#BinOpLK$, typeContE($Gamma$, $#binopLK (plus.o, e_2) dot.c K$, $tau_1$), $plus.o : tau_1 times tau_2 -> tau_3$, typeExpr($Gamma$, $e_2$, $tau_2$), typeContE($Gamma$, $K$, $tau_3$))),
+  proof-tree(rule(name: $#BinOpRK$, typeContE($Gamma$, $#binopRK (plus.o, v_1) dot.c K$, $tau_2$), $plus.o : tau_1 times tau_2 -> tau_3$, $tack.r v_1 : tau_1$, typeContE($Gamma$, $K$, $tau_3$))),
+  proof-tree(rule(name: $#UnOpK$, typeContE($Gamma$, $#unopK (plus.o) dot.c K$, $tau_1$), $plus.o : tau_1 -> tau_2$, typeContE($Gamma$, $K$, $tau_2$))),
 
-  proof-tree(rule(name: "LoopCondK", typeContE($Gamma$, $#loopK (c, e, n) dot.c K$, $#Bool$), typeExpr($Gamma$, $c$, $#Bool$), typeExpr($Gamma$, $e$, $#Unit$), typeContE($#truncate($Gamma$, $n$)$, $K$, $#Unit$))),
-  proof-tree(rule(name: "LoopContK", typeContE($Gamma$, $#loopContK (c, e, n) dot.c K$, $#Unit$), typeExpr($Gamma$, $c$, $#Bool$), typeExpr($Gamma$, $e$, $#Unit$), typeContE($#truncate($Gamma$, $n$)$, $K$, $#Unit$))),
+  proof-tree(rule(name: $#LoopK$, typeContE($Gamma$, $#loopK (c, e, n) dot.c K$, $#Bool$), typeExpr($Gamma$, $c$, $#Bool$), typeExpr($Gamma$, $e$, $#Unit$), typeContE($#truncate($Gamma$, $n$)$, $K$, $#Unit$))),
+  proof-tree(rule(name: $#LoopContK$, typeContE($Gamma$, $#loopContK (c, e, n) dot.c K$, $#Unit$), typeExpr($Gamma$, $c$, $#Bool$), typeExpr($Gamma$, $e$, $#Unit$), typeContE($#truncate($Gamma$, $n$)$, $K$, $#Unit$))),
 
-  proof-tree(rule(name: "ScopeExitK", typeContE($Gamma$, $#scopeExitK (n) dot.c K$, $tau$), typeContE($#truncate($Gamma$, $n$)$, $K$, $tau$))),
-  proof-tree(rule(name: "ExprStmtK", typeContE($Gamma$, $#exprStmtK dot.c K$, $tau$), typeContC($Gamma$, $K$))),
+  proof-tree(rule(name: $#ScopeExitK$, typeContE($Gamma$, $#scopeExitK (n) dot.c K$, $tau$), typeContE($#truncate($Gamma$, $n$)$, $K$, $tau$))),
+  proof-tree(rule(name: $#ExprStmtK$, typeContE($Gamma$, $#exprStmtK dot.c K$, $tau$), typeContC($Gamma$, $K$))),
 )
 
-IfCondK accepts $#Bool$ and types both branches as expressions under $Gamma$.
+$#IfCondK$ accepts $#Bool$ and types both branches as expressions under $Gamma$.
 
-DeclK accepts a value of the declared type $tau$.
+$#DeclK$ accepts a value of the declared type $tau$.
 
-AssignK accepts a value matching the variable's type.
+$#AssignK$ accepts a value matching the variable's type.
 
-For operators, the negative-position type threads through the evaluation chain: BinOpLK accepts $tau_1$, requires $e_2 : tau_2$, and the tail $K$ must accept $tau_3$. BinOpRK and UnOpK are similar.
+For operators, the negative-position type threads through the evaluation chain: $#BinOpLK$ accepts $tau_1$, requires $e_2 : tau_2$, and the tail $K$ must accept $tau_3$. $#BinOpRK$ and $#UnOpK$ are similar.
 
-LoopCondK accepts $#Bool$ (the condition); the tail $K$ must be an expression continuation accepting $#Unit$ at the truncated context $#truncate($Gamma$, $n$)$, since the while expression produces $#UnitVal$ and the environment is truncated on loop exit. LoopContK accepts $#UnitVal$ (the body's result) and carries the same typing data as LoopCondK.
+$#LoopK$ and $#LoopContK$ share the same conditions, but differ in accepted type: $#LoopK$ accepts $#Bool$ (the condition result) while $#LoopContK$ accepts $#Unit$ (the body result).
 
-ScopeExitK accepts a value of any type $tau$ and requires the tail $K$ to accept $tau$ at the truncated context.
+$#ScopeExitK$ accepts a value of any type $tau$ and requires the tail $K$ to accept $tau$ at the truncated context.
 
-ExprStmtK accepts any value type and requires the tail $K$ to be a statement continuation at $Gamma$.
+$#ExprStmtK$ accepts any value type and requires the tail $K$ to be a statement continuation at $Gamma$.
 
 ==== Statement Continuations
 
 Statement continuations (#typeContC($Gamma$, $K$)) accept $#Skip$ in context $Gamma$.
 
 #mathpar(
-  proof-tree(rule(name: "HaltK", typeContC($Gamma$, $#halt$))),
-  proof-tree(rule(name: "SeqK", typeContC($Gamma$, $#seqK (s) dot.c K$), typeStmt($Gamma$, $s$, $Gamma'$), typeContC($Gamma'$, $K$))),
-  proof-tree(rule(name: "ScopeBodyK", typeContC($Gamma$, $#scopeBodyK (e, n) dot.c K$), typeExpr($Gamma$, $e$, $tau$), typeContE($#truncate($Gamma$, $n$)$, $K$, $tau$))),
+  proof-tree(rule(name: $#HaltK$, typeContC($Gamma$, $#halt$))),
+  proof-tree(rule(name: $#SeqK$, typeContC($Gamma$, $#seqK (s) dot.c K$), typeStmt($Gamma$, $s$, $Gamma'$), typeContC($Gamma'$, $K$))),
+  proof-tree(rule(name: $#ScopeBodyK$, typeContC($Gamma$, $#scopeBodyK (e, n) dot.c K$), typeExpr($Gamma$, $e$, $tau$), typeContE($#truncate($Gamma$, $n$)$, $K$, $tau$))),
 )
 
 === Environment-Context Coherence
