@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build Lean project
-        uses: leanprover/lean4-action@v1
+        uses: leanprover/lean-action@v1
         with:
           build-args: ''
           lake-package-directory: lean-formalisation
