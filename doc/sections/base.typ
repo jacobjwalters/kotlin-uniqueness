@@ -13,9 +13,9 @@
 #let drop(g, l) = $op("drop") (#g, #l)$
 // Coherence: E ~ Γ
 #let coh(e, g) = $#e tilde #g$
-// Continuation typing: Γ ⊢_e K : τ̄ and Γ ⊢_c K
-#let typeContE(gin, k, t) = $#gin tack.r_e #k : overline(#t)$
-#let typeContC(gin, k) = $#gin tack.r_c #k$
+// Continuation typing: Γ ⊢ K : τ̄ and Γ ⊢ K
+#let typeContE(gin, k, t) = $#gin tack.r #k : overline(#t)$
+#let typeContC(gin, k) = $#gin tack.r #k$
 
 = #Lbase
 
@@ -284,7 +284,9 @@ $
 #cekC($#Skip$, $E$, $#scopeBodyK (e, n) dot.c K$) &~> #cekE($e$, $E$, $#scopeExitK (n) dot.c K$) && "ScopeBody" \
 #cekC($v$, $E$, $#scopeExitK (n) dot.c K$) &~> #cekC($v$, $#truncate($E$, $n$)$, $K$) && "ScopeExit"
 $
-$E[x |-> v]$ updates the rightmost binding of $x$ in $E$. BinOpL/BinOpR implement left-to-right evaluation of binary operators. IfTrue/IfFalse dispatch directly to the branch expression — no scope markers are pushed since branches are expressions. LoopTrue enters the body expression via $#loopContK$. LoopFalse truncates $E$ to the saved size $n$ and produces $#UnitVal$. LoopCont re-evaluates the condition; no truncation is needed since the body is a pure expression and any local variables were cleaned up by inner scope expressions. ScopeBody loads the trailing expression after the scope's statements complete. ScopeExit truncates $E$ to the saved size $n$, dropping scope-local bindings, and passes the value through.
+$E[x |-> v]$ updates the rightmost binding of $x$ in $E$. BinOpL/BinOpR implement left-to-right evaluation of binary operators. IfTrue/IfFalse dispatch directly to the branch expression; no scope markers are pushed since branches are expressions. LoopTrue enters the body expression via $#loopContK$. LoopFalse truncates $E$ to the saved size $n$ and produces $#UnitVal$. LoopCont re-evaluates the condition; no truncation is needed since the body is a pure expression and any local variables were cleaned up by inner scope expressions.
+
+ScopeBody loads the trailing expression after the scope's statements complete. ScopeExit truncates $E$ to the saved size $n$, dropping scope-local bindings, and passes the value through.
 
 === Initial and Terminal States
 
@@ -295,9 +297,11 @@ $
 
 === Continuation Typing
 
-We write $#truncate($Gamma$, $n$)$ for the first $n$ bindings of $Gamma$, mirroring $#truncate($E$, $n$)$ on environments. We define well-typedness for continuations with two judgement forms mirroring the machine phases. _Expression continuations_ (#typeContE($Gamma$, $K$, $tau$)) accept a value of type $tau$ in context $Gamma$. The overline on $overline(tau)$ indicates the type is in negative position — consumed by the continuation, not produced. _Statement continuations_ (#typeContC($Gamma$, $K$)) accept $#Skip$ in context $Gamma$.
+We write $#truncate($Gamma$, $n$)$ for the first $n$ bindings of $Gamma$, mirroring $#truncate($E$, $n$)$ on environments. We define well-typedness for continuations with two judgement forms mirroring the machine phases.
 
 ==== Expression Continuations
+
+Expression continuations (#typeContE($Gamma$, $K$, $tau$)) _consume_ a value of type $tau$ in context $Gamma$; the overline denotes that $tau$ is in negative position.
 
 #mathpar(
   proof-tree(rule(name: "IfCondK", typeContE($Gamma$, $#ifCondK (e_1, e_2) dot.c K$, $#Bool$), typeExpr($Gamma$, $e_1$, $tau$), typeExpr($Gamma$, $e_2$, $tau$), typeContE($Gamma$, $K$, $tau$))),
@@ -331,6 +335,8 @@ ScopeExitK accepts a value of any type $tau$ and requires the tail $K$ to accept
 ExprStmtK accepts any value type and requires the tail $K$ to be a statement continuation at $Gamma$.
 
 ==== Statement Continuations
+
+Statement continuations (#typeContC($Gamma$, $K$)) accept $#Skip$ in context $Gamma$.
 
 #mathpar(
   proof-tree(rule(name: "HaltK", typeContC($Gamma$, $#halt$))),
