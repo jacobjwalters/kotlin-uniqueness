@@ -250,44 +250,40 @@ $
 We define a multi-step judgement $ms$ in the usual way.
 
 ==== Expr
-#mathpar(
-  proof-tree(rule(name: "Val", $#cekE($v$, $E$, $K$) ~> #cekC($v$, $E$, $K$)$)),
-  proof-tree(rule(name: "Var", $#cekE($x$, $E$, $K$) ~> #cekC($E(x)$, $E$, $K$)$)),
-  proof-tree(rule(name: "VarDecl", $#cekE($#Var x : tau = e$, $E$, $K$) ~> #cekE($e$, $E$, $#declK (x : tau) dot.c K$)$)),
-  proof-tree(rule(name: "Assign", $#cekE($x = e$, $E$, $K$) ~> #cekE($e$, $E$, $#assignK (x) dot.c K$)$)),
-  proof-tree(rule(name: "Seq", $#cekE($s_1 ; s_2$, $E$, $K$) ~> #cekE($s_1$, $E$, $#seqK (s_2) dot.c K$)$)),
-  proof-tree(rule(name: "ExprStmt", $#cekE($#Do e$, $E$, $K$) ~> #cekE($e$, $E$, $#exprStmtK dot.c K$)$)),
-
-  proof-tree(rule(name: "BinOp", $#cekE($e_1 plus.o e_2$, $E$, $K$) ~> #cekE($e_1$, $E$, $#binopLK (plus.o, e_2) dot.c K$)$)),
-  proof-tree(rule(name: "UnOp", $#cekE($#IsZero (e)$, $E$, $K$) ~> #cekE($e$, $E$, $#unopK (#IsZero) dot.c K$)$)),
-
-  proof-tree(rule(name: "If", $#cekE($#If e #Then e_1 #Else e_2$, $E$, $K$) ~> #cekE($e$, $E$, $#ifCondK (e_1, e_2) dot.c K$)$)),
-  proof-tree(rule(name: "While", $#cekE($#While c brace.l e brace.r$, $E$, $K$) ~> #cekE($c$, $E$, $#loopK (c, e, |E|) dot.c K$)$)),
-  proof-tree(rule(name: "Break", $#cekE($#Break$, $E$, $K$) ~> #cekC($#UnitVal$, $#truncate($E$, $n$)$, $K'$)$, $op("popLoopK") (K) = (n, K')$)),
-  proof-tree(rule(name: "Scope", $#cekE($#Scope brace.l s ; e brace.r$, $E$, $K$) ~> #cekE($s$, $E$, $#scopeBodyK (e, |E|) dot.c K$)$)),
-)
+$
+#cekE($v$, $E$, $K$) &~> #cekC($v$, $E$, $K$) && "Val" \
+#cekE($x$, $E$, $K$) &~> #cekC($E(x)$, $E$, $K$) && "Var" \
+#cekE($#Var x : tau = e$, $E$, $K$) &~> #cekE($e$, $E$, $#declK (x : tau) dot.c K$) && "VarDecl" \
+#cekE($x = e$, $E$, $K$) &~> #cekE($e$, $E$, $#assignK (x) dot.c K$) && "Assign" \
+#cekE($s_1 ; s_2$, $E$, $K$) &~> #cekE($s_1$, $E$, $#seqK (s_2) dot.c K$) && "Seq" \
+#cekE($#Do e$, $E$, $K$) &~> #cekE($e$, $E$, $#exprStmtK dot.c K$) && "ExprStmt" \
+#cekE($e_1 plus.o e_2$, $E$, $K$) &~> #cekE($e_1$, $E$, $#binopLK (plus.o, e_2) dot.c K$) && "BinOp" \
+#cekE($#IsZero (e)$, $E$, $K$) &~> #cekE($e$, $E$, $#unopK (#IsZero) dot.c K$) && "UnOp" \
+#cekE($#If e #Then e_1 #Else e_2$, $E$, $K$) &~> #cekE($e$, $E$, $#ifCondK (e_1, e_2) dot.c K$) && "If" \
+#cekE($#While c brace.l e brace.r$, $E$, $K$) &~> #cekE($c$, $E$, $#loopK (c, e, |E|) dot.c K$) && "While" \
+#cekE($#Break$, $E$, $K$) &~> #cekC($#UnitVal$, $#truncate($E$, $n$)$, $K'$) && "Break" \
+& quad "where" op("popLoopK") (K) = (n, K') \
+#cekE($#Scope brace.l s ; e brace.r$, $E$, $K$) &~> #cekE($s$, $E$, $#scopeBodyK (e, |E|) dot.c K$) && "Scope"
+$
 Val transitions a source value expression ($#True$, $#False$, $n$, $#UnitVal$) into Cont mode. Var looks up the rightmost binding of $x$ in $E$. The remaining rules decompose a compound form by pushing a continuation frame. BinOp evaluates the left operand first (left-to-right evaluation order). UnOp evaluates its single operand. If evaluates the condition; the branches are expressions, so no scope markers are needed. While records $|E|$ in $#loopK$ for later truncation. Break uses $#popLoopK$ to find the enclosing loop, truncates $E$ to the loop's saved size, and produces $#UnitVal$. Scope records $|E|$ and evaluates the statement body.
 
 ==== Cont
-#mathpar(
-  proof-tree(rule(name: "IfTrue", $#cekC($#True$, $E$, $#ifCondK (e_1, e_2) dot.c K$) ~> #cekE($e_1$, $E$, $K$)$)),
-  proof-tree(rule(name: "IfFalse", $#cekC($#False$, $E$, $#ifCondK (e_1, e_2) dot.c K$) ~> #cekE($e_2$, $E$, $K$)$)),
-  proof-tree(rule(name: "VarDeclDone", $#cekC($v$, $E$, $#declK (x : tau) dot.c K$) ~> #cekC($#Skip$, $E, x := v$, $K$)$)),
-  proof-tree(rule(name: "AssignDone", $#cekC($v$, $E$, $#assignK (x) dot.c K$) ~> #cekC($#Skip$, $E[x |-> v]$, $K$)$)),
-  proof-tree(rule(name: "SeqDone", $#cekC($#Skip$, $E$, $#seqK (s_2) dot.c K$) ~> #cekE($s_2$, $E$, $K$)$)),
-  proof-tree(rule(name: "ExprStmtDone", $#cekC($v$, $E$, $#exprStmtK dot.c K$) ~> #cekC($#Skip$, $E$, $K$)$)),
-
-  proof-tree(rule(name: "BinOpL", $#cekC($v_1$, $E$, $#binopLK (plus.o, e_2) dot.c K$) ~> #cekE($e_2$, $E$, $#binopRK (plus.o, v_1) dot.c K$)$)),
-  proof-tree(rule(name: "BinOpR", $#cekC($v_2$, $E$, $#binopRK (plus.o, v_1) dot.c K$) ~> #cekC($#delta (plus.o, v_1, v_2)$, $E$, $K$)$)),
-  proof-tree(rule(name: "UnOpDone", $#cekC($v$, $E$, $#unopK (plus.o) dot.c K$) ~> #cekC($#delta (plus.o, v)$, $E$, $K$)$)),
-
-  proof-tree(rule(name: "LoopTrue", $#cekC($#True$, $E$, $#loopK (c, e, n) dot.c K$) ~> #cekE($e$, $E$, $#loopContK (c, e, n) dot.c K$)$)),
-  proof-tree(rule(name: "LoopFalse", $#cekC($#False$, $E$, $#loopK (c, e, n) dot.c K$) ~> #cekC($#UnitVal$, $#truncate($E$, $n$)$, $K$)$)),
-  proof-tree(rule(name: "LoopCont", $#cekC($#UnitVal$, $E$, $#loopContK (c, e, n) dot.c K$) ~> #cekE($c$, $E$, $#loopK (c, e, n) dot.c K$)$)),
-
-  proof-tree(rule(name: "ScopeBody", $#cekC($#Skip$, $E$, $#scopeBodyK (e, n) dot.c K$) ~> #cekE($e$, $E$, $#scopeExitK (n) dot.c K$)$)),
-  proof-tree(rule(name: "ScopeExit", $#cekC($v$, $E$, $#scopeExitK (n) dot.c K$) ~> #cekC($v$, $#truncate($E$, $n$)$, $K$)$)),
-)
+$
+#cekC($#True$, $E$, $#ifCondK (e_1, e_2) dot.c K$) &~> #cekE($e_1$, $E$, $K$) && "IfTrue" \
+#cekC($#False$, $E$, $#ifCondK (e_1, e_2) dot.c K$) &~> #cekE($e_2$, $E$, $K$) && "IfFalse" \
+#cekC($v$, $E$, $#declK (x : tau) dot.c K$) &~> #cekC($#Skip$, $E, x := v$, $K$) && "VarDeclDone" \
+#cekC($v$, $E$, $#assignK (x) dot.c K$) &~> #cekC($#Skip$, $E[x |-> v]$, $K$) && "AssignDone" \
+#cekC($#Skip$, $E$, $#seqK (s_2) dot.c K$) &~> #cekE($s_2$, $E$, $K$) && "SeqDone" \
+#cekC($v$, $E$, $#exprStmtK dot.c K$) &~> #cekC($#Skip$, $E$, $K$) && "ExprStmtDone" \
+#cekC($v_1$, $E$, $#binopLK (plus.o, e_2) dot.c K$) &~> #cekE($e_2$, $E$, $#binopRK (plus.o, v_1) dot.c K$) && "BinOpL" \
+#cekC($v_2$, $E$, $#binopRK (plus.o, v_1) dot.c K$) &~> #cekC($#delta (plus.o, v_1, v_2)$, $E$, $K$) && "BinOpR" \
+#cekC($v$, $E$, $#unopK (plus.o) dot.c K$) &~> #cekC($#delta (plus.o, v)$, $E$, $K$) && "UnOpDone" \
+#cekC($#True$, $E$, $#loopK (c, e, n) dot.c K$) &~> #cekE($e$, $E$, $#loopContK (c, e, n) dot.c K$) && "LoopTrue" \
+#cekC($#False$, $E$, $#loopK (c, e, n) dot.c K$) &~> #cekC($#UnitVal$, $#truncate($E$, $n$)$, $K$) && "LoopFalse" \
+#cekC($#UnitVal$, $E$, $#loopContK (c, e, n) dot.c K$) &~> #cekE($c$, $E$, $#loopK (c, e, n) dot.c K$) && "LoopCont" \
+#cekC($#Skip$, $E$, $#scopeBodyK (e, n) dot.c K$) &~> #cekE($e$, $E$, $#scopeExitK (n) dot.c K$) && "ScopeBody" \
+#cekC($v$, $E$, $#scopeExitK (n) dot.c K$) &~> #cekC($v$, $#truncate($E$, $n$)$, $K$) && "ScopeExit"
+$
 $E[x |-> v]$ updates the rightmost binding of $x$ in $E$. BinOpL/BinOpR implement left-to-right evaluation of binary operators. IfTrue/IfFalse dispatch directly to the branch expression — no scope markers are pushed since branches are expressions. LoopTrue enters the body expression via $#loopContK$. LoopFalse truncates $E$ to the saved size $n$ and produces $#UnitVal$. LoopCont re-evaluates the condition; no truncation is needed since the body is a pure expression and any local variables were cleaned up by inner scope expressions. ScopeBody loads the trailing expression after the scope's statements complete. ScopeExit truncates $E$ to the saved size $n$, dropping scope-local bindings, and passes the value through.
 
 === Initial and Terminal States
