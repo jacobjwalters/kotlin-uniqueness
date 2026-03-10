@@ -4,7 +4,7 @@ keywords = ["math"]
 defaultTargets = ["LeanFormalisation"]
 
 [leanOptions]
-pp.unicode.fun = true # pretty-prints `fun a ↦ b`
+pp.unicode.fun = true                 # pretty-prints `fun a ↦ b`
 relaxedAutoImplicit = false
 weak.linter.mathlibStandardSet = true
 maxSynthPendingDepth = 3
@@ -12,7 +12,11 @@ maxSynthPendingDepth = 3
 [[require]]
 name = "mathlib"
 scope = "leanprover-community"
-rev = "v4.28.0-rc1"
+rev = "v4.28.0"
+
+[[require]]
+name = "controlflow"
+path = "../ControlFlow"
 
 [[lean_lib]]
 name = "LeanFormalisation"
