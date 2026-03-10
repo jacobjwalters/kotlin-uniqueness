@@ -8,7 +8,6 @@ inductive τ
 | Bool
 deriving Repr
 
-
 inductive Value
 | True
 | False
@@ -20,11 +19,24 @@ structure BinOp where
   arg1 : τ
   arg2 : τ
   out : τ
+instance : Repr BinOp where
+  reprPrec op _ := f!"
+    BinOp(
+      run := <function>,
+      arg1 := {repr op.arg1},
+      arg2 := {repr op.arg2},
+      out := {repr op.out})"
 
 structure UnOp where
   run : Value → Value
   arg : τ
   out : τ
+instance : Repr UnOp where
+  reprPrec op _ := f!"
+    UnOp(
+      run := <function>,
+      arg := {repr op.arg},
+      out := {repr op.out})"
 
 inductive Expr
 | Var (x : VarName)
@@ -33,7 +45,7 @@ inductive Expr
 | Nat (n : Nat)
 | BinOp (arg₁ : Expr) (arg₂ : Expr) (op : BinOp)
 | UnOp (arg : Expr) (op : UnOp)
-
+deriving Repr
 
 inductive Stmt
 | Decl (x : VarName) (type : τ) (e : Expr)
@@ -42,6 +54,7 @@ inductive Stmt
 | If (e : Expr) (s₁ : Stmt) (s₂ : Stmt)
 | While (c : Expr) (body : Stmt)
 --| Break
+deriving Repr
 
 notation:100 s₁:100 ";" s₂:101 => Stmt.Seq s₁ s₂
 notation x "::=" exp => Stmt.Assign x exp
