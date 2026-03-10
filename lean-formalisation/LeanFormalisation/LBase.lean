@@ -6,6 +6,7 @@ abbrev VarName := Nat
 inductive τ
 | Nat
 | Bool
+| Unit
 deriving Repr
 
 
@@ -13,6 +14,7 @@ inductive Value
 | True
 | False
 | Nat (n : Nat)
+| Unit
 deriving Inhabited, Repr
 
 inductive BinOp
@@ -68,21 +70,26 @@ def UnOp.run : UnOp → Value → Value
   | .Nat _ => .False
   | _ => panic! "Not implemented"
 
+mutual
 inductive Expr
 | Var (x : VarName)
 | True
 | False
 | Nat (n : Nat)
+| Unit
 | BinOp (arg₁ : Expr) (arg₂ : Expr) (op : BinOp)
 | UnOp (arg : Expr) (op : UnOp)
+| If (cond : Expr) (e₁ : Expr) (e₂ : Expr)
+| While (cond : Expr) (body : Expr)
+| Break
+| Scope (s : Stmt) (res : Expr)
 
 inductive Stmt
 | Decl (type : τ) (e : Expr)
 | Assign (x : VarName) (e : Expr)
 | Seq (s₁ : Stmt) (s₂ : Stmt)
-| If (e : Expr) (s₁ : Stmt) (s₂ : Stmt)
-| While (c : Expr) (body : Stmt)
-| Break
+| Do (e : Expr)
+end
 
 notation:100 s₁:100 ";" s₂:101 => Stmt.Seq s₁ s₂
 notation x "::=" exp => Stmt.Assign x exp
@@ -91,11 +98,16 @@ abbrev Γ := List τ
 notation Γ₁ "("x")" "=" type => x < List.length Γ₁ ∧ Γ₁[List.length Γ₁ - 1 - x]? = Option.some type
 
 section Types
-
+mutual
 inductive ExprType : Γ → Expr → τ → Prop
-| TrueConst : ExprType Γ₁ .True .Bool
-| FalseConst : ExprType Γ₁ .False .Bool
-| NatConst (n : Nat) : ExprType Γ₁ (.Nat n) .Nat
+| TrueConst :
+  ExprType Γ₁ .True .Bool
+| FalseConst :
+  ExprType Γ₁ .False .Bool
+| NatConst (n : Nat) :
+  ExprType Γ₁ (.Nat n) .Nat
+| UnitConst :
+  ExprType Γ₁ (.Unit) .Unit
 | VarAccess (x : VarName) (type : τ) :
   (Γ₁(x) = type) →
   ExprType Γ₁ (.Var x) type
@@ -106,24 +118,38 @@ inductive ExprType : Γ → Expr → τ → Prop
   ExprType Γ₁ arg₁ op.args.1 →
   ExprType Γ₁ arg₂ op.args.2 →
   ExprType Γ₁ (.BinOp arg₁ arg₂ op) op.args.3
+| IfExpr (cond : Expr) (e₁ : Expr) (e₂ : Expr) (type : τ) :
+  ExprType Γ₁ cond .Bool →
+  ExprType Γ₁ e₁ type →
+  ExprType Γ₁ e₂ type →
+  ExprType Γ₁ (.If cond e₁ e₂) type
+| WhileExpr (cond : Expr) (body : Expr) :
+  ExprType Γ₁ cond .Bool →
+  ExprType Γ₁ body .Unit →
+  ExprType Γ₁ (.While cond body) .Unit
+| BreakExpr (type : τ) :
+  ExprType Γ₁ .Break .Unit
+| ScopeExpr (s : Stmt) (e : Expr) (type : τ) :
+  StmtType Γ₁ s Γ₂ →
+  ExprType Γ₂ e type →
+  ExprType Γ₁ (.Scope s e) type
 
 inductive StmtType : Γ → Stmt → Γ → Prop
-| VarDecl (e : Expr) (type : τ) : ExprType Γ₁ e type →
+| VarDecl (e : Expr) (type : τ) :
+  ExprType Γ₁ e type →
   StmtType Γ₁ (.Decl type e) (type :: Γ₁)
-| VarAssign (x : VarName) (e : Expr) (type : τ) : ExprType Γ₁ e type → (Γ₁(x) = type) →
+| VarAssign (x : VarName) (e : Expr) (type : τ) :
+  ExprType Γ₁ e type → (Γ₁(x) = type) →
   StmtType Γ₁ (.Assign x e) Γ₁
-| Seq (s₁ s₂ : Stmt) : StmtType Γ₁ s₁ Γ₂ → StmtType Γ₂ s₂ Γ₃ →
-  StmtType Γ₁ (s₁; s₂) Γ₃
-| If (e : Expr) (s₁ s₂ : Stmt) :
-  ExprType Γ₁ e .Bool →
+| Seq (s₁ s₂ : Stmt) :
   StmtType Γ₁ s₁ Γ₂ →
-  StmtType Γ₁ s₂ Γ₃ →
-  StmtType Γ₁ (.If e s₁ s₂) Γ₁
-| While (c : Expr) (s : Stmt) : ExprType Γ₁ c .Bool → StmtType Γ₁ s Γ₂ →
-  StmtType Γ₁ (.While c s) Γ₁
-| Break :
-  StmtType Γ₁ .Break Γ₁
+  StmtType Γ₂ s₂ Γ₃ →
+  StmtType Γ₁ (s₁; s₂) Γ₃
+| Do (e : Expr) (type : τ) :
+  ExprType Γ₁ e type →
+  StmtType Γ₁ (.Do e) Γ₁
 
+end
 
 end Types
 
@@ -132,7 +158,9 @@ section TypeProperties
 theorem StmtDet (Γ₁ Γ₂ Γ₃ : Γ) (s : Stmt) :
   StmtType Γ₁ s Γ₂ → StmtType Γ₁ s Γ₃ → Γ₂ = Γ₃ := by
     intro h1 h2
-    induction s generalizing Γ₁ Γ₂ Γ₃ <;> grind [StmtType, Stmt, ExprType, Expr]
+    unhygienic cases h1 <;> unhygienic cases h2
+    any_goals rfl
+    sorry
 
 lemma neg_index_eq (Γ₁ Γ₂ : Γ) (i : Nat) :
   i < Γ₁.length →
