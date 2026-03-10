@@ -6,6 +6,7 @@ abbrev VarName := Nat
 inductive τ
 | Nat
 | Bool
+| Unit
 deriving Repr
 
 
@@ -13,74 +14,142 @@ inductive Value
 | True
 | False
 | Nat (n : Nat)
+| Unit
 deriving Inhabited, Repr
 
-structure BinOp where
-  run : Value → Value → Value
-  arg1 : τ
-  arg2 : τ
+inductive BinOp
+| Add
+| Sub
+| NatEq
+| BoolEq
+
+structure BinOpArgs where
+  arg₁ : τ
+  arg₂ : τ
   out : τ
 
-structure UnOp where
-  run : Value → Value
+inductive UnOp
+| IsZero
+
+structure UnOpArgs where
   arg : τ
   out : τ
 
+def BinOp.args : BinOp → BinOpArgs
+| .Add => ⟨.Nat, .Nat, .Nat⟩
+| .Sub => ⟨.Nat, .Nat, .Nat⟩
+| .NatEq => ⟨.Nat, .Nat, .Bool⟩
+| .BoolEq => ⟨.Bool, .Bool, .Bool⟩
+
+def BinOp.run : BinOp → Value → Value → Value
+| .Add => fun x y =>
+  match x, y with
+  | .Nat n, .Nat m => .Nat (n + m)
+  | _, _ => panic! "Not implemented"
+| .Sub => fun x y =>
+  match x, y with
+  | .Nat n, .Nat m => .Nat (n - m)
+  | _, _ => panic! "Not implemented"
+| .NatEq => fun x y =>
+  match x, y with
+  | .Nat n, .Nat m => if n = m then .True else .False
+  | _, _ => panic! "Not implemented"
+| .BoolEq => fun x y =>
+  match x, y with
+  | .True, .True => .True
+  | .False, .False => .True
+  | _, _ => panic! "Not implemented"
+
+def UnOp.args : UnOp → UnOpArgs
+| .IsZero => ⟨.Nat, .Bool⟩
+
+def UnOp.run : UnOp → Value → Value
+| .IsZero => fun x =>
+  match x with
+  | .Nat 0 => .True
+  | .Nat _ => .False
+  | _ => panic! "Not implemented"
+
+mutual
 inductive Expr
 | Var (x : VarName)
 | True
 | False
 | Nat (n : Nat)
+| Unit
 | BinOp (arg₁ : Expr) (arg₂ : Expr) (op : BinOp)
 | UnOp (arg : Expr) (op : UnOp)
-
+| If (cond : Expr) (e₁ : Expr) (e₂ : Expr)
+| While (cond : Expr) (body : Expr)
+| Break
+| Scope (s : Stmt) (res : Expr)
 
 inductive Stmt
-| Decl (x : VarName) (type : τ) (e : Expr)
+| Decl (type : τ) (e : Expr)
 | Assign (x : VarName) (e : Expr)
 | Seq (s₁ : Stmt) (s₂ : Stmt)
-| If (e : Expr) (s₁ : Stmt) (s₂ : Stmt)
-| While (c : Expr) (body : Stmt)
---| Break
+| Do (e : Expr)
+end
 
 notation:100 s₁:100 ";" s₂:101 => Stmt.Seq s₁ s₂
 notation x "::=" exp => Stmt.Assign x exp
-
-abbrev Γ := List (VarName × τ)
-notation Γ₁ "("x")" "=" type => List.find? (fun ⟨name, _⟩ => name = x) Γ₁ = Option.some ⟨x, type⟩
+#check List.get
+abbrev Γ := List τ
+notation Γ₁ "("x")" "=" type => x < List.length Γ₁ ∧ Γ₁[List.length Γ₁ - 1 - x]? = Option.some type
 
 section Types
-
+mutual
 inductive ExprType : Γ → Expr → τ → Prop
-| TrueConst : ExprType Γ₁ .True .Bool
-| FalseConst : ExprType Γ₁ .False .Bool
-| NatConst (n : Nat) : ExprType Γ₁ (.Nat n) .Nat
+| TrueConst :
+  ExprType Γ₁ .True .Bool
+| FalseConst :
+  ExprType Γ₁ .False .Bool
+| NatConst (n : Nat) :
+  ExprType Γ₁ (.Nat n) .Nat
+| UnitConst :
+  ExprType Γ₁ (.Unit) .Unit
 | VarAccess (x : VarName) (type : τ) :
   (Γ₁(x) = type) →
   ExprType Γ₁ (.Var x) type
-| UnOp (arg : Expr) (type : τ) (out : τ) (run : Value → Value)  :
-  ExprType Γ₁ arg type →
-  ExprType Γ₁ (.UnOp arg ⟨run, type, out⟩) out
-| BinOp (arg₁ arg₂ : Expr) (type₁ : τ) (type₂ : τ) (out : τ) (run : Value → Value → Value) :
-  ExprType Γ₁ arg₁ type₁ →
-  ExprType Γ₁ arg₂ type₂ →
-  ExprType Γ₁ (.BinOp arg₁ arg₂ ⟨run, type₁, type₂, out⟩) out
-
+| UnOp (arg : Expr) (op : UnOp) :
+  ExprType Γ₁ arg op.args.1 →
+  ExprType Γ₁ (.UnOp arg op) op.args.2
+| BinOp (arg₁ arg₂ : Expr) (op : BinOp) :
+  ExprType Γ₁ arg₁ op.args.1 →
+  ExprType Γ₁ arg₂ op.args.2 →
+  ExprType Γ₁ (.BinOp arg₁ arg₂ op) op.args.3
+| IfExpr (cond : Expr) (e₁ : Expr) (e₂ : Expr) (type : τ) :
+  ExprType Γ₁ cond .Bool →
+  ExprType Γ₁ e₁ type →
+  ExprType Γ₁ e₂ type →
+  ExprType Γ₁ (.If cond e₁ e₂) type
+| WhileExpr (cond : Expr) (body : Expr) :
+  ExprType Γ₁ cond .Bool →
+  ExprType Γ₁ body .Unit →
+  ExprType Γ₁ (.While cond body) .Unit
+| BreakExpr (type : τ) :
+  ExprType Γ₁ .Break .Unit
+| ScopeExpr (s : Stmt) (e : Expr) (type : τ) :
+  StmtType Γ₁ s Γ₂ →
+  ExprType Γ₂ e type →
+  ExprType Γ₁ (.Scope s e) type
 
 inductive StmtType : Γ → Stmt → Γ → Prop
-| VarDecl (e : Expr) (type : τ) (x : VarName) : ExprType Γ₁ e type →
-  StmtType Γ₁ (.Decl x type e) (⟨x, type⟩ :: Γ₁)
-| VarAssign (x : VarName) (e : Expr) (type : τ) : ExprType Γ₁ e type → (Γ₁(x) = type) →
+| VarDecl (e : Expr) (type : τ) :
+  ExprType Γ₁ e type →
+  StmtType Γ₁ (.Decl type e) (type :: Γ₁)
+| VarAssign (x : VarName) (e : Expr) (type : τ) :
+  ExprType Γ₁ e type → (Γ₁(x) = type) →
   StmtType Γ₁ (.Assign x e) Γ₁
-| Seq (s₁ s₂ : Stmt) : StmtType Γ₁ s₁ Γ₂ → StmtType Γ₂ s₂ Γ₃ →
+| Seq (s₁ s₂ : Stmt) :
+  StmtType Γ₁ s₁ Γ₂ →
+  StmtType Γ₂ s₂ Γ₃ →
   StmtType Γ₁ (s₁; s₂) Γ₃
-| If (e : Expr) (s₁ s₂ : Stmt) : ExprType Γ₁ e .Bool → StmtType Γ₁ s₁ Γ₂ → StmtType Γ₁ s₂ Γ₃ →
-  StmtType Γ₁ (.If e s₁ s₂) Γ₁
-| While (c : Expr) (s : Stmt) : ExprType Γ₁ c .Bool → StmtType Γ₁ s Γ₂ →
-  StmtType Γ₁ (.While c s) Γ₁
-/-| Break :
-  StmtType Γ₁ .Break Γ₂
--/
+| Do (e : Expr) (type : τ) :
+  ExprType Γ₁ e type →
+  StmtType Γ₁ (.Do e) Γ₁
+
+end
 
 end Types
 
@@ -89,10 +158,34 @@ section TypeProperties
 theorem StmtDet (Γ₁ Γ₂ Γ₃ : Γ) (s : Stmt) :
   StmtType Γ₁ s Γ₂ → StmtType Γ₁ s Γ₃ → Γ₂ = Γ₃ := by
     intro h1 h2
-    induction s generalizing Γ₁ Γ₂ Γ₃ <;> grind [StmtType, Stmt, ExprType, Expr]
+    unhygienic cases h1 <;> unhygienic cases h2
+    any_goals rfl
+    sorry
+
+lemma neg_index_eq (Γ₁ Γ₂ : Γ) (i : Nat) :
+  i < Γ₁.length →
+  Γ₁[Γ₁.length - 1 - i]? = (Γ₂ ++ Γ₁)[Γ₂.length + Γ₁.length - 1 - i]? := by
+    intro hlt
+    unhygienic induction Γ₂
+    { simp }
+    grind
+
+lemma neg_index_l (Γ₁ Γ₂ : Γ) (i : Nat) :
+  i < Γ₂.length + Γ₁.length → Γ₁.length ≤ i →
+  (Γ₂ ++ Γ₁)[Γ₂.length + Γ₁.length - 1 - i]? = Γ₂[Γ₂.length - 1 - (i - Γ₁.length)]? := by
+    intro hlt
+    unhygienic induction Γ₂ <;> grind
+
+lemma neg_index_r (Γ₁ Γ₂ : Γ) (i : Nat) :
+  i < Γ₁.length →
+  (Γ₂ ++ Γ₁)[Γ₂.length + Γ₁.length - 1 - i]? = Γ₁[Γ₁.length - 1 - i]? := by
+    intro hlt
+    unhygienic induction Γ₂
+    { simp }
+    grind
 
 theorem ExprExtension (Γ₁ Γ₂ : Γ) (e : Expr) (type : τ) :
-  ExprType Γ₁ e type → ExprType (Γ₁ ++ Γ₂) e type := by
+  ExprType Γ₁ e type → ExprType (Γ₂ ++ Γ₁) e type := by
     intro hg
     unhygienic induction e generalizing type <;> try grind [Expr, ExprType]
 
@@ -107,7 +200,7 @@ lemma StmtMono (Γ₁ Γ₂ : Γ) (s : Stmt) :
     intro hs
     unhygienic induction s generalizing Γ₁ Γ₂
     { unhygienic cases hs
-      exists [⟨x, type⟩] }
+      exists [type] }
     { unhygienic cases hs
       exists [] }
     { unhygienic cases hs
@@ -117,107 +210,42 @@ lemma StmtMono (Γ₁ Γ₂ : Γ) (s : Stmt) :
       grind }
     { unhygienic cases hs
       exists [] }
+    { unhygienic cases hs
+      exists [] }
     unhygienic cases hs
     exists []
 
 
-lemma StmtDecl (type : τ) : StmtType Γ₁ (Stmt.Decl x type e) Γ₂ → Γ₂ = ⟨x, type⟩ :: Γ₁ := by
+lemma StmtDecl (type : τ) : StmtType Γ₁ (Stmt.Decl type e) Γ₂ → Γ₂ = type :: Γ₁ := by
   grind [StmtType]
 
 theorem StmtExtension (Γ₁ Γ₂ Γ₃ : Γ) (s : Stmt) :
-  StmtType Γ₁ s (Γ₂ ++ Γ₁) → StmtType (Γ₁ ++ Γ₃) s (Γ₂ ++ Γ₁ ++ Γ₃) := by
+  StmtType Γ₁ s (Γ₂ ++ Γ₁) → StmtType (Γ₃ ++ Γ₁) s (Γ₂ ++ Γ₃ ++ Γ₁) := by
     intro hs
     unhygienic induction s generalizing Γ₁ Γ₂ Γ₃
-    { have obt := StmtDecl type hs
-      have : Γ₂ = [⟨x, type⟩] := by
-        induction Γ₁
-        { grind }
-        rw [List.append_eq_cons_iff] at obt
-        unhygienic cases obt
-        { grind }
-        rcases h with ⟨as, has1, has2⟩
-        rw [eq_comm, List.append_left_eq_self] at has2
-        grind
-      rw [List.append_assoc]
-      have : ExprType (Γ₁ ++ Γ₃) e type := by
-        rw [obt] at hs
-        cases hs
-        clear obt this
-        induction e generalizing type <;> grind [Stmt, StmtType, ExprType, BinOp, UnOp]
-      grind [StmtType] }
-    { by_cases hemp : Γ₂ = []
-      { simp only [hemp] at *
-        unhygienic cases hs
-        apply StmtType.VarAssign
-        { apply ExprExtension
-          apply a }
-        grind }
-      have : Γ₂ ++ Γ₁ ≠ Γ₁ := by
-        intro eq
-        have : (Γ₂ ++ Γ₁).length > Γ₁.length := by
-          simp
-          grind
-        grind
-      grind [StmtType] }
-    { unhygienic cases hs
-      rcases StmtMono _ _ _ a with ⟨g, hg⟩
-      apply StmtType.Seq
-      { apply s₁_ih
-        rw [hg] at a
-        apply a }
-      rcases StmtMono _ _ _ a_1 with ⟨g1, hg1⟩
-      rw [hg] at hg1
-      have : Γ₂ = g1 ++ g := by
-        rw [←List.append_assoc] at hg1
-        apply List.append_cancel_right
-        apply hg1
-      grind }
-    { by_cases hemp : Γ₂ = []
-      { simp only [hemp] at *
-        unhygienic cases hs
-        rcases StmtMono _ _ _ a_1 with ⟨g1, hg1⟩
-        rcases StmtMono _ _ _ a_2 with ⟨g2, hg2⟩
-        apply StmtType.If (Γ₂ := g1 ++ Γ₁ ++ Γ₃) (Γ₃ := g2 ++ Γ₁ ++ Γ₃)
-        { apply ExprExtension
-          apply a }
-        { apply s₁_ih
-          rw [hg1] at a_1
-          exact a_1 }
-        apply s₂_ih
-        rw [hg2] at a_2
-        exact a_2 }
-      have : Γ₂ ++ Γ₁ ≠ Γ₁ := by
-        intro eq
-        have : (Γ₂ ++ Γ₁).length > Γ₁.length := by
-          simp
-          grind
-        grind
-      grind [StmtType] }
-    by_cases hemp : Γ₂ = []
-    { simp only [hemp] at *
-      unhygienic cases hs
-      rcases StmtMono _ _ _ a_1 with ⟨g1, hg1⟩
-      apply StmtType.While (Γ₂ := g1 ++ Γ₁ ++ Γ₃)
-      { apply ExprExtension
-        apply a }
-      apply body_ih
-      rw [hg1] at a_1
-      exact a_1 }
-    have : Γ₂ ++ Γ₁ ≠ Γ₁ := by
-      intro eq
-      have : (Γ₂ ++ Γ₁).length > Γ₁.length := by
-        simp
-        grind
-      grind
-    grind [StmtType]
+    stop sorry
 
 theorem StmtPermutation (Γ₁ Γ₂ Δ : Γ) (s : Stmt) :
   (∀ tp x, (Γ₁(x) = tp) ↔ Γ₂(x) = tp) →
   StmtType Γ₁ s (Δ ++ Γ₁) → StmtType Γ₂ s (Δ ++ Γ₂) := by
     intro heq hs
+    have leq : Γ₂.length = Γ₁.length := by
+      by_cases lt : Γ₂.length < Γ₁.length
+      { let tp := Γ₁[0]
+        have hx := heq tp (Γ₁.length - 1)
+        simp at hx
+        clear heq
+        grind }
+      by_cases gt : Γ₂.length > Γ₁.length
+      { let tp := Γ₂[0]
+        have hx := heq tp (Γ₂.length - 1)
+        simp at hx
+        clear heq
+        grind }
+      grind
     unhygienic induction s generalizing Γ₁ Γ₂ Δ
     { have := StmtDecl type hs
-      have : Δ = [⟨x, type⟩] := by
+      have : Δ = [type] := by
         clear heq hs
         induction Γ₁
         { grind }
@@ -246,10 +274,8 @@ theorem StmtPermutation (Γ₁ Γ₂ Δ : Γ) (s : Stmt) :
     { unhygienic cases hs
       rcases StmtMono _ _ _ a with ⟨g, hg⟩
       apply StmtType.Seq
-      { apply s₁_ih Γ₁ Γ₂ g
-        { grind }
-        rw [hg] at a
-        apply a }
+      { apply s₁_ih Γ₁ Γ₂ g <;> try assumption
+        grind }
       rcases StmtMono _ _ _ a_1 with ⟨g1, hg1⟩
       rw [hg] at hg1
       have : Δ = g1 ++ g := by
@@ -261,8 +287,12 @@ theorem StmtPermutation (Γ₁ Γ₂ Δ : Γ) (s : Stmt) :
       { intro tp x
         constructor <;> intro h <;>
         { clear s₁_ih s₂_ih
-          simp [List.find?_append] at *
+          by_cases hx : x < Γ₂.length
+          { grind [neg_index_r] }
+          constructor
+          { grind }
           grind } }
+      { grind }
       grind }
     { by_cases hemp : Δ = []
       { simp only [hemp] at *
@@ -272,14 +302,26 @@ theorem StmtPermutation (Γ₁ Γ₂ Δ : Γ) (s : Stmt) :
         apply StmtType.If (Γ₂ := g1 ++ Γ₂) (Γ₃ := g2 ++ Γ₂)
         { apply ExprPermutation _ _ e .Bool heq
           grind }
-        { apply s₁_ih Γ₁ Γ₂ g1
-          { grind }
-          rw [hg1] at a_1
-          exact a_1 }
-        apply s₂_ih Γ₁ Γ₂ g2
-        { grind }
-        rw [hg2] at a_2
-        exact a_2 }
+        { apply s₁_ih Γ₁ Γ₂ g1 <;> try assumption
+          grind }
+        apply s₂_ih Γ₁ Γ₂ g2 <;> try assumption
+        grind }
+      have : Δ ++ Γ₁ ≠ Γ₁ := by
+        intro eq
+        have : (Δ ++ Γ₁).length > Γ₁.length := by
+          simp
+          grind
+        grind
+      grind [StmtType] }
+    { by_cases hemp : Δ = []
+      { simp only [hemp] at *
+        unhygienic cases hs
+        rcases StmtMono _ _ _ a_1 with ⟨g1, hg1⟩
+        apply StmtType.While (Γ₂ := g1 ++ Γ₂)
+        { apply ExprPermutation _ _ c .Bool heq
+          grind }
+        apply body_ih Γ₁ Γ₂ g1 <;> try assumption
+        grind }
       have : Δ ++ Γ₁ ≠ Γ₁ := by
         intro eq
         have : (Δ ++ Γ₁).length > Γ₁.length := by
@@ -288,16 +330,7 @@ theorem StmtPermutation (Γ₁ Γ₂ Δ : Γ) (s : Stmt) :
         grind
       grind [StmtType] }
     by_cases hemp : Δ = []
-    { simp only [hemp] at *
-      unhygienic cases hs
-      rcases StmtMono _ _ _ a_1 with ⟨g1, hg1⟩
-      apply StmtType.While (Γ₂ := g1 ++ Γ₂)
-      { apply ExprPermutation _ _ c .Bool heq
-        grind }
-      apply body_ih Γ₁ Γ₂ g1
-      { grind }
-      rw [hg1] at a_1
-      exact a_1 }
+    { grind [StmtType] }
     have : Δ ++ Γ₁ ≠ Γ₁ := by
       intro eq
       have : (Δ ++ Γ₁).length > Γ₁.length := by
@@ -373,9 +406,9 @@ inductive Eval : CEK → CEK → Prop
   Eval
     ⟨.sourceStmt (.If e s₁ s₂), E, K⟩
     ⟨.sourceExpr e, E, (.ifCondK s₁ s₂) :: K⟩
-| VarDecl (x : VarName) (type : τ) (e : Expr) :
+| VarDecl (type : τ) (e : Expr) :
   Eval
-    ⟨.sourceStmt (.Decl x type e), E, K⟩
+    ⟨.sourceStmt (.Decl type e), E, K⟩
     ⟨.sourceExpr e, E, (.declK x type) :: K⟩
 | Assign (x : VarName) (e : Expr) :
   Eval
@@ -397,11 +430,10 @@ inductive Eval : CEK → CEK → Prop
   Eval
     ⟨.sourceStmt (.While c body), E, K⟩
     ⟨.sourceExpr c, ∅ :: E, (.loopK c body) :: (.jumpK E.length) :: K⟩
-/-| Break  :
+| Break  :
   Eval
     ⟨.sourceStmt (.Break), E, K⟩
     ⟨.skip, E.drop 1, popK K (E.length - 1)⟩
--/
 -- # Cont
 | IfTrue (s₁ s₂ : Stmt) :
   Eval
@@ -485,24 +517,24 @@ inductive ContExprType : List Γ → List Cont → τ → Prop
   StmtType Γ₁.gcat s₂ Γ₃.gcat →
   ContStmtType Γ₁ K →
   ContExprType Γ₁ (.ifCondK s₁ s₂ :: K) .Bool
-| DeclK (x : VarName) (type : τ) (Γ₁ : Γ) (Γ₂ : List Γ) :
-  ContStmtType ((⟨x, type⟩ :: Γ₁) :: Γ₂) K →
+| DeclK (type : τ) (Γ₁ : Γ) (Γ₂ : List Γ) :
+  ContStmtType ((type:: Γ₁) :: Γ₂) K →
   ContExprType (Γ₁ :: Γ₂) (.declK x type :: K) type
 | AssignK (x : VarName) (type : τ) (Γ₁ : List Γ) :
   (Γ₁.gcat(x) = type) →
   ContStmtType Γ₁ K →
   ContExprType Γ₁ (.assignK x :: K) type
 | BinOpLK (Γ₁ : List Γ) (op : BinOp) (e₂ : Expr) :
-  ExprType Γ₁.gcat e₂ op.arg2 →
-  ContExprType Γ₁ K op.out →
-  ContExprType Γ₁ (.binopLK op e₂ :: K) op.arg1
+  ExprType Γ₁.gcat e₂ op.args.2 →
+  ContExprType Γ₁ K op.args.out →
+  ContExprType Γ₁ (.binopLK op e₂ :: K) op.args.1
 | BinOpRK (Γ₁ : List Γ) (op : BinOp) (v₁ : Value) :
-  ValueType v₁ op.arg1 →
-  ContExprType Γ₁ K op.out →
-  ContExprType Γ₁ (.binopRK op v₁ :: K) op.arg2
+  ValueType v₁ op.args.1 →
+  ContExprType Γ₁ K op.args.out →
+  ContExprType Γ₁ (.binopRK op v₁ :: K) op.args.2
 | UnOpK (Γ₁ : List Γ) (op : UnOp) :
-  ContExprType Γ₁ K op.out →
-  ContExprType Γ₁ (.unopK op :: K) op.arg
+  ContExprType Γ₁ K op.args.out →
+  ContExprType Γ₁ (.unopK op :: K) op.args.1
 | LoopCondK (Γ₁ : List Γ) (Γ₂ : List Γ) (body : Stmt) (c : Expr) :
   ExprType Γ₁.gcat c .Bool →
   StmtType Γ₁.gcat body Γ₂.gcat →
