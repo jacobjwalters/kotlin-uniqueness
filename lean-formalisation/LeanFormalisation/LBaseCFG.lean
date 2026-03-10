@@ -48,6 +48,7 @@ deriving Repr
 noncomputable instance : DecidableEq CFGNode := Classical.decEq _
 
 -- CEK state to CFG projection
+@[local simp]
 def toCFGControl : Control → CFGControl
   | .sourceExpr e => .sourceExpr e
   | .sourceStmt s => .sourceStmt s
@@ -76,16 +77,16 @@ def fromCFGCont : CFGCont → Cont
   | .unopK op       => .unopK op
   | .loopK c s      => .loopK c s
 
-@[simp, grind =, grind! .]
+@[local simp, grind =, grind! .]
 theorem to_from_CFGCont_eq (c : CFGCont) :
     (toCFGCont (fromCFGCont c)) = c := by
   cases c <;> rfl
 
-@[simp, grind =, grind! .]
+@[local simp, grind =, grind! .]
 theorem to_from_CFGCont_list_eq (k : List CFGCont) : (k.map fromCFGCont |>.map toCFGCont) = k := by
   induction k <;> simp [*]
 
-@[grind]
+@[local simp, grind]
 def toNode (state : CEK) : CFGNode :=
   ⟨toCFGControl state.1, state.2.2.map toCFGCont⟩
 
@@ -180,19 +181,36 @@ def CFGNode.succs (n : CFGNode) : List CFGNode :=
   -- All other combinations are unreachable in a well-formed execution.
   | _, _ => []
 
+
 -- # Completeness
 -- Every step corresponds to some edge in the CFG
-set_option linter.flexible false in
+
+-- extracted for readability. Thanks Lean Linter!
+local macro "cfg_simp" : tactic => `(tactic|
+  simp only [
+    CFGNode.succs, toCFGControl, toCFGCont, toNode,
+    CFGNode.mk.injEq, CFGControl.sourceStmt.injEq,
+    List.map_cons, List.mem_cons, List.not_mem_nil, List.cons_ne_self, List.ne_cons_self,
+    reduceCtorEq, and_true, and_self, or_false, or_true, true_or, or_self
+  ])
+
 theorem eval_maps_to_succ {src dst : CEK} (h : Eval src dst) :
     toNode dst ∈ (toNode src).succs := by
-  cases h <;> simp [toNode, toCFGControl, toCFGCont, CFGNode.succs]
-  -- linter issue to using simp like this.
-  -- to investigate what the minimal `simp only` call is
-  rename_i E K v
-  cases v <;> simp [liftValue]
+  cases h <;> cfg_simp
+  case Val E K v =>
+    cases v <;> simp [liftValue]
 
 -- # Soundness
 -- Every edge in the CFG corresponds to some edge in the CFG
+
+-- automate the procedure of showing that a node is indeed the correct reduction
+local macro "solve_node" dst:term : tactic =>
+  `(tactic | (exact ⟨$dst, by constructor, by simp [to_from_CFGCont_list_eq _]⟩))
+
+-- only needed for cases where constructor chooses not to work for mysterious reasons
+local macro "solve_node'" dst:term : tactic =>
+  `(tactic | (refine ⟨$dst, ?_, by simp [to_from_CFGCont_list_eq _]⟩))
+
 
 -- this proof could be heavily simplified to be quite honest but i'll take care
 -- of that another day
@@ -205,81 +223,40 @@ theorem succ_is_inhabited {n m : CFGNode} (h : m ∈ n.succs) :
   -- statement
   | sourceStmt s =>
     exists ⟨.sourceStmt s, [], k.map fromCFGCont⟩
-    cases s <;> simp only [List.mem_cons, List.not_mem_nil, or_false] at h <;> subst h
+    cases s <;>
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at h <;>
+      subst h <;> refine ⟨by simp [to_from_CFGCont_list_eq _], ?_⟩
     case Decl x typ e =>
-      split_ands
-      · simp [toNode, toCFGControl, to_from_CFGCont_list_eq k]
-      · exists ⟨.sourceExpr e, [], (CFGCont.declK x typ :: k).map fromCFGCont⟩
-        split_ands
-        · constructor
-        simp [toNode, toCFGControl, to_from_CFGCont_list_eq k]
+      solve_node ⟨.sourceExpr e, [], (CFGCont.declK x typ :: k).map fromCFGCont⟩
     case Assign x e =>
-      split_ands
-      · simp [toNode, toCFGControl, to_from_CFGCont_list_eq k]
-      · exists ⟨.sourceExpr e, [], (CFGCont.assignK x :: k).map fromCFGCont⟩
-        split_ands
-        · constructor
-        simp [toNode, toCFGControl, to_from_CFGCont_list_eq k]
+      solve_node ⟨.sourceExpr e, [], (CFGCont.assignK x :: k).map fromCFGCont⟩
     case Seq s₁ s₂ =>
-      split_ands
-      · simp [toNode, toCFGControl, to_from_CFGCont_list_eq k]
-      · exists ⟨.sourceStmt s₁, [], (CFGCont.seqK s₂ :: k).map fromCFGCont⟩
-        split_ands
-        · constructor
-        simp [toNode, toCFGControl, to_from_CFGCont_list_eq k]
+      solve_node  ⟨.sourceStmt s₁, [], (CFGCont.seqK s₂ :: k).map fromCFGCont⟩
     case If e s₁ s₂ =>
-      split_ands
-      · simp [toNode, toCFGControl, to_from_CFGCont_list_eq k]
-      · exists ⟨.sourceExpr e, [], (CFGCont.ifCondK s₁ s₂ :: k).map fromCFGCont⟩
-        split_ands
-        · constructor
-        simp [toNode, toCFGControl, to_from_CFGCont_list_eq k]
+      solve_node ⟨.sourceExpr e, [], (CFGCont.ifCondK s₁ s₂ :: k).map fromCFGCont⟩
     case While c body =>
-      split_ands
-      · simp [toNode, toCFGControl, to_from_CFGCont_list_eq k]
-      · exists ⟨.sourceExpr c, [∅], (CFGCont.loopK c body :: CFGCont.jumpK :: k).map fromCFGCont⟩
-        split_ands
-        · -- Apply the `Eval.While` constructor
-          constructor
-        · -- Simplify the state projection maps
-          simp [toNode, toCFGControl, to_from_CFGCont_list_eq k]
+      solve_node ⟨.sourceExpr c, [∅], (CFGCont.loopK c body :: CFGCont.jumpK :: k).map fromCFGCont⟩
   -- expressions
   | sourceExpr e =>
     exists ⟨.sourceExpr e, [], k.map fromCFGCont⟩
-    split_ands
-    · simp [toNode, toCFGControl, to_from_CFGCont_list_eq k];
-    -- wish there was a way to collapse this ! but as it stands it doesn't seem possible :(
-    · cases e <;> simp only [List.mem_cons, List.not_mem_nil, or_false] at h <;> subst h
-      case Var x =>
-        exists ⟨.value default, [], k.map fromCFGCont⟩
-        split_ands
-        · exact Eval.Var default x
-        · simp [toNode, toCFGControl, to_from_CFGCont_list_eq k]
-      case True =>
-        exists ⟨.value .True, [], k.map fromCFGCont⟩
-        split_ands
-        · exact Eval.Val .True
-        · simp [toNode, toCFGControl, to_from_CFGCont_list_eq k]
-      case False =>
-        exists ⟨.value .False, [], k.map fromCFGCont⟩
-        split_ands
-        · exact Eval.Val .False
-        · simp [toNode, toCFGControl, to_from_CFGCont_list_eq k]
-      case Nat n =>
-        exists ⟨.value (.Nat n), [], k.map fromCFGCont⟩
-        split_ands
-        · exact Eval.Val (.Nat n)
-        · simp [toNode, toCFGControl, to_from_CFGCont_list_eq k]
-      case BinOp arg₁ arg₂ o =>
-        exists ⟨.sourceExpr arg₁, [], (CFGCont.binopLK o arg₂ :: k).map fromCFGCont⟩
-        split_ands
-        · constructor
-        · simp [toNode, toCFGControl, to_from_CFGCont_list_eq k]
-      case UnOp arg o =>
-        exists ⟨.sourceExpr arg, [], (CFGCont.unopK o :: k).map fromCFGCont⟩
-        split_ands
-        · constructor
-        · simp [toNode, toCFGControl, to_from_CFGCont_list_eq k]
+    refine ⟨by simp [to_from_CFGCont_list_eq k], ?_⟩
+    cases e <;> simp only [List.mem_cons, List.not_mem_nil, or_false] at h <;> subst h
+    case Var x =>
+      solve_node' ⟨.value default, [], k.map fromCFGCont⟩
+      apply Eval.Var default
+    case True =>
+      solve_node' ⟨.value .True, [], k.map fromCFGCont⟩
+      exact Eval.Val .True
+    case False =>
+      solve_node' ⟨.value .False, [], k.map fromCFGCont⟩
+      exact Eval.Val .False
+    case Nat n =>
+      solve_node' ⟨.value (.Nat n), [], k.map fromCFGCont⟩
+      exact Eval.Val (.Nat n)
+    case BinOp arg₁ arg₂ o =>
+      solve_node ⟨.sourceExpr arg₁, [], (CFGCont.binopLK o arg₂ :: k).map fromCFGCont⟩
+    case UnOp arg o =>
+      solve_node ⟨.sourceExpr arg, [], (CFGCont.unopK o :: k).map fromCFGCont⟩
   -- values
   | value =>
     cases k <;> try simp at h
@@ -288,96 +265,56 @@ theorem succ_is_inhabited {n m : CFGNode} (h : m ∈ n.succs) :
     case ifCondK s₁ s₂ =>
       rcases h with rfl | rfl
       · exists ⟨.value .True, [], (CFGCont.ifCondK s₁ s₂ :: tl).map fromCFGCont⟩
-        split_ands
-        · simp [toNode, toCFGControl, to_from_CFGCont_list_eq tl]
-        · exists ⟨.sourceStmt s₁, [∅], Cont.jumpK 0 :: tl.map fromCFGCont⟩
-          split_ands <;> try constructor
-          · simp [toNode, toCFGControl, toCFGCont, to_from_CFGCont_list_eq tl]
+        refine ⟨by simp [to_from_CFGCont_list_eq _], ?_⟩
+        exists ⟨.sourceStmt s₁, [∅], Cont.jumpK 0 :: tl.map fromCFGCont⟩
+        split_ands <;> try constructor
+        · simp [toCFGCont, to_from_CFGCont_list_eq tl]
       · exists ⟨.value .False, [], (CFGCont.ifCondK s₁ s₂ :: tl).map fromCFGCont⟩
-        split_ands
-        · simp [toNode, toCFGControl, to_from_CFGCont_list_eq tl]
-        · exists ⟨.sourceStmt s₂, [∅], Cont.jumpK 0 :: tl.map fromCFGCont⟩
-          split_ands <;> try constructor
-          · simp [toNode, toCFGControl, toCFGCont, to_from_CFGCont_list_eq tl]
+        refine ⟨by simp [to_from_CFGCont_list_eq _], ?_⟩
+        exists ⟨.sourceStmt s₂, [∅], Cont.jumpK 0 :: tl.map fromCFGCont⟩
+        split_ands <;> try constructor
+        · simp [toCFGCont, to_from_CFGCont_list_eq tl]
     case declK x typ =>
       exists ⟨.value .True, [∅], (CFGCont.declK x typ :: tl).map fromCFGCont⟩
-      split_ands
-      · simp [toNode, toCFGControl, to_from_CFGCont_list_eq tl]
-      · exists ⟨.skip, insert_first x .True [∅], tl.map fromCFGCont⟩
-        split_ands
-        · constructor
-        · simp [toNode, toCFGControl, to_from_CFGCont_list_eq tl]
+      refine ⟨by simp [to_from_CFGCont_list_eq tl], ?_⟩
+      solve_node ⟨.skip, insert_first x .True [∅], tl.map fromCFGCont⟩
     case assignK x =>
       exists ⟨.value .True, [∅], (CFGCont.assignK x :: tl).map fromCFGCont⟩
-      split_ands
-      · simp [toNode, toCFGControl, to_from_CFGCont_list_eq tl]
-      · exists ⟨.skip, insert_first x .True [∅], tl.map fromCFGCont⟩
-        split_ands
-        · constructor
-        · simp [toNode, toCFGControl, to_from_CFGCont_list_eq tl]
+      refine ⟨by simp [to_from_CFGCont_list_eq tl], ?_⟩
+      solve_node ⟨.skip, insert_first x .True [∅], tl.map fromCFGCont⟩
     case binopLK o arg₂ =>
       exists ⟨.value .True, [], (CFGCont.binopLK o arg₂ :: tl).map fromCFGCont⟩
-      split_ands
-      · simp [toNode, toCFGControl, to_from_CFGCont_list_eq tl]
-      · exists ⟨.sourceExpr arg₂, [], (CFGCont.binopRK o :: tl).map fromCFGCont⟩
-        split_ands
-        · constructor
-        · simp [toNode, toCFGControl, to_from_CFGCont_list_eq tl]
+      refine ⟨by simp [to_from_CFGCont_list_eq tl], ?_⟩
+      solve_node ⟨.sourceExpr arg₂, [], (CFGCont.binopRK o :: tl).map fromCFGCont⟩
     case binopRK o =>
       exists ⟨.value .True, [], (CFGCont.binopRK o :: tl).map fromCFGCont⟩
-      split_ands
-      · simp [toNode, toCFGControl, to_from_CFGCont_list_eq tl]
-      · exists ⟨.value (o.run .True .True), [], tl.map fromCFGCont⟩
-        split_ands
-        · constructor
-        · simp [toNode, toCFGControl, to_from_CFGCont_list_eq tl]
+      refine ⟨by simp [to_from_CFGCont_list_eq tl], ?_⟩
+      solve_node ⟨.value (o.run .True .True), [], tl.map fromCFGCont⟩
     case unopK o =>
       exists ⟨.value .True, [], (CFGCont.unopK o :: tl).map fromCFGCont⟩
-      split_ands
-      · simp [toNode, toCFGControl, to_from_CFGCont_list_eq tl]
-      · exists ⟨.value (o.run .True), [], tl.map fromCFGCont⟩
-        split_ands
-        · constructor
-        · simp [toNode, toCFGControl, to_from_CFGCont_list_eq tl]
+      refine ⟨by simp [to_from_CFGCont_list_eq tl], ?_⟩
+      solve_node ⟨.value (o.run .True), [], tl.map fromCFGCont⟩
     case loopK c body =>
       rcases h with rfl | rfl
       · exists ⟨.value .True, [], (CFGCont.loopK c body :: tl).map fromCFGCont⟩
-        split_ands
-        · simp [toNode, toCFGControl, to_from_CFGCont_list_eq tl]
-        · exists ⟨.sourceStmt body, [], (CFGCont.loopK c body :: tl).map fromCFGCont⟩
-          split_ands
-          · constructor
-          · simp [toNode, toCFGControl, to_from_CFGCont_list_eq tl]
+        refine ⟨by simp [to_from_CFGCont_list_eq tl], ?_⟩
+        solve_node ⟨.sourceStmt body, [], (CFGCont.loopK c body :: tl).map fromCFGCont⟩
       · exists ⟨.value .False, [], (CFGCont.loopK c body :: tl).map fromCFGCont⟩
-        split_ands
-        · simp [toNode, toCFGControl, to_from_CFGCont_list_eq tl]
-        · exists ⟨.skip, [], tl.map fromCFGCont⟩
-          split_ands
-          · constructor
-          · simp [toNode, toCFGControl, to_from_CFGCont_list_eq tl]
+        refine ⟨by simp [to_from_CFGCont_list_eq tl], ?_⟩
+        solve_node ⟨.skip, [], tl.map fromCFGCont⟩
   -- skip
   | skip =>
     cases k <;> try simp at h
     case cons hd tl =>
     exists ⟨.skip, [], (hd :: tl).map fromCFGCont⟩
-    split_ands
-    · simp [toNode, toCFGControl, to_from_CFGCont_list_eq tl];
+    refine ⟨by simp [to_from_CFGCont_list_eq tl], ?_⟩
     cases hd <;> simp only [List.mem_cons, List.not_mem_nil, or_false] at h <;> try subst h
     case jumpK =>
-      exists ⟨.skip, [], tl.map fromCFGCont⟩
-      split_ands
-      · constructor
-      simp [toNode, toCFGControl, to_from_CFGCont_list_eq tl];
+      solve_node ⟨.skip, [], tl.map fromCFGCont⟩
     case seqK s =>
-      exists ⟨.sourceStmt s, [], tl.map fromCFGCont⟩
-      split_ands
-      · constructor
-      simp [toNode, toCFGControl, to_from_CFGCont_list_eq tl];
+      solve_node ⟨.sourceStmt s, [], tl.map fromCFGCont⟩
     case loopK c body =>
-      exists ⟨.sourceExpr c, [∅], (CFGCont.loopK c body :: tl).map fromCFGCont⟩
-      split_ands
-      · exact Eval.LoopCont body c
-      simp [toNode, toCFGControl, to_from_CFGCont_list_eq tl]
+      solve_node ⟨.sourceExpr c, [∅], (CFGCont.loopK c body :: tl).map fromCFGCont⟩
 -- QED
 
 theorem succs_iff_exists_eval (n m : CFGNode) :
