@@ -7,7 +7,7 @@ inductive τ
 | Nat
 | Bool
 | Unit
-deriving Repr
+deriving Repr, Inhabited
 
 
 inductive Value
@@ -70,97 +70,118 @@ def UnOp.run : UnOp → Value → Value
   | .Nat _ => .False
   | _ => panic! "Not implemented"
 
-mutual
-inductive Expr
-| Var (x : VarName)
-| True
-| False
-| Nat (n : Nat)
-| Unit
-| BinOp (arg₁ : Expr) (arg₂ : Expr) (op : BinOp)
-| UnOp (arg : Expr) (op : UnOp)
-| If (cond : Expr) (e₁ : Expr) (e₂ : Expr)
-| While (cond : Expr) (body : Expr)
-| Break
-| Scope (s : Stmt) (res : Expr)
+inductive Tag
+| Expr
+| Stmt
 
-inductive Stmt
-| Decl (type : τ) (e : Expr)
-| Assign (x : VarName) (e : Expr)
-| Seq (s₁ : Stmt) (s₂ : Stmt)
-| Do (e : Expr)
-end
+inductive Lang : Tag → Type
+-- # Expr
+| Var (x : VarName) : Lang .Expr
+| True : Lang .Expr
+| False : Lang .Expr
+| Nat (n : Nat) : Lang .Expr
+| Unit : Lang .Expr
+| BinOp (arg₁ : Lang .Expr) (arg₂ : Lang .Expr) (op : BinOp) : Lang .Expr
+| UnOp (arg : Lang .Expr) (op : UnOp) : Lang .Expr
+| If (cond : Lang .Expr) (e₁ : Lang .Expr) (e₂ : Lang .Expr) : Lang .Expr
+| While (cond : Lang .Expr) (body : Lang .Expr) : Lang .Expr
+| Break : Lang .Expr
+| Scope (s : Lang .Stmt) (res : Lang .Expr) : Lang .Expr
+-- # Stmt
+| Decl (type : τ) (e : Lang .Expr) : Lang .Stmt
+| Assign (x : VarName) (e : Lang .Expr) : Lang .Stmt
+| Seq (s₁ : Lang .Stmt) (s₂ : Lang .Stmt) : Lang .Stmt
+| Do (e : Lang .Expr) : Lang .Stmt
 
-notation:100 s₁:100 ";" s₂:101 => Stmt.Seq s₁ s₂
-notation x "::=" exp => Stmt.Assign x exp
+notation:100 s₁:100 ";" s₂:101 => Lang.Seq s₁ s₂
+notation x "::=" exp => Lang.Assign x exp
 #check List.get
 abbrev Γ := List τ
 notation Γ₁ "("x")" "=" type => x < List.length Γ₁ ∧ Γ₁[List.length Γ₁ - 1 - x]? = Option.some type
 
 section Types
-mutual
-inductive ExprType : Γ → Expr → τ → Prop
+
+inductive TypR : Tag → Type
+| Stmt (Γ₁ : Γ) : TypR .Stmt
+| Expr (type : τ) : TypR .Expr
+
+inductive ExprType : Γ → Lang .Expr → τ → Prop
+
+inductive Typ : (tg : Tag) → Γ → Lang tg → TypR tg → Prop
+-- # Expr
 | TrueConst :
-  ExprType Γ₁ .True .Bool
+  Typ .Expr Γ₁ .True (.Expr .Bool)
 | FalseConst :
-  ExprType Γ₁ .False .Bool
+  Typ .Expr Γ₁ .False (.Expr .Bool)
 | NatConst (n : Nat) :
-  ExprType Γ₁ (.Nat n) .Nat
+  Typ .Expr Γ₁ (.Nat n) (.Expr .Nat)
 | UnitConst :
-  ExprType Γ₁ (.Unit) .Unit
+  Typ .Expr Γ₁ .Unit (.Expr .Unit)
 | VarAccess (x : VarName) (type : τ) :
   (Γ₁(x) = type) →
-  ExprType Γ₁ (.Var x) type
-| UnOp (arg : Expr) (op : UnOp) :
-  ExprType Γ₁ arg op.args.1 →
-  ExprType Γ₁ (.UnOp arg op) op.args.2
-| BinOp (arg₁ arg₂ : Expr) (op : BinOp) :
-  ExprType Γ₁ arg₁ op.args.1 →
-  ExprType Γ₁ arg₂ op.args.2 →
-  ExprType Γ₁ (.BinOp arg₁ arg₂ op) op.args.3
-| IfExpr (cond : Expr) (e₁ : Expr) (e₂ : Expr) (type : τ) :
-  ExprType Γ₁ cond .Bool →
-  ExprType Γ₁ e₁ type →
-  ExprType Γ₁ e₂ type →
-  ExprType Γ₁ (.If cond e₁ e₂) type
-| WhileExpr (cond : Expr) (body : Expr) :
-  ExprType Γ₁ cond .Bool →
-  ExprType Γ₁ body .Unit →
-  ExprType Γ₁ (.While cond body) .Unit
+  Typ .Expr Γ₁ (.Var x) (.Expr type)
+| UnOp (arg : Lang .Expr) (op : UnOp) :
+  Typ .Expr Γ₁ arg (.Expr op.args.1) →
+  Typ .Expr Γ₁ (.UnOp arg op) (.Expr op.args.2)
+| BinOp (arg₁ arg₂ : Lang .Expr) (op : BinOp) :
+  Typ .Expr Γ₁ arg₁ (.Expr op.args.1) →
+  Typ .Expr Γ₁ arg₂ (.Expr op.args.2) →
+  Typ .Expr Γ₁ (.BinOp arg₁ arg₂ op) (.Expr op.args.3)
+| IfExpr (cond : Lang .Expr) (e₁ : Lang .Expr) (e₂ : Lang .Expr) (type : τ) :
+  Typ .Expr Γ₁ cond (.Expr .Bool) →
+  Typ .Expr Γ₁ e₁ (.Expr type) →
+  Typ .Expr Γ₁ e₂ (.Expr type) →
+  Typ .Expr Γ₁ (.If cond e₁ e₂) (.Expr type)
+| WhileExpr (cond : Lang .Expr) (body : Lang .Expr) :
+  Typ .Expr Γ₁ cond (.Expr .Bool) →
+  Typ .Expr Γ₁ body (.Expr .Unit) →
+  Typ .Expr Γ₁ (.While cond body) (.Expr .Unit)
 | BreakExpr (type : τ) :
-  ExprType Γ₁ .Break .Unit
-| ScopeExpr (s : Stmt) (e : Expr) (type : τ) :
-  StmtType Γ₁ s Γ₂ →
-  ExprType Γ₂ e type →
-  ExprType Γ₁ (.Scope s e) type
-
-inductive StmtType : Γ → Stmt → Γ → Prop
-| VarDecl (e : Expr) (type : τ) :
-  ExprType Γ₁ e type →
-  StmtType Γ₁ (.Decl type e) (type :: Γ₁)
-| VarAssign (x : VarName) (e : Expr) (type : τ) :
-  ExprType Γ₁ e type → (Γ₁(x) = type) →
-  StmtType Γ₁ (.Assign x e) Γ₁
-| Seq (s₁ s₂ : Stmt) :
-  StmtType Γ₁ s₁ Γ₂ →
-  StmtType Γ₂ s₂ Γ₃ →
-  StmtType Γ₁ (s₁; s₂) Γ₃
-| Do (e : Expr) (type : τ) :
-  ExprType Γ₁ e type →
-  StmtType Γ₁ (.Do e) Γ₁
-
-end
+  Typ .Expr Γ₁ .Break (.Expr .Unit)
+| ScopeExpr (s : Lang .Stmt) (e : Lang .Expr) (type : τ) :
+  Typ .Stmt Γ₁ s (.Stmt Γ₂) →
+  Typ .Expr Γ₂ e (.Expr type) →
+  Typ .Expr Γ₁ (.Scope s e) (.Expr type)
+-- # Stmt
+| VarDecl (e : Lang .Expr) (type : τ) :
+  Typ .Expr Γ₁ e (.Expr type) →
+  Typ .Stmt Γ₁ (.Decl type e) (.Stmt (type :: Γ₁))
+| VarAssign (x : VarName) (e : Lang .Expr) (type : τ) :
+  Typ .Expr Γ₁ e (.Expr type) → (Γ₁(x) = type) →
+  Typ .Stmt Γ₁ (.Assign x e) (.Stmt Γ₁)
+| Seq (s₁ s₂ : Lang .Stmt) :
+  Typ .Stmt Γ₁ s₁ (.Stmt Γ₂) →
+  Typ .Stmt Γ₂ s₂ Γ₃ →
+  Typ .Stmt Γ₁ (s₁; s₂) Γ₃
+| Do (e : Lang .Expr) (type : τ) :
+  Typ .Expr Γ₁ e (.Expr type) →
+  Typ .Stmt Γ₁ (.Do e) (.Stmt Γ₁)
 
 end Types
 
 section TypeProperties
 
-theorem StmtDet (Γ₁ Γ₂ Γ₃ : Γ) (s : Stmt) :
-  StmtType Γ₁ s Γ₂ → StmtType Γ₁ s Γ₃ → Γ₂ = Γ₃ := by
-    intro h1 h2
-    unhygienic cases h1 <;> unhygienic cases h2
-    any_goals rfl
-    sorry
+theorem StmtDet (Γ₁ : Γ) (tg : Tag) (Γ₂ Γ₃ : TypR tg) (s : Lang tg) :
+  Typ tg Γ₁ s Γ₂ → Typ tg Γ₁ s Γ₃ → tg = .Stmt → Γ₂ = Γ₃ := by
+    intro h1 h2 eq
+    unhygienic induction h1 <;> try grind
+    { cases h2
+      rfl }
+    { cases h2
+      rfl }
+    { unhygienic cases h2
+      grind }
+    cases h2
+    rfl
+
+
+theorem ExprDet (Γ₁ : Γ) (tg : Tag) (Γ₂ Γ₃ : TypR tg) (s : Lang tg) :
+  Typ tg Γ₁ s Γ₂ → Typ tg Γ₁ s Γ₃ → tg = .Expr → Γ₂ = Γ₃ := by
+    intro h1 h2 eq
+    unhygienic induction h1 <;> try grind
+    all_goals
+    { cases h2
+      grind [StmtDet] }
 
 lemma neg_index_eq (Γ₁ Γ₂ : Γ) (i : Nat) :
   i < Γ₁.length →
@@ -183,214 +204,117 @@ lemma neg_index_r (Γ₁ Γ₂ : Γ) (i : Nat) :
     unhygienic induction Γ₂
     { simp }
     grind
-
+/-
 theorem ExprExtension (Γ₁ Γ₂ : Γ) (e : Expr) (type : τ) :
-  ExprType Γ₁ e type → ExprType (Γ₂ ++ Γ₁) e type := by
+  Type Γ₁ e type → ExprType (Γ₂ ++ Γ₁) e type := by
     intro hg
     unhygienic induction e generalizing type <;> try grind [Expr, ExprType]
-
-theorem ExprPermutation (Γ₁ Γ₂ : Γ) (e : Expr) (type : τ) :
+-/
+theorem TypPermutation (Γ₁ Γ₂ : Γ) (tg : Tag) (Γ₃ : TypR tg) (e : Lang tg) :
   (∀ tp x, (Γ₁(x) = tp) ↔ Γ₂(x) = tp) →
-  ExprType Γ₁ e type → ExprType Γ₂ e type := by
+  Typ tg Γ₁ e Γ₃ → Typ tg Γ₂ e Γ₃ := by
     intro hg
-    induction e generalizing type <;> try grind [Expr, ExprType]
+    have leq : Γ₁.length = Γ₂.length := by
+      by_cases h1: Γ₂.length < Γ₁.length
+      { have hi := hg Γ₁[0] (Γ₁.length - 1)
+        clear hg
+        grind }
+      by_cases h2: Γ₁.length < Γ₂.length
+      { have hi := hg Γ₂[0] (Γ₂.length - 1)
+        clear hg
+        grind }
+      grind
+    have : Γ₁ = Γ₂ := by
+      ext
+      clear e
+      rename_i idx el
+      have hi := hg el (Γ₁.length - idx - 1)
+      by_cases hid: idx < Γ₁.length
+      { clear hg
+        grind }
+      grind
+    rw [this]
+    grind
 
-lemma StmtMono (Γ₁ Γ₂ : Γ) (s : Stmt) :
-  StmtType Γ₁ s Γ₂ → ∃ Γ₃, Γ₂ = Γ₃ ++ Γ₁ := by
-    intro hs
-    unhygienic induction s generalizing Γ₁ Γ₂
+--check to see if it is possible to make this work
+/-
+lemma StmtMono (Γ₁ : Γ) (tg : Tag) (Γ₂ : TypR tg) (s : Lang tg) :
+  tg = .Stmt → Typ tg Γ₁ s Γ₂ → ∃ Γ₃, Γ₂ = TypR.Stmt (Γ₃ ++ Γ₁) := by
+    intro heq hs
+    unhygienic induction s generalizing Γ₁ Γ₂ <;> try grind
     { unhygienic cases hs
       exists [type] }
     { unhygienic cases hs
       exists [] }
     { unhygienic cases hs
-      rcases s₁_ih Γ₁ Γ₂_1 a with ⟨g1, hg1⟩
-      rcases s₂_ih Γ₂_1 Γ₂ a_1 with ⟨g2, hg2⟩
+      rcases s₁_ih Γ₁ Γ₂_1 (by rfl) a with ⟨g1, hg1⟩
+      rcases s₂_ih Γ₂_1 Γ₂ (by rfl) a_1 with ⟨g2, hg2⟩
       exists g2 ++ g1
       grind }
-    { unhygienic cases hs
-      exists [] }
-    { unhygienic cases hs
-      exists [] }
     unhygienic cases hs
     exists []
+-/
 
-
-lemma StmtDecl (type : τ) : StmtType Γ₁ (Stmt.Decl type e) Γ₂ → Γ₂ = type :: Γ₁ := by
-  grind [StmtType]
-
+lemma StmtDecl (type : τ) : Typ .Stmt Γ₁ (.Decl type e) (.Stmt Γ₂) → Γ₂ = type :: Γ₁ := by
+  intro h
+  cases h
+  rfl
+/-
 theorem StmtExtension (Γ₁ Γ₂ Γ₃ : Γ) (s : Stmt) :
   StmtType Γ₁ s (Γ₂ ++ Γ₁) → StmtType (Γ₃ ++ Γ₁) s (Γ₂ ++ Γ₃ ++ Γ₁) := by
     intro hs
     unhygienic induction s generalizing Γ₁ Γ₂ Γ₃
     stop sorry
-
-theorem StmtPermutation (Γ₁ Γ₂ Δ : Γ) (s : Stmt) :
-  (∀ tp x, (Γ₁(x) = tp) ↔ Γ₂(x) = tp) →
-  StmtType Γ₁ s (Δ ++ Γ₁) → StmtType Γ₂ s (Δ ++ Γ₂) := by
-    intro heq hs
-    have leq : Γ₂.length = Γ₁.length := by
-      by_cases lt : Γ₂.length < Γ₁.length
-      { let tp := Γ₁[0]
-        have hx := heq tp (Γ₁.length - 1)
-        simp at hx
-        clear heq
-        grind }
-      by_cases gt : Γ₂.length > Γ₁.length
-      { let tp := Γ₂[0]
-        have hx := heq tp (Γ₂.length - 1)
-        simp at hx
-        clear heq
-        grind }
-      grind
-    unhygienic induction s generalizing Γ₁ Γ₂ Δ
-    { have := StmtDecl type hs
-      have : Δ = [type] := by
-        clear heq hs
-        induction Γ₁
-        { grind }
-        rw [List.append_eq_cons_iff] at this
-        unhygienic cases this
-        { grind }
-        rcases h with ⟨as, has1, has2⟩
-        rw [eq_comm, List.append_left_eq_self] at has2
-        grind
-      grind [ExprPermutation, StmtType] }
-    { by_cases hemp : Δ = []
-      { simp only [hemp] at *
-        unhygienic cases hs
-        apply StmtType.VarAssign
-        { apply ExprPermutation
-          { apply heq }
-          apply a }
-        grind }
-      have : Δ ++ Γ₁ ≠ Γ₁ := by
-        intro eq
-        have : (Δ ++ Γ₁).length > Γ₁.length := by
-          simp
-          grind
-        grind
-      grind [StmtType] }
-    { unhygienic cases hs
-      rcases StmtMono _ _ _ a with ⟨g, hg⟩
-      apply StmtType.Seq
-      { apply s₁_ih Γ₁ Γ₂ g <;> try assumption
-        grind }
-      rcases StmtMono _ _ _ a_1 with ⟨g1, hg1⟩
-      rw [hg] at hg1
-      have : Δ = g1 ++ g := by
-        rw [←List.append_assoc] at hg1
-        apply List.append_cancel_right
-        apply hg1
-      rw [this, List.append_assoc]
-      apply s₂_ih (g ++ Γ₁) (g ++ Γ₂)
-      { intro tp x
-        constructor <;> intro h <;>
-        { clear s₁_ih s₂_ih
-          by_cases hx : x < Γ₂.length
-          { grind [neg_index_r] }
-          constructor
-          { grind }
-          grind } }
-      { grind }
-      grind }
-    { by_cases hemp : Δ = []
-      { simp only [hemp] at *
-        unhygienic cases hs
-        rcases StmtMono _ _ _ a_1 with ⟨g1, hg1⟩
-        rcases StmtMono _ _ _ a_2 with ⟨g2, hg2⟩
-        apply StmtType.If (Γ₂ := g1 ++ Γ₂) (Γ₃ := g2 ++ Γ₂)
-        { apply ExprPermutation _ _ e .Bool heq
-          grind }
-        { apply s₁_ih Γ₁ Γ₂ g1 <;> try assumption
-          grind }
-        apply s₂_ih Γ₁ Γ₂ g2 <;> try assumption
-        grind }
-      have : Δ ++ Γ₁ ≠ Γ₁ := by
-        intro eq
-        have : (Δ ++ Γ₁).length > Γ₁.length := by
-          simp
-          grind
-        grind
-      grind [StmtType] }
-    { by_cases hemp : Δ = []
-      { simp only [hemp] at *
-        unhygienic cases hs
-        rcases StmtMono _ _ _ a_1 with ⟨g1, hg1⟩
-        apply StmtType.While (Γ₂ := g1 ++ Γ₂)
-        { apply ExprPermutation _ _ c .Bool heq
-          grind }
-        apply body_ih Γ₁ Γ₂ g1 <;> try assumption
-        grind }
-      have : Δ ++ Γ₁ ≠ Γ₁ := by
-        intro eq
-        have : (Δ ++ Γ₁).length > Γ₁.length := by
-          simp
-          grind
-        grind
-      grind [StmtType] }
-    by_cases hemp : Δ = []
-    { grind [StmtType] }
-    have : Δ ++ Γ₁ ≠ Γ₁ := by
-      intro eq
-      have : (Δ ++ Γ₁).length > Γ₁.length := by
-        simp
-        grind
-      grind
-    grind [StmtType]
-
+-/
 end TypeProperties
 
-def liftValue : Value → Expr
+def liftValue : Value → Lang .Expr
 | .True => .True
 | .False => .False
 | .Nat (n : Nat) => .Nat n
+| .Unit => .Unit
 
 def ValueType : Value → τ → Prop
 | .True, .Bool => True
 | .False, .Bool => True
 | .Nat _, .Nat => True
+| .Unit, .Unit => True
 | _, _ => False
 
 inductive Control
-| sourceExpr (e : Expr)
-| sourceStmt (s : Stmt)
+| sourceExpr (e : Lang .Expr)
+| sourceStmt (s : Lang .Stmt)
 | value (v : Value)
 | skip
 
 abbrev Map (val : Type) := Finmap (fun _ : VarName ↦ val)
 
-abbrev Environment := List (Map Value)
+abbrev Environment := List Value
 
 inductive Cont
-| ifCondK (s₁ s₂ : Stmt)
-| jumpK (l : Nat)
-| declK (x : VarName) (type : τ)
+| ifCondK (e₁ e₂ : Lang .Expr)
+| declK (type : τ)
 | assignK (x : VarName)
-| seqK (s : Stmt)
-| binopLK (op : BinOp) (e₂ : Expr)
+| seqK (s : Lang .Stmt)
+| binopLK (op : BinOp) (e₂ : Lang .Expr)
 | binopRK (op : BinOp) (v : Value)
 | unopK (op : UnOp)
-| loopK (c : Expr) (s : Stmt)
+| loopK (c : Lang .Expr) (body : Lang .Expr) (n : Nat)
+| loopContK (c : Lang .Expr) (body : Lang .Expr) (n : Nat)
+| scopeBodyK (e : Lang .Expr) (n : Nat)
+| scopeExitK (n : Nat)
+| exprStmtK
 
 abbrev CEK := Control × Environment × List Cont
 
 notation E "("x")!" => Option.get! (Finmap.lookup x (List.getD E 0 ∅ : Map Value) : Option Value)
 
-def popK (K : List Cont) (l : Nat) : List Cont :=
+def popLoopK (K : List Cont) : List Cont × Nat :=
   match K with
-  | .jumpK l₁ :: li => if l = l₁ then li else popK li l
-  | _ :: li => popK li l
+  | .loopK _ _ n :: li => ⟨li, n⟩
+  | .loopContK _ _ n :: li => ⟨li, n⟩
+  | _ :: li => popLoopK li
   | [] => panic! "popK from an empty List"
-
-def insert_first (key : VarName) (value : Value) : Environment → Environment
-| fst :: li => (Finmap.insert key value fst) :: li
-| [] => panic! "Insertion into empty environment"
-
-def modify_first (key : VarName) (value : Value) : Environment → Environment
-| fst :: li => (Finmap.insert key value (Finmap.erase key fst)) :: li
-| [] => panic! "Insertion into empty environment"
-
 
 inductive Eval : CEK → CEK → Prop
 -- # Expr
@@ -401,65 +325,69 @@ inductive Eval : CEK → CEK → Prop
 | Var (v : Value) (x : VarName) :
   Eval
     ⟨.sourceExpr (.Var x), E, K⟩
-    ⟨.value (E(x)!), E, K⟩
-| If (e : Expr) (s₁ s₂ : Stmt) :
-  Eval
-    ⟨.sourceStmt (.If e s₁ s₂), E, K⟩
-    ⟨.sourceExpr e, E, (.ifCondK s₁ s₂) :: K⟩
-| VarDecl (type : τ) (e : Expr) :
+    ⟨.value (E[x]!), E, K⟩
+| VarDecl (type : τ) (e : Lang .Expr) :
   Eval
     ⟨.sourceStmt (.Decl type e), E, K⟩
-    ⟨.sourceExpr e, E, (.declK x type) :: K⟩
-| Assign (x : VarName) (e : Expr) :
+    ⟨.sourceExpr e, E, (.declK type) :: K⟩
+| Assign (x : VarName) (e : Lang .Expr) :
   Eval
     ⟨.sourceStmt (.Assign x e), E, K⟩
     ⟨.sourceExpr e, E, (.assignK x) :: K⟩
-| Seq (s₁ s₂ : Stmt) :
+| Seq (s₁ s₂ : Lang .Stmt) :
   Eval
     ⟨.sourceStmt (.Seq s₁ s₂), E, K⟩
     ⟨.sourceStmt s₁, E, (.seqK s₂) :: K⟩
-| BinOp (e₁ e₂ : Expr) (op : BinOp) :
+| ExprStmt (e : Lang .Expr) :
+  Eval
+    ⟨.sourceStmt (.Do e), E, K⟩
+    ⟨.sourceExpr e, E, .exprStmtK :: K⟩
+| BinOp (e₁ e₂ : Lang .Expr) (op : BinOp) :
   Eval
     ⟨.sourceExpr (.BinOp e₁ e₂ op), E, K⟩
     ⟨.sourceExpr e₁, E, (.binopLK op e₂) :: K⟩
-| UnOp (e : Expr) (op : UnOp) :
+| UnOp (e : Lang .Expr) (op : UnOp) :
   Eval
     ⟨.sourceExpr (.UnOp e op), E, K⟩
     ⟨.sourceExpr e, E, (.unopK op) :: K⟩
-| While (c : Expr) (body : Stmt) :
+| If (e : Lang .Expr) (s₁ s₂ : Lang .Expr) :
   Eval
-    ⟨.sourceStmt (.While c body), E, K⟩
-    ⟨.sourceExpr c, ∅ :: E, (.loopK c body) :: (.jumpK E.length) :: K⟩
+    ⟨.sourceExpr (.If e s₁ s₂), E, K⟩
+    ⟨.sourceExpr e, E, (.ifCondK s₁ s₂) :: K⟩
+| While (c : Lang .Expr) (body : Lang .Expr) :
+  Eval
+    ⟨.sourceExpr (.While c body), E, K⟩
+    ⟨.sourceExpr c, E, (.loopK c body E.length) :: K⟩
 | Break  :
   Eval
-    ⟨.sourceStmt (.Break), E, K⟩
-    ⟨.skip, E.drop 1, popK K (E.length - 1)⟩
+    ⟨.sourceExpr .Break, E, K⟩
+    ⟨.skip, E.take (popLoopK K).2, (popLoopK K).1⟩
+| Scope (s : Lang .Stmt) (e : Lang .Expr) :
+  Eval
+    ⟨.sourceExpr (.Scope s e), E, K⟩
+    ⟨.sourceStmt s, E, .scopeBodyK e E.length :: K⟩
 -- # Cont
-| IfTrue (s₁ s₂ : Stmt) :
+| IfTrue (s₁ s₂ : Lang .Expr) :
   Eval
     ⟨.value .True, E, .ifCondK s₁ s₂ :: K⟩
-    ⟨.sourceStmt s₁, ∅ :: E, (.jumpK E.length) :: K⟩
-| IfFalse (s₁ s₂ : Stmt) :
+    ⟨.sourceExpr e₁, E, K⟩
+| IfFalse (s₁ s₂ : Lang .Expr) :
   Eval
     ⟨.value .False, E, .ifCondK s₁ s₂ :: K⟩
-    ⟨.sourceStmt s₂, ∅ :: E, (.jumpK E.length) :: K⟩
-| ScopeDone (l : Nat) :
+    ⟨.sourceExpr e₁, E, K⟩
+| VarDeclDone (type : τ) (v : Value) :
   Eval
-    ⟨.skip, E, .jumpK l :: K⟩
-    ⟨.skip, E.drop (E.length - l), K⟩
-| VarDeclDone (x : VarName) (type : τ) (v : Value) :
-  Eval
-    ⟨.value v, E, .declK x type :: K⟩
-    ⟨.skip, insert_first x v E, K⟩
+    ⟨.value v, E, .declK type :: K⟩
+    ⟨.skip, v :: E, K⟩
 | AssignDone (x : VarName) (v : Value) :
   Eval
     ⟨.value v, E, .assignK x :: K⟩
-    ⟨.skip, modify_first x v E, K⟩
-| SeqDone (s₂ : Stmt) :
+    ⟨.skip, E.set x v, K⟩
+| SeqDone (s₂ : Lang .Stmt) :
   Eval
     ⟨.skip, E, .seqK s₂ :: K⟩
     ⟨.sourceStmt s₂, E, K⟩
-| BinOpL (op : BinOp) (v₁ : Value) (e₂ : Expr) :
+| BinOpL (op : BinOp) (v₁ : Value) (e₂ : Lang .Expr) :
   Eval
     ⟨.value v₁, E, .binopLK op e₂ :: K⟩
     ⟨.sourceExpr e₂, E, .binopRK op v₁ :: K⟩
@@ -471,72 +399,89 @@ inductive Eval : CEK → CEK → Prop
   Eval
     ⟨.value v, E, .unopK op :: K⟩
     ⟨.value (op.run v), E, K⟩
-| LoopTrue (body : Stmt) (c : Expr) :
+| LoopTrue (body : Lang .Expr) (c : Lang .Expr) (n : Nat) :
   Eval
-    ⟨.value .True, E, .loopK c body :: K⟩
-    ⟨.sourceStmt body, E, .loopK c body :: K⟩
-| LoopFalse (body : Stmt) (c : Expr) :
+    ⟨.value .True, E, .loopK c body n :: K⟩
+    ⟨.sourceExpr body, E, .loopK c body n :: K⟩
+| LoopFalse (body : Lang .Expr) (c : Lang .Expr) (n : Nat) :
   Eval
-    ⟨.value .False, E, .loopK c body :: K⟩
-    ⟨.skip, E, K⟩
-| LoopCont (body : Stmt) (c : Expr) :
+    ⟨.value .False, E, .loopK c body n :: K⟩
+    ⟨.value .Unit, E, K⟩
+| LoopCont (body : Lang .Expr) (c : Lang .Expr) (n : Nat) :
   Eval
-    ⟨.skip, E, .loopK c body :: K⟩
-    ⟨.sourceExpr c, ∅ :: E.drop 1, .loopK c body :: K⟩
+    ⟨.value .Unit, E, .loopContK c body n :: K⟩
+    ⟨.sourceExpr c, E, .loopK c body n :: K⟩
+| ScopeBody (body : Lang .Expr) (n : Nat) :
+  Eval
+    ⟨.skip, E, .scopeBodyK body n :: K⟩
+    ⟨.sourceExpr body, E, .scopeExitK n :: K⟩
+| ScopeExit (body : Lang .Expr) (n : Nat) (v : Value) :
+  Eval
+    ⟨.value V, E, .scopeExitK n :: K⟩
+    ⟨.value V, E.take n, K⟩
 
-def init_state (s : Stmt) : CEK := ⟨.sourceStmt s, [], []⟩
+
+def init_state (s : Lang .Stmt) : CEK := ⟨.sourceStmt s, [], []⟩
 
 def terminal_state (E : Environment) : CEK := ⟨.skip, E, []⟩
 
--- # Statement Continuations
-
-def List.gcat (inp : List Γ) : Γ := inp.foldl (· ++ ·) []
-
-inductive ContStmtType : List Γ → List Cont → Prop
-| HaltK (Γ₁ : List Γ) :
-  ContStmtType Γ₁ []
-| JumpK (Γ₁ : List Γ) (l : Nat) :
-  ContStmtType (Γ₁.drop (Γ₁.length - l)) K →
-  ContStmtType Γ₁ (.jumpK l :: K)
-| SeqK (Γ₁ : List Γ) (Γ₂ : List Γ) (s : Stmt) :
-  StmtType Γ₁.gcat s Γ₂.gcat →
-  ContStmtType Γ₂ K →
-  ContStmtType Γ₁ (.seqK s :: K)
-| LoopBodyK (Γ₁ : List Γ) (Γ₂ : List Γ) (body : Stmt) (c : Expr) :
-  ExprType Γ₁.gcat c .Bool →
-  StmtType Γ₁.gcat body Γ₂.gcat →
-  ContStmtType Γ₁ K →
-  ContStmtType Γ₁ (.loopK c body :: K)
 
 -- # Expression Continuations
-
-inductive ContExprType : List Γ → List Cont → τ → Prop
--- check with the loop framing
-| IfCondK (s₁ : Stmt) (s₂ : Stmt) (Γ₁ Γ₂ Γ₃ : List Γ) :
-  StmtType Γ₁.gcat s₁ Γ₂.gcat →
-  StmtType Γ₁.gcat s₂ Γ₃.gcat →
-  ContStmtType Γ₁ K →
+mutual
+inductive ContExprType : Γ → List Cont → τ → Prop
+| IfCondK (s₁ : Lang .Expr) (s₂ : Lang .Expr) (Γ₁ Γ₂ Γ₃ : Γ) (type : τ) :
+  Typ .Expr Γ₁ s₁ (.Expr type) →
+  Typ .Expr Γ₁ s₂ (.Expr type) →
+  ContExprType Γ₁ K type →
   ContExprType Γ₁ (.ifCondK s₁ s₂ :: K) .Bool
-| DeclK (type : τ) (Γ₁ : Γ) (Γ₂ : List Γ) :
-  ContStmtType ((type:: Γ₁) :: Γ₂) K →
-  ContExprType (Γ₁ :: Γ₂) (.declK x type :: K) type
-| AssignK (x : VarName) (type : τ) (Γ₁ : List Γ) :
-  (Γ₁.gcat(x) = type) →
+| DeclK (type : τ) (Γ₁ : Γ) :
+  ContStmtType (type :: Γ₁) K →
+  ContExprType Γ₁ (.declK type :: K) type
+| AssignK (x : VarName) (type : τ) (Γ₁ : Γ) :
+  (Γ₁[x]! = type) →
   ContStmtType Γ₁ K →
   ContExprType Γ₁ (.assignK x :: K) type
-| BinOpLK (Γ₁ : List Γ) (op : BinOp) (e₂ : Expr) :
-  ExprType Γ₁.gcat e₂ op.args.2 →
+| BinOpLK (Γ₁ : Γ) (op : BinOp) (e₂ : Lang .Expr) :
+  ExprType Γ₁ e₂ op.args.2 →
   ContExprType Γ₁ K op.args.out →
   ContExprType Γ₁ (.binopLK op e₂ :: K) op.args.1
-| BinOpRK (Γ₁ : List Γ) (op : BinOp) (v₁ : Value) :
+| BinOpRK (Γ₁ : Γ) (op : BinOp) (v₁ : Value) :
   ValueType v₁ op.args.1 →
   ContExprType Γ₁ K op.args.out →
   ContExprType Γ₁ (.binopRK op v₁ :: K) op.args.2
-| UnOpK (Γ₁ : List Γ) (op : UnOp) :
+| UnOpK (Γ₁ : Γ) (op : UnOp) :
   ContExprType Γ₁ K op.args.out →
   ContExprType Γ₁ (.unopK op :: K) op.args.1
-| LoopCondK (Γ₁ : List Γ) (Γ₂ : List Γ) (body : Stmt) (c : Expr) :
-  ExprType Γ₁.gcat c .Bool →
-  StmtType Γ₁.gcat body Γ₂.gcat →
+| LoopK (Γ₁ : Γ) (body : Lang .Expr) (c : Lang .Expr) (n : Nat) :
+  Typ .Expr Γ₁ c (.Expr .Bool) →
+  Typ .Expr Γ₁ e (.Expr .Unit) →
+  ContExprType (Γ₁.take n) K .Unit →
+  ContExprType Γ₁ (.loopK c body n :: K) .Bool
+| LoopContK (Γ₁ : Γ) (body : Lang .Expr) (c : Lang .Expr) (n : Nat) :
+  Typ .Expr Γ₁ c (.Expr .Bool) →
+  Typ .Expr Γ₁ e (.Expr .Unit) →
+  ContExprType (Γ₁.take n) K .Unit →
+  ContExprType Γ₁ (.loopContK c body n :: K) .Bool
+| ScopeExitK (Γ₁ : Γ) (n : Nat) (type : τ) :
+  ContExprType (Γ₁.take n) K type →
+  ContExprType Γ₁ (.scopeExitK n :: K) type
+| ExprStmtK (Γ₁ : Γ) (type : τ) :
   ContStmtType Γ₁ K →
-  ContExprType Γ₁ (.loopK c body :: K) .Bool
+  ContExprType Γ₁ (.exprStmtK :: K) type
+
+
+-- # Statement Continuations
+
+inductive ContStmtType : Γ → List Cont → Prop
+| HaltK (Γ₁ : Γ) :
+  ContStmtType Γ₁ []
+| SeqK (Γ₁ : Γ) (Γ₂ : Γ) (s : Lang .Stmt) :
+  Typ .Stmt Γ₁ s (.Stmt Γ₂) →
+  ContStmtType Γ₂ K →
+  ContStmtType Γ₁ (.seqK s :: K)
+| ScopeBodyK (Γ₁ : Γ) (body : Lang .Stmt) (e : Lang .Expr) (type : τ) (n : Nat) :
+  Typ .Expr Γ₁ e (.Expr type) →
+  ContExprType (Γ₁.take n) K type →
+  ContStmtType Γ₁ (.scopeBodyK c n :: K)
+
+end
