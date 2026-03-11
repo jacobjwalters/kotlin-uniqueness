@@ -202,27 +202,27 @@ theorem buildFuncGraph_edges_complete (root : CFGNode) (fuel : Nat)
 def reachableSet (root : CFGNode) : Set CFGNode :=
   { n | ∃ k, n ∈ reachableNodes root k }
 
-noncomputable def cfgFuel (s : Stmt) : Nat :=
+noncomputable def cfgFuel (s : Lang .Stmt) : Nat :=
   sorry
 
 -- reachability
-noncomputable def programGraph (s : Stmt) : Digraph.FuncGraphType CFGNode :=
+noncomputable def programGraph (s : Lang .Stmt) : Digraph.FuncGraphType CFGNode :=
   buildFuncGraph (cfgInit s) (cfgFuel s)
 
 /-- initial node as a subtype (vertex of `programGraph s`).
     the membership proof is given by `root_in_buildFuncGraph`. -/
-noncomputable def startVertex (s : Stmt) :
+noncomputable def startVertex (s : Lang .Stmt) :
     { v : CFGNode // (programGraph s).vertices v = true } :=
   ⟨cfgInit s, root_in_buildFuncGraph (cfgInit s) (cfgFuel s)⟩
 
-theorem all_vertices_reachable (s : Stmt) :
+theorem all_vertices_reachable (s : Lang .Stmt) :
     ∀ (v : CFGNode) (hv : (programGraph s).vertices v = true),
       Path.Reachable (programGraph s) (startVertex s) ⟨v, hv⟩ := by
   sorry
 
 /-- CFG built from `s`.
     remains to prove: `cfgFuel` and `all_vertices_reachable`. -/
-noncomputable def programCFG (s : Stmt) : CFG CFGNode Digraph.FuncGraphType :=
+noncomputable def programCFG (s : Lang .Stmt) : CFG CFGNode Digraph.FuncGraphType :=
   { digraph   := programGraph s
   , start     := startVertex s
   , reachable := fun v => all_vertices_reachable s v.val v.property

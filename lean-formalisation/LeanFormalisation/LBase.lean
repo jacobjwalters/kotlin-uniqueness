@@ -368,13 +368,15 @@ inductive Eval : CEK → CEK → Prop
     ⟨.sourceStmt s, E, .scopeBodyK e E.length :: K⟩
 -- # Cont
 | IfTrue (s₁ s₂ : Lang .Expr) :
+  -- proposed change; correct IfTrue
   Eval
     ⟨.value .True, E, .ifCondK s₁ s₂ :: K⟩
-    ⟨.sourceExpr e₁, E, K⟩
+    ⟨.sourceExpr s₁, E, K⟩
 | IfFalse (s₁ s₂ : Lang .Expr) :
+  -- proposed change; c0rrect IfTrue
   Eval
     ⟨.value .False, E, .ifCondK s₁ s₂ :: K⟩
-    ⟨.sourceExpr e₁, E, K⟩
+    ⟨.sourceExpr s₂, E, K⟩
 | VarDeclDone (type : τ) (v : Value) :
   Eval
     ⟨.value v, E, .declK type :: K⟩
