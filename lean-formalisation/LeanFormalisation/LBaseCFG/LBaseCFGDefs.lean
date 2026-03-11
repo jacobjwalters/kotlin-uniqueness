@@ -7,12 +7,12 @@ import ControlFlow.Graphs.Digraph
 import ControlFlow.Graphs.CFG
 
 -- add classical logic instances to make proofs easier
-noncomputable instance : DecidableEq Value  := Classical.decEq _
-noncomputable instance : DecidableEq BinOp  := Classical.decEq _
-noncomputable instance : DecidableEq UnOp   := Classical.decEq _
-noncomputable instance : DecidableEq τ      := Classical.decEq _
-noncomputable instance : DecidableEq Expr   := Classical.decEq _
-noncomputable instance : DecidableEq Stmt   := Classical.decEq _
+noncomputable instance : DecidableEq Value := Classical.decEq _
+noncomputable instance : DecidableEq BinOp := Classical.decEq _
+noncomputable instance : DecidableEq UnOp  := Classical.decEq _
+noncomputable instance : DecidableEq τ     := Classical.decEq _
+noncomputable instance : DecidableEq Expr  := Classical.decEq _
+noncomputable instance : DecidableEq Stmt  := Classical.decEq _
 
 -- define symbolic representaiton of control flow
 -- Control mode
