@@ -1,5 +1,9 @@
 #import "../defs.typ": *
 
+// Lclass uses the σ-annotated judgement forms
+#let typeExpr = typeExprSig
+#let typeStmt = typeStmtSig
+
 = #Lclass
 
 #Lclass is a simple typed language consisting of sequentially ordered statements with classes and method calls. There are no modes, and no lambdas.

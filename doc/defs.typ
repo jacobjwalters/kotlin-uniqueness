@@ -27,14 +27,30 @@
   })
 }
 
-// Judgement forms
-// Expression typing: Γ ⊢_σ e : τ ⊣ Γ'
-#let typeExpr(gin, ret, e, t, gout) = $#gin attach(tack.r, br: #ret) #e : #t tack.l #gout$
+// Judgement forms — Lbase (no σ)
+// Expression typing: Γ ⊢ e : τ
+#let typeExpr(gin, e, t) = $#gin tack.r #e : #t$
+// Statement typing: Γ ⊢ s ⊣ Γ'
+#let typeStmt(gin, s, gout) = $#gin tack.r #s tack.l #gout$
+// Judgement forms — Lclass (with return type σ)
+// Expression typing: Γ ⊢_σ e : τ
+#let typeExprSig(gin, ret, e, t) = $#gin attach(tack.r, br: #ret) #e : #t$
 // Statement typing: Γ ⊢_σ s ⊣ Γ'
-#let typeStmt(gin, ret, s, gout) = $#gin attach(tack.r, br: #ret) #s tack.l #gout$
+#let typeStmtSig(gin, ret, s, gout) = $#gin attach(tack.r, br: #ret) #s tack.l #gout$
+// Continuation typing: Γ ⊢ K : τ̄ and Γ ⊢ K
+#let typeContE(gin, k, t) = $#gin tack.r #k : overline(#t)$
+#let typeContC(gin, k) = $#gin tack.r #k$
+// Coherence: E ~ Γ
+#let coh(e, g) = $#e tilde #g$
 
-// CESK machine state: ⟨C | E | S | K⟩
+// CEK machine state: ⟨C | E | K⟩ with phase subscripts (Lbase)
+#let cek(c, e, k) = $chevron.l #c | #e | #k chevron.r$
+#let cekE(c, e, k) = $chevron.l #c | #e | #k chevron.r_e$
+#let cekC(c, e, k) = $chevron.l #c | #e | #k chevron.r_c$
+// CESK machine state: ⟨C | E | S | K⟩ with phase subscripts (Lclass)
 #let cesk(c, e, s, k) = $chevron.l #c | #e | #s | #k chevron.r$
+#let ceskE(c, e, s, k) = $chevron.l #c | #e | #s | #k chevron.r_e$
+#let ceskC(c, e, s, k) = $chevron.l #c | #e | #s | #k chevron.r_c$
 // Multi-step
 #let ms = $op(~>)^*$
 
