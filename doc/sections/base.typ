@@ -1,22 +1,5 @@
 #import "../defs.typ": *
 
-// Local definitions for simplified judgement forms (override defs.typ)
-// Expression typing: Γ ⊢ e : τ (no heap Δ, no return type σ, no output context)
-#let typeExpr(gin, e, t) = $#gin tack.r #e : #t$
-// Statement typing: Γ ⊢ s ⊣ Γ' (no heap Δ, no return type σ)
-#let typeStmt(gin, s, gout) = $#gin tack.r #s tack.l #gout$
-// CEK machine state: ⟨C | E | K⟩ with phase subscripts
-#let cek(c, e, k) = $chevron.l #c | #e | #k chevron.r$
-#let cekE(c, e, k) = $chevron.l #c | #e | #k chevron.r_e$
-#let cekC(c, e, k) = $chevron.l #c | #e | #k chevron.r_c$
-// Drop operation on contexts: drop(Γ, ℓ)
-#let drop(g, l) = $op("drop") (#g, #l)$
-// Coherence: E ~ Γ
-#let coh(e, g) = $#e tilde #g$
-// Continuation typing: Γ ⊢ K : τ̄ and Γ ⊢ K
-#let typeContE(gin, k, t) = $#gin tack.r #k : overline(#t)$
-#let typeContC(gin, k) = $#gin tack.r #k$
-
 = #Lbase
 
 #Lbase is a simple typed language with expressions and statements. Conditionals, loops, and breaks are expressions; local variable scoping is managed by scope blocks. There are no classes, methods, modes, or lambdas.
