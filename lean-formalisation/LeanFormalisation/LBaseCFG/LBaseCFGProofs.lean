@@ -231,7 +231,6 @@ def startVertex (s : Lang .Stmt) :
     { v : CFGNode // (programGraph s).vertices v = true } :=
   ⟨cfgInit s, root_in_buildFuncGraph (cfgInit s) (cfgFuel s)⟩
 
-
 theorem all_vertices_reachable (s : Lang .Stmt) :
     ∀ (v : CFGNode) (hv : (programGraph s).vertices v = true),
       Path.Reachable (programGraph s) (startVertex s) ⟨v, hv⟩ := by

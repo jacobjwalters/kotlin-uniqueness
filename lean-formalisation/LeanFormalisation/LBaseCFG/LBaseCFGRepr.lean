@@ -40,7 +40,7 @@ instance : ToString τ where
     | .Bool => "Bool"
 
 private def fmtStmt : Lang .Stmt → String
-  | .Decl t e    => s!"let x {t} = {fmtExpr e}"
+  | .Decl t e    => s!"let x : {t} = {fmtExpr e}"
   | .Assign n e  => s!"{n} = {fmtExpr e}"
   | .Seq _ _     => s!"seq"
   | .Do e        => s!"do {fmtExpr e}"
