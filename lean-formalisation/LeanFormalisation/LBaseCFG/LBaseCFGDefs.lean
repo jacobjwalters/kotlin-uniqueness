@@ -6,14 +6,6 @@ import ControlFlow.Graphs.FuncGraph
 import ControlFlow.Graphs.Digraph
 import ControlFlow.Graphs.CFG
 
--- add classical logic instances to make proofs easier
-noncomputable instance : DecidableEq Value := Classical.decEq _
-noncomputable instance : DecidableEq BinOp := Classical.decEq _
-noncomputable instance : DecidableEq UnOp  := Classical.decEq _
-noncomputable instance : DecidableEq τ     := Classical.decEq _
-noncomputable instance : DecidableEq (Lang .Expr) := Classical.decEq _
-noncomputable instance : DecidableEq (Lang .Stmt) := Classical.decEq _
-
 -- define symbolic representation of control flow
 -- Control mode: same structure as `Control` but with values erased
 inductive CFGControl where
@@ -21,7 +13,7 @@ inductive CFGControl where
   | sourceExpr (e : Lang .Expr)
   | value   -- a value has been produced; its identity is irrelevant
   | skip    -- the current statement has completed
--- deriving Repr
+deriving Repr, DecidableEq
 
 -- Continuation mode: mirrors `Cont` with runtime values / env depths erased.
 --   * `declK` drops VarName  (variables are positional in the flat env)
@@ -40,18 +32,13 @@ inductive CFGCont where
   | scopeBodyK (e : Lang .Expr)
   | scopeExitK
   | exprStmtK
--- deriving Repr
-
-noncomputable instance : DecidableEq CFGControl := Classical.decEq _
-noncomputable instance : DecidableEq CFGCont    := Classical.decEq _
+deriving Repr, DecidableEq
 
 -- a full node!
 structure CFGNode where
   control : CFGControl
   kont    : List CFGCont
--- deriving Repr
-
-noncomputable instance : DecidableEq CFGNode := Classical.decEq _
+deriving Repr, DecidableEq
 
 -- CEK state to CFG projection
 @[local simp]
@@ -414,8 +401,8 @@ theorem succs_iff_exists_eval (n m : CFGNode) :
     exact h_succ
 
 -- Example LBase program:
--- let _ : Nat = 5;        (variable 0, positional)
--- while (true) {          (While is an Expr; wrapped in Do to make it a Stmt)
+-- let _ : Nat = 5;
+-- while (true) {
 --   scope { _₀ = 0 } in unit
 -- }
 def exampleProgram : Lang .Stmt :=
@@ -424,4 +411,4 @@ def exampleProgram : Lang .Stmt :=
 
 def exampleCFG : CFGNode := cfgInit exampleProgram
 
--- #eval exampleCFG.succs
+#eval exampleCFG.succs

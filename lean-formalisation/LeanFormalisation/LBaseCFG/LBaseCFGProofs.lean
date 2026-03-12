@@ -6,7 +6,7 @@ import ControlFlow.Graphs.CFG
 
 open ControlFlow
 
-/-!
+/-
 # CFGNodes in ControlFlow
 
 the goal is to produce a value of type `CFG CFGNode FuncGraphType`. Three things
@@ -29,22 +29,41 @@ as a successor of some already reached vertex. proven by induction on the
 traversal order.
 -/
 
+-- ideally i would want this definition to be further down but it has to be
+-- somewhere that isn't after a theorem for reasons that are to me incomprehensible
+mutual
+  def exprSize : Lang .Expr → Nat
+    | .True | .False | .Unit | .Break | .Var _ | .Nat _ => 1
+    | .BinOp e₁ e₂ _  => 1 + exprSize e₁ + exprSize e₂
+    | .UnOp e _        => 1 + exprSize e
+    | .If c e₁ e₂     => 1 + exprSize c + exprSize e₁ + exprSize e₂
+    | .While c b       => 1 + exprSize c + exprSize b
+    | .Scope s e       => 1 + stmtSize s + exprSize e
+
+  def stmtSize : Lang .Stmt → Nat
+    | .Decl _ e   => 1 + exprSize e
+    | .Assign _ e => 1 + exprSize e
+    | .Seq s₁ s₂  => 1 + stmtSize s₁ + stmtSize s₂
+    | .Do e       => 1 + exprSize e
+end
+
+set_option linter.unusedVariables false in
 /-- collect all `CFGNode`s reachable from `root` -/
-noncomputable def reachableNodes (root : CFGNode) : Nat → List CFGNode
+def reachableNodes (root : CFGNode) : Nat → List CFGNode
   | 0          => [root]
   | fuel + 1   =>
     let rec go : Nat → List CFGNode → List CFGNode → List CFGNode
       | 0,       _,             visited => visited
       | _ + 1,   [],            visited => visited
       | k + 1,   w :: worklist, visited =>
-          if w ∈ visited then go k worklist visited
+          if h : w ∈ visited then go k worklist visited
           else go k (worklist ++ w.succs) (w :: visited)
     go (fuel + 1) [root] []
 
 /-- for every node `n` visited during BFS from `root`, add one directed edge
     `(n, m)` per `m ∈ n.succs`.
     the start node is also inserted as an isolated vertex -/
-noncomputable def buildFuncGraph (root : CFGNode) (fuel : Nat)
+def buildFuncGraph (root : CFGNode) (fuel : Nat)
     : Digraph.FuncGraphType CFGNode :=
   let nodes := reachableNodes root fuel
   let g₀ : Digraph.FuncGraphType CFGNode :=
@@ -53,7 +72,7 @@ noncomputable def buildFuncGraph (root : CFGNode) (fuel : Nat)
     (fun g n => n.succs.foldl (fun g' m => g'.add_edge ⟨n, m⟩) g)
     g₀
 
-/-- any vertex `v` already in `g` remains in `g` after adding a new edge- -/
+/-- any vertex `v` already in `g` remains in `g` after adding a new edge -/
 private theorem succs_foldl_pres_vertex
     (succs : List CFGNode) (n : CFGNode)
     {g : Digraph.FuncGraphType CFGNode} {v : CFGNode}
@@ -165,7 +184,8 @@ theorem buildFuncGraph_edges_sound (root : CFGNode) (fuel : Nat)
     (h : (buildFuncGraph root fuel).edges e = true) :
     e.finish ∈ e.start.succs := by
   simp only [buildFuncGraph] at h
-  rcases outer_foldl_edges_or (reachableNodes root fuel) _ h with h' | ⟨n, _, hstart, hfin⟩
+  have := outer_foldl_edges_or (reachableNodes root fuel) _ h
+  rcases this with h' | ⟨n, _, hstart, hfin⟩
   · simp at h'
   · rwa [hstart]
 
@@ -192,28 +212,25 @@ theorem buildFuncGraph_edges_complete (root : CFGNode) (fuel : Nat)
   apply outer_foldl_pres_edge
   exact inner_foldl_edges_complete n.succs n m _ hm
 
-/-?
-  TODO: what's left:
-  - [ ] derive proper fuel bounds
-  - [ ] sderive full reachability
+/-- TODO: what's left:
+    - [ ] derive proper fuel bounds
+    - [ ] sderive full reachability
 -/
-
 -- fuel bounds
-def reachableSet (root : CFGNode) : Set CFGNode :=
-  { n | ∃ k, n ∈ reachableNodes root k }
-
-noncomputable def cfgFuel (s : Lang .Stmt) : Nat :=
-  sorry
+def cfgFuel (s : Lang .Stmt) : Nat :=
+  let n := stmtSize s + 2  -- +2 for .value and .skip
+  n * n
 
 -- reachability
-noncomputable def programGraph (s : Lang .Stmt) : Digraph.FuncGraphType CFGNode :=
+def programGraph (s : Lang .Stmt) : Digraph.FuncGraphType CFGNode :=
   buildFuncGraph (cfgInit s) (cfgFuel s)
 
 /-- initial node as a subtype (vertex of `programGraph s`).
     the membership proof is given by `root_in_buildFuncGraph`. -/
-noncomputable def startVertex (s : Lang .Stmt) :
+def startVertex (s : Lang .Stmt) :
     { v : CFGNode // (programGraph s).vertices v = true } :=
   ⟨cfgInit s, root_in_buildFuncGraph (cfgInit s) (cfgFuel s)⟩
+
 
 theorem all_vertices_reachable (s : Lang .Stmt) :
     ∀ (v : CFGNode) (hv : (programGraph s).vertices v = true),
@@ -222,7 +239,7 @@ theorem all_vertices_reachable (s : Lang .Stmt) :
 
 /-- CFG built from `s`.
     remains to prove: `cfgFuel` and `all_vertices_reachable`. -/
-noncomputable def programCFG (s : Lang .Stmt) : CFG CFGNode Digraph.FuncGraphType :=
+def programCFG (s : Lang .Stmt) : CFG CFGNode Digraph.FuncGraphType :=
   { digraph   := programGraph s
   , start     := startVertex s
   , reachable := fun v => all_vertices_reachable s v.val v.property

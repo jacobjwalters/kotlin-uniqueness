@@ -7,7 +7,7 @@ inductive τ
 | Nat
 | Bool
 | Unit
-deriving Repr, Inhabited
+deriving Repr, Inhabited, DecidableEq
 
 
 inductive Value
@@ -22,6 +22,7 @@ inductive BinOp
 | Sub
 | NatEq
 | BoolEq
+deriving DecidableEq, Repr
 
 structure BinOpArgs where
   arg₁ : τ
@@ -30,6 +31,7 @@ structure BinOpArgs where
 
 inductive UnOp
 | IsZero
+deriving DecidableEq, Repr
 
 structure UnOpArgs where
   arg : τ
@@ -73,6 +75,7 @@ def UnOp.run : UnOp → Value → Value
 inductive Tag
 | Expr
 | Stmt
+deriving Repr
 
 inductive Lang : Tag → Type
 -- # Expr
@@ -92,10 +95,12 @@ inductive Lang : Tag → Type
 | Assign (x : VarName) (e : Lang .Expr) : Lang .Stmt
 | Seq (s₁ : Lang .Stmt) (s₂ : Lang .Stmt) : Lang .Stmt
 | Do (e : Lang .Expr) : Lang .Stmt
+deriving DecidableEq, Repr
+
 
 notation:100 s₁:100 ";" s₂:101 => Lang.Seq s₁ s₂
 notation x "::=" exp => Lang.Assign x exp
-#check List.get
+-- #check List.get
 abbrev Γ := List τ
 notation Γ₁ "("x")" "=" type => x < List.length Γ₁ ∧ Γ₁[List.length Γ₁ - 1 - x]? = Option.some type
 
