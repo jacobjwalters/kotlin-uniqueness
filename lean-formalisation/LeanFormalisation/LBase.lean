@@ -3,9 +3,9 @@ import Mathlib.Tactic.Basic
 
 abbrev VarName := Nat
 inductive Ty
-| Nat
-| Bool
-| Unit
+| nat
+| bool
+| unit
 deriving Repr, Inhabited
 
 
@@ -35,10 +35,10 @@ structure UnOpArgs where
   out : Ty
 
 def BinOp.args : BinOp → BinOpArgs
-| .Add => ⟨.Nat, .Nat, .Nat⟩
-| .Sub => ⟨.Nat, .Nat, .Nat⟩
-| .NatEq => ⟨.Nat, .Nat, .Bool⟩
-| .BoolEq => ⟨.Bool, .Bool, .Bool⟩
+| .Add => ⟨.nat, .nat, .nat⟩
+| .Sub => ⟨.nat, .nat, .nat⟩
+| .NatEq => ⟨.nat, .nat, .bool⟩
+| .BoolEq => ⟨.bool, .bool, .bool⟩
 
 inductive BinOp.step : BinOp → Value → Value → Value → Prop
 | add (n m : Nat) : BinOp.step .Add (.Nat n) (.Nat m) (.Nat (n + m))
@@ -51,7 +51,7 @@ inductive BinOp.step : BinOp → Value → Value → Value → Prop
 | boolEqFT : BinOp.step .BoolEq .False .True .False
 
 def UnOp.args : UnOp → UnOpArgs
-| .IsZero => ⟨.Nat, .Bool⟩
+| .IsZero => ⟨.nat, .bool⟩
 
 inductive UnOp.step : UnOp → Value → Value → Prop
 | isZeroTrue : UnOp.step .IsZero (.Nat 0) .True
@@ -130,13 +130,13 @@ inductive ExprType : Ctx → Lang .Expr → Ty → Prop
 inductive Typ : (tg : Tag) → Ctx → Lang tg → TypR tg → Prop
 -- # Expr
 | TrueConst :
-  Typ .Expr Γ₁ .True (.Expr .Bool)
+  Typ .Expr Γ₁ .True (.Expr .bool)
 | FalseConst :
-  Typ .Expr Γ₁ .False (.Expr .Bool)
+  Typ .Expr Γ₁ .False (.Expr .bool)
 | NatConst (n : Nat) :
-  Typ .Expr Γ₁ (.Nat n) (.Expr .Nat)
+  Typ .Expr Γ₁ (.Nat n) (.Expr .nat)
 | UnitConst :
-  Typ .Expr Γ₁ .Unit (.Expr .Unit)
+  Typ .Expr Γ₁ .Unit (.Expr .unit)
 | VarAccess (x : VarName) (type : Ty) :
   (Γ₁(x) = type) →
   Typ .Expr Γ₁ (.Var x) (.Expr type)
@@ -148,16 +148,16 @@ inductive Typ : (tg : Tag) → Ctx → Lang tg → TypR tg → Prop
   Typ .Expr Γ₁ arg₂ (.Expr op.args.2) →
   Typ .Expr Γ₁ (.BinOp arg₁ arg₂ op) (.Expr op.args.3)
 | IfExpr (cond : Lang .Expr) (e₁ : Lang .Expr) (e₂ : Lang .Expr) (type : Ty) :
-  Typ .Expr Γ₁ cond (.Expr .Bool) →
+  Typ .Expr Γ₁ cond (.Expr .bool) →
   Typ .Expr Γ₁ e₁ (.Expr type) →
   Typ .Expr Γ₁ e₂ (.Expr type) →
   Typ .Expr Γ₁ (.If cond e₁ e₂) (.Expr type)
 | WhileExpr (cond : Lang .Expr) (body : Lang .Expr) :
-  Typ .Expr Γ₁ cond (.Expr .Bool) →
-  Typ .Expr Γ₁ body (.Expr .Unit) →
-  Typ .Expr Γ₁ (.While cond body) (.Expr .Unit)
+  Typ .Expr Γ₁ cond (.Expr .bool) →
+  Typ .Expr Γ₁ body (.Expr .unit) →
+  Typ .Expr Γ₁ (.While cond body) (.Expr .unit)
 | BreakExpr (type : Ty) :
-  Typ .Expr Γ₁ .Break (.Expr .Unit)
+  Typ .Expr Γ₁ .Break (.Expr .unit)
 | ScopeExpr (s : Lang .Stmt) (e : Lang .Expr) (type : Ty) :
   Typ .Stmt Γ₁ s (.Stmt Γ₂) →
   Typ .Expr Γ₂ e (.Expr type) →
@@ -282,10 +282,10 @@ def liftValue : Value → Lang .Expr
 | .Unit => .Unit
 
 def value_type : Value → Ty → Prop
-| .True, .Bool => True
-| .False, .Bool => True
-| .Nat _, .Nat => True
-| .Unit, .Unit => True
+| .True, .bool => True
+| .False, .bool => True
+| .Nat _, .nat => True
+| .Unit, .unit => True
 | _, _ => False
 
 inductive Control
@@ -443,7 +443,7 @@ inductive ContType : (tg : Tag) → Ctx → List Cont → ContTypeRes tg → Pro
   Typ .Expr Γ₁ s₁ (.Expr type) →
   Typ .Expr Γ₁ s₂ (.Expr type) →
   ContType .Expr Γ₁ K (.Expr type) →
-  ContType .Expr Γ₁ (.ifCondK s₁ s₂ :: K) (.Expr .Bool)
+  ContType .Expr Γ₁ (.ifCondK s₁ s₂ :: K) (.Expr .bool)
 | DeclK (type : Ty) (Γ₁ : Ctx) :
   ContType .Stmt (type :: Γ₁) K .Stmt →
   ContType .Expr Γ₁ (.declK type :: K) (.Expr type)
@@ -463,15 +463,15 @@ inductive ContType : (tg : Tag) → Ctx → List Cont → ContTypeRes tg → Pro
   ContType .Expr Γ₁ K (.Expr op.args.out) →
   ContType .Expr Γ₁ (.unopK op :: K) (.Expr op.args.1)
 | LoopK (Γ₁ : Ctx) (body : Lang .Expr) (c : Lang .Expr) (n : Nat) :
-  Typ .Expr Γ₁ c (.Expr .Bool) →
-  Typ .Expr Γ₁ e (.Expr .Unit) →
-  ContType .Expr (Γ₁.take n) K (.Expr .Unit) →
-  ContType .Expr Γ₁ (.loopK c body n :: K) (.Expr .Bool)
+  Typ .Expr Γ₁ c (.Expr .bool) →
+  Typ .Expr Γ₁ e (.Expr .unit) →
+  ContType .Expr (Γ₁.take n) K (.Expr .unit) →
+  ContType .Expr Γ₁ (.loopK c body n :: K) (.Expr .bool)
 | LoopContK (Γ₁ : Ctx) (body : Lang .Expr) (c : Lang .Expr) (n : Nat) :
-  Typ .Expr Γ₁ c (.Expr .Bool) →
-  Typ .Expr Γ₁ e (.Expr .Unit) →
-  ContType .Expr (Γ₁.take n) K (.Expr .Unit) →
-  ContType .Expr Γ₁ (.loopContK c body n :: K) (.Expr .Bool)
+  Typ .Expr Γ₁ c (.Expr .bool) →
+  Typ .Expr Γ₁ e (.Expr .unit) →
+  ContType .Expr (Γ₁.take n) K (.Expr .unit) →
+  ContType .Expr Γ₁ (.loopContK c body n :: K) (.Expr .bool)
 | ScopeExitK (Γ₁ : Ctx) (n : Nat) (type : Ty) :
   ContType .Expr (Γ₁.take n) K (.Expr type) →
   ContType .Expr Γ₁ (.scopeExitK n :: K) (.Expr type)
