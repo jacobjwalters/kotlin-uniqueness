@@ -57,21 +57,6 @@ inductive UnOp.step : UnOp → Value → Value → Prop
 | isZeroTrue : UnOp.step .IsZero (.Nat 0) .True
 | isZeroFalse (n : Nat) : n ≠ 0 → UnOp.step .IsZero (.Nat n) .False
 
--- NOTE: Alternatives to the Tag system to reduce confusing stmt/expr formulations:
---
--- 1. Separate inductive types: Define `Expr` and `Stmt` as two mutually inductive types
---    using `mutual ... end`. This eliminates the Tag entirely and makes typing judgements
---    naturally specialized (e.g. `ExprTyp` and `StmtTyp` as separate inductives).
---    Downside: mutual inductives can be harder to work with in Lean's equation compiler.
---
--- 2. Type-level index with separate typing: Keep `Lang` indexed by Tag but split `Typ`
---    into `TypExpr : Γ → Lang .Expr → Ty → Prop` and `TypStmt : Γ → Lang .Stmt → Γ → Prop`.
---    This removes the `TypR` wrapper and makes stmt_mono straightforward since it only
---    applies to `TypStmt`.
---
--- 3. Wrapper types: Use `structure Expr := (lang : Lang .Expr)` and
---    `structure Stmt := (lang : Lang .Stmt)` to provide distinct types at the API boundary,
---    keeping the single `Lang` definition internally but giving clearer signatures.
 inductive Tag
 | Expr
 | Stmt
@@ -97,10 +82,10 @@ inductive Lang : Tag → Type
 
 notation:100 s₁:100 ";" s₂:101 => Lang.Seq s₁ s₂
 notation x "::=" exp => Lang.Assign x exp
-abbrev Γ := List Ty
+abbrev Ctx := List Ty
 notation Γ₁ "("x")" "=" type => x < List.length Γ₁ ∧ Γ₁[List.length Γ₁ - 1 - x]? = Option.some type
 
-def lang_shift {tg : Tag} (l : Nat) : Lang tg → Lang tg
+def langShift {tg : Tag} (l : Nat) : Lang tg → Lang tg
 -- # Expr
 | .Var (x : VarName) =>
   .Var (x + l)
@@ -113,36 +98,36 @@ def lang_shift {tg : Tag} (l : Nat) : Lang tg → Lang tg
 | .Unit =>
   .Unit
 | .BinOp (arg₁ : Lang .Expr) (arg₂ : Lang .Expr) (op : BinOp) =>
-  .BinOp (lang_shift l arg₁) (lang_shift l arg₂) op
+  .BinOp (langShift l arg₁) (langShift l arg₂) op
 | .UnOp (arg : Lang .Expr) (op : UnOp) =>
-  .UnOp (lang_shift l arg) op
+  .UnOp (langShift l arg) op
 | .If (cond : Lang .Expr) (e₁ : Lang .Expr) (e₂ : Lang .Expr) =>
-  .If (lang_shift l cond) (lang_shift l e₁) (lang_shift l e₂)
+  .If (langShift l cond) (langShift l e₁) (langShift l e₂)
 | .While (cond : Lang .Expr) (body : Lang .Expr) =>
-  .While (lang_shift l cond) (lang_shift l body)
+  .While (langShift l cond) (langShift l body)
 | .Break =>
   .Break
 | .Scope (s : Lang .Stmt) (res : Lang .Expr) =>
-  .Scope (lang_shift l s) (lang_shift l res)
+  .Scope (langShift l s) (langShift l res)
 -- # Stmt
 | .Decl (type : Ty) (e : Lang .Expr) =>
-  .Decl type (lang_shift l e)
+  .Decl type (langShift l e)
 | .Assign (x : VarName) (e : Lang .Expr) =>
-  .Assign (x + l) (lang_shift l e)
+  .Assign (x + l) (langShift l e)
 | .Seq (s₁ : Lang .Stmt) (s₂ : Lang .Stmt) =>
-  .Seq (lang_shift l s₁) (lang_shift l s₂)
+  .Seq (langShift l s₁) (langShift l s₂)
 | .Do (e : Lang .Expr) =>
-  .Do (lang_shift l e)
+  .Do (langShift l e)
 
 section Types
 
 inductive TypR : Tag → Type
-| Stmt (Γ₁ : Γ) : TypR .Stmt
+| Stmt (Γ₁ : Ctx) : TypR .Stmt
 | Expr (type : Ty) : TypR .Expr
 
-inductive ExprType : Γ → Lang .Expr → Ty → Prop
+inductive ExprType : Ctx → Lang .Expr → Ty → Prop
 
-inductive Typ : (tg : Tag) → Γ → Lang tg → TypR tg → Prop
+inductive Typ : (tg : Tag) → Ctx → Lang tg → TypR tg → Prop
 -- # Expr
 | TrueConst :
   Typ .Expr Γ₁ .True (.Expr .Bool)
@@ -196,7 +181,7 @@ end Types
 
 section TypeProperties
 
-theorem lang_det (Γ₁ : Γ) (tg : Tag) (Γ₂ Γ₃ : TypR tg) (s : Lang tg) :
+theorem lang_det (Γ₁ : Ctx) (tg : Tag) (Γ₂ Γ₃ : TypR tg) (s : Lang tg) :
   Typ tg Γ₁ s Γ₂ → Typ tg Γ₁ s Γ₃ → Γ₂ = Γ₃ := by
     intro h1 h2
     unhygienic induction h1 <;> try grind
@@ -205,7 +190,7 @@ theorem lang_det (Γ₁ : Γ) (tg : Tag) (Γ₂ Γ₃ : TypR tg) (s : Lang tg) :
       grind }
 
 
-theorem typ_permutation (Γ₁ Γ₂ : Γ) (tg : Tag) (Γ₃ : TypR tg) (e : Lang tg) :
+theorem typ_permutation (Γ₁ Γ₂ : Ctx) (tg : Tag) (Γ₃ : TypR tg) (e : Lang tg) :
   (∀ tp x, (Γ₁(x) = tp) ↔ Γ₂(x) = tp) →
   Typ tg Γ₁ e Γ₃ → Typ tg Γ₂ e Γ₃ := by
     intro hg
@@ -231,15 +216,15 @@ theorem typ_permutation (Γ₁ Γ₂ : Γ) (tg : Tag) (Γ₃ : TypR tg) (e : Lan
     rw [this]
     grind
 
-def TypR.extL (Γ₁ : Γ) (tg : Tag) : TypR tg → TypR tg
+def TypR.extL (Γ₁ : Ctx) (tg : Tag) : TypR tg → TypR tg
 | .Expr type => .Expr type
 | .Stmt Γ₂ => .Stmt (Γ₁ ++ Γ₂)
 
-def TypR.extR (Γ₁ : Γ) (tg : Tag) : TypR tg → TypR tg
+def TypR.extR (Γ₁ : Ctx) (tg : Tag) : TypR tg → TypR tg
 | .Expr type => .Expr type
 | .Stmt Γ₂ => .Stmt (Γ₂ ++ Γ₁)
 
-lemma stmt_mono (Γ₁ : Γ) (tg : Tag) (Γ₂ : TypR tg) (s : Lang tg) :
+lemma stmt_mono (Γ₁ : Ctx) (tg : Tag) (Γ₂ : TypR tg) (s : Lang tg) :
   Typ tg Γ₁ s Γ₂ → ∃ Γ₃ : TypR tg, Γ₃.extR Γ₁ = Γ₂ := by
     intro hs
     unhygienic induction hs <;> try grind
@@ -272,25 +257,25 @@ lemma stmt_decl (type : Ty) : Typ .Stmt Γ₁ (.Decl type e) (.Stmt Γ₂) → �
   cases h
   rfl
 
-theorem lang_extension (tg : Tag) (e : Lang tg) (res : TypR tg) (Γ₁ Γ₂ : Γ) :
-  Typ tg Γ₁ e res → Typ tg (Γ₁ ++ Γ₂) (lang_shift Γ₂.length e) (res.extR Γ₂) := by
+theorem lang_extension (tg : Tag) (e : Lang tg) (res : TypR tg) (Γ₁ Γ₂ : Ctx) :
+  Typ tg Γ₁ e res → Typ tg (Γ₁ ++ Γ₂) (langShift Γ₂.length e) (res.extR Γ₂) := by
     intro h
     unhygienic induction h generalizing Γ₂ <;>try solve_by_elim
-    { rw [lang_shift, TypR.extR]
+    { rw [langShift, TypR.extR]
       apply Typ.VarAccess
       grind }
-    { rw [lang_shift]
+    { rw [langShift]
       solve_by_elim [Typ.ScopeExpr] }
-    { rw [lang_shift, TypR.extR]
+    { rw [langShift, TypR.extR]
       apply Typ.VarAssign _ _ _ (a_ih Γ₂)
       grind }
-    rw [lang_shift]
+    rw [langShift]
     solve_by_elim [Typ.Seq]
 
 
 end TypeProperties
 
-def lift_value : Value → Lang .Expr
+def liftValue : Value → Lang .Expr
 | .True => .True
 | .False => .False
 | .Nat (n : Nat) => .Nat n
@@ -340,7 +325,7 @@ inductive Eval : CEK → CEK → Prop
 -- # Expr
 | Val (v : Value) :
   Eval
-    ⟨.sourceExpr (lift_value v), E, K⟩
+    ⟨.sourceExpr (liftValue v), E, K⟩
     ⟨.value v, E, K⟩
 | Var (v : Value) (x : VarName) :
   Eval
@@ -444,63 +429,63 @@ inductive Eval : CEK → CEK → Prop
     ⟨.value V, E.take n, K⟩
 
 
-def init_state (s : Lang .Stmt) : CEK := ⟨.sourceStmt s, [], []⟩
+def initState (s : Lang .Stmt) : CEK := ⟨.sourceStmt s, [], []⟩
 
-def terminal_state (E : Environment) : CEK := ⟨.skip, E, []⟩
+def terminalState (E : Environment) : CEK := ⟨.skip, E, []⟩
 
 inductive ContTypeRes : Tag → Type
 | Expr (type : Ty) : ContTypeRes .Expr
 | Stmt : ContTypeRes .Stmt
 
 -- # Expression Continuations
-inductive ContType : (tg : Tag) → Γ → List Cont → ContTypeRes tg → Prop
-| IfCondK (s₁ : Lang .Expr) (s₂ : Lang .Expr) (Γ₁ Γ₂ Γ₃ : Γ) (type : Ty) :
+inductive ContType : (tg : Tag) → Ctx → List Cont → ContTypeRes tg → Prop
+| IfCondK (s₁ : Lang .Expr) (s₂ : Lang .Expr) (Γ₁ Γ₂ Γ₃ : Ctx) (type : Ty) :
   Typ .Expr Γ₁ s₁ (.Expr type) →
   Typ .Expr Γ₁ s₂ (.Expr type) →
   ContType .Expr Γ₁ K (.Expr type) →
   ContType .Expr Γ₁ (.ifCondK s₁ s₂ :: K) (.Expr .Bool)
-| DeclK (type : Ty) (Γ₁ : Γ) :
+| DeclK (type : Ty) (Γ₁ : Ctx) :
   ContType .Stmt (type :: Γ₁) K .Stmt →
   ContType .Expr Γ₁ (.declK type :: K) (.Expr type)
-| AssignK (x : VarName) (type : Ty) (Γ₁ : Γ) :
+| AssignK (x : VarName) (type : Ty) (Γ₁ : Ctx) :
   (Γ₁[x]! = type) →
   ContType .Stmt Γ₁ K .Stmt →
   ContType .Expr Γ₁ (.assignK x :: K) (.Expr type)
-| BinOpLK (Γ₁ : Γ) (op : BinOp) (e₂ : Lang .Expr) :
+| BinOpLK (Γ₁ : Ctx) (op : BinOp) (e₂ : Lang .Expr) :
   ExprType Γ₁ e₂ op.args.2 →
   ContType .Expr Γ₁ K (.Expr op.args.out) →
   ContType .Expr Γ₁ (.binopLK op e₂ :: K) (.Expr op.args.1)
-| BinOpRK (Γ₁ : Γ) (op : BinOp) (v₁ : Value) :
+| BinOpRK (Γ₁ : Ctx) (op : BinOp) (v₁ : Value) :
   value_type v₁ op.args.1 →
   ContType .Expr Γ₁ K (.Expr op.args.out) →
   ContType .Expr Γ₁ (.binopRK op v₁ :: K) (.Expr op.args.2)
-| UnOpK (Γ₁ : Γ) (op : UnOp) :
+| UnOpK (Γ₁ : Ctx) (op : UnOp) :
   ContType .Expr Γ₁ K (.Expr op.args.out) →
   ContType .Expr Γ₁ (.unopK op :: K) (.Expr op.args.1)
-| LoopK (Γ₁ : Γ) (body : Lang .Expr) (c : Lang .Expr) (n : Nat) :
+| LoopK (Γ₁ : Ctx) (body : Lang .Expr) (c : Lang .Expr) (n : Nat) :
   Typ .Expr Γ₁ c (.Expr .Bool) →
   Typ .Expr Γ₁ e (.Expr .Unit) →
   ContType .Expr (Γ₁.take n) K (.Expr .Unit) →
   ContType .Expr Γ₁ (.loopK c body n :: K) (.Expr .Bool)
-| LoopContK (Γ₁ : Γ) (body : Lang .Expr) (c : Lang .Expr) (n : Nat) :
+| LoopContK (Γ₁ : Ctx) (body : Lang .Expr) (c : Lang .Expr) (n : Nat) :
   Typ .Expr Γ₁ c (.Expr .Bool) →
   Typ .Expr Γ₁ e (.Expr .Unit) →
   ContType .Expr (Γ₁.take n) K (.Expr .Unit) →
   ContType .Expr Γ₁ (.loopContK c body n :: K) (.Expr .Bool)
-| ScopeExitK (Γ₁ : Γ) (n : Nat) (type : Ty) :
+| ScopeExitK (Γ₁ : Ctx) (n : Nat) (type : Ty) :
   ContType .Expr (Γ₁.take n) K (.Expr type) →
   ContType .Expr Γ₁ (.scopeExitK n :: K) (.Expr type)
-| ExprStmtK (Γ₁ : Γ) (type : Ty) :
+| ExprStmtK (Γ₁ : Ctx) (type : Ty) :
   ContType .Stmt Γ₁ K .Stmt →
   ContType .Expr Γ₁ (.exprStmtK :: K) (.Expr type)
 -- # Statement Continuations
-| HaltK (Γ₁ : Γ) :
+| HaltK (Γ₁ : Ctx) :
   ContType .Stmt Γ₁ [] .Stmt
-| SeqK (Γ₁ : Γ) (Γ₂ : Γ) (s : Lang .Stmt) :
+| SeqK (Γ₁ : Ctx) (Γ₂ : Ctx) (s : Lang .Stmt) :
   Typ .Stmt Γ₁ s (.Stmt Γ₂) →
   ContType .Stmt Γ₂ K .Stmt →
   ContType .Stmt Γ₁ (.seqK s :: K) .Stmt
-| ScopeBodyK (Γ₁ : Γ) (body : Lang .Stmt) (e : Lang .Expr) (type : Ty) (n : Nat) :
+| ScopeBodyK (Γ₁ : Ctx) (body : Lang .Stmt) (e : Lang .Expr) (type : Ty) (n : Nat) :
   Typ .Expr Γ₁ e (.Expr type) →
   ContType .Expr (Γ₁.take n) K (.Expr type) →
   ContType .Stmt Γ₁ (.scopeBodyK c n :: K) .Stmt
