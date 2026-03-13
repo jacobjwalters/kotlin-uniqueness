@@ -2,6 +2,9 @@ import Mathlib.Data.Finmap
 import Mathlib.Tactic.Basic
 
 abbrev VarName := Nat
+-- TODO: use
+-- https://leanprover-community.github.io/contribute/style.html
+-- https://leanprover-community.github.io/contribute/naming.html
 
 inductive τ
 | Nat
@@ -41,6 +44,7 @@ def BinOp.args : BinOp → BinOpArgs
 | .NatEq => ⟨.Nat, .Nat, .Bool⟩
 | .BoolEq => ⟨.Bool, .Bool, .Bool⟩
 
+-- TODO: Convert to small step semantics
 def BinOp.run : BinOp → Value → Value → Value
 | .Add => fun x y =>
   match x, y with
@@ -63,6 +67,7 @@ def BinOp.run : BinOp → Value → Value → Value
 def UnOp.args : UnOp → UnOpArgs
 | .IsZero => ⟨.Nat, .Bool⟩
 
+-- TODO: Convert to small step semantics
 def UnOp.run : UnOp → Value → Value
 | .IsZero => fun x =>
   match x with
@@ -70,6 +75,10 @@ def UnOp.run : UnOp → Value → Value
   | .Nat _ => .False
   | _ => panic! "Not implemented"
 
+-- TODO: I am not very happy with this tag system, because it means that some statements
+-- (e.g. StmtMono) have confusing formulations for the stmt vs expression case.
+-- Don't change anything yet, but please suggest some possibilities for other ways we
+-- could do this.
 inductive Tag
 | Expr
 | Stmt
@@ -95,10 +104,10 @@ inductive Lang : Tag → Type
 
 notation:100 s₁:100 ";" s₂:101 => Lang.Seq s₁ s₂
 notation x "::=" exp => Lang.Assign x exp
-#check List.get
 abbrev Γ := List τ
 notation Γ₁ "("x")" "=" type => x < List.length Γ₁ ∧ Γ₁[List.length Γ₁ - 1 - x]? = Option.some type
 
+-- TODO: Remove st
 def langShift {tg : Tag} (l st : Nat) : Lang tg → Lang tg
 -- # Expr
 | .Var (x : VarName) =>
@@ -203,6 +212,7 @@ theorem LangDet (Γ₁ : Γ) (tg : Tag) (Γ₂ Γ₃ : TypR tg) (s : Lang tg) :
     { cases h2
       grind }
 
+-- TODO: split helper lemmas into separate file
 lemma neg_index_eq (Γ₁ Γ₂ : Γ) (i : Nat) :
   i < Γ₁.length →
   Γ₁[Γ₁.length - 1 - i]? = (Γ₂ ++ Γ₁)[Γ₂.length + Γ₁.length - 1 - i]? := by
@@ -347,6 +357,7 @@ inductive Cont
 
 abbrev CEK := Control × Environment × List Cont
 
+-- TODO: change to small step semantics
 def popLoopK (K : List Cont) : List Cont × Nat :=
   match K with
   | .loopK _ _ n :: li => ⟨li, n⟩
