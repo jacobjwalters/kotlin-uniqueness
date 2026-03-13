@@ -35,8 +35,8 @@
 #pagebreak()
 #include "sections/base.typ"
 
-// #pagebreak()
-// #include "sections/class.typ"
+#pagebreak()
+#include "sections/class.typ"
 
 #pagebreak()
 // Bibliography
