@@ -1,1 +1,1 @@
-import LeanFormalisation.Defs
+import LeanFormalisation.LBase
