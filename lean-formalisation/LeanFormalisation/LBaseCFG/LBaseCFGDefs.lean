@@ -1,4 +1,4 @@
--- CFGs.lean
+-- LBaseCFGDefs.lean
 -- CFG construction for the language defined in LBase.
 
 import LeanFormalisation.LBase
@@ -196,9 +196,10 @@ def CFGNode.succs (n : CFGNode) : List CFGNode :=
   -- (Eval.ScopeExit)
   | .value, .scopeExitK :: K =>
       [⟨.value, K⟩]
-  -- Expression statement done: discard value, continue as skip.
-  | .value, .exprStmtK :: K =>
-      [⟨.skip, K⟩]
+    -- No Eval rule consumes `.exprStmtK` after producing a value,
+    -- so this state has no outgoing edge in the CFG either.
+  | .value, .exprStmtK :: _ =>
+      []
   -- Sequence: first statement done, start the second.
   -- (Eval.SeqDone)
   | .skip, .seqK s₂ :: K =>
@@ -373,9 +374,6 @@ theorem succ_is_inhabited {n m : CFGNode} (h : m ∈ n.succs) :
       refine ⟨by simp [to_from_CFGCont_list_eq tl], ?_⟩
       solve_node' ⟨.value .True, [].take 0, tl.map fromCFGCont⟩
       simpa [List.take_nil] using Eval.ScopeExit .True 0
-    case exprStmtK =>
-      -- No explicit Eval continuation rule for exprStmtK in LBase yet; sorry.
-      sorry
   -- skip
   | skip =>
     cases k <;> try simp at h

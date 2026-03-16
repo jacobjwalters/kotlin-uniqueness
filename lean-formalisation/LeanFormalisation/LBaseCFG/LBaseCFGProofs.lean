@@ -23,7 +23,7 @@ there is a finite amount of reachable `CFGNode`s from a fixed program `s`, and
 every node is a finite object -> the reachable state space is finite.
 need to establish a bound though.
 
-## 3. A proof that every vertex is reachable from `start`
+## 3. a proof that every vertex is reachable from `start`
 the bfs invariant guarantees that every vertex added to the graph was discovered
 as a successor of some already reached vertex. proven by induction on the
 traversal order.
@@ -212,10 +212,6 @@ theorem buildFuncGraph_edges_complete (root : CFGNode) (fuel : Nat)
   apply outer_foldl_pres_edge
   exact inner_foldl_edges_complete n.succs n m _ hm
 
-/-- TODO: what's left:
-    - [ ] derive proper fuel bounds
-    - [ ] sderive full reachability
--/
 -- fuel bounds
 def cfgFuel (s : Lang .Stmt) : Nat :=
   let n := stmtSize s + 2  -- +2 for .value and .skip
@@ -231,6 +227,9 @@ def startVertex (s : Lang .Stmt) :
     { v : CFGNode // (programGraph s).vertices v = true } :=
   ⟨cfgInit s, root_in_buildFuncGraph (cfgInit s) (cfgFuel s)⟩
 
+/-- TODO: what's left:
+    - [ ] sderive full reachability
+-/
 theorem all_vertices_reachable (s : Lang .Stmt) :
     ∀ (v : CFGNode) (hv : (programGraph s).vertices v = true),
       Path.Reachable (programGraph s) (startVertex s) ⟨v, hv⟩ := by

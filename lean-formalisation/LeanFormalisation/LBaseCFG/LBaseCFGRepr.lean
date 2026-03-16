@@ -17,7 +17,7 @@ def toDot (root : CFGNode) (fuel : Nat) : String :=
     ) acc
   ) ""
   "digraph CFG {\n  rankdir=TD;\n  node\
-    [shape=box fontname=\"monospace\" width=3 nojustify=false];\n"
+    [shape=box fontname=\"monospace\" width=4 nojustify=false];\n"
     ++ nodeLines ++ edgeLines ++ "}"
 
 private def fmtExpr : Lang .Expr → String
@@ -92,7 +92,7 @@ def toFmtDot (root : CFGNode) (fuel : Nat) : String :=
     ) acc
   ) ""
   "digraph CFG {\n  rankdir=TD;\n  node\
-    [shape=box fontname=\"monospace\" width=6 nojustify=false];\n"
+    [shape=box fontname=\"monospace\" width=4 nojustify=false];\n"
     ++ nodeLines ++ edgeLines ++ "}"
 
 def main (_ : List String) : IO Unit := do
