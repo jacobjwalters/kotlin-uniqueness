@@ -1,13 +1,11 @@
-# lean-formalisation
+# Lean Formalization
 
-## GitHub configuration
+Lean 4 formalization of the uniqueness type system defined in `doc/`.
 
-To set up your new GitHub repository, follow these steps:
+## Building
 
-* Under your repository name, click **Settings**.
-* In the **Actions** section of the sidebar, click "General".
-* Check the box **Allow GitHub Actions to create and approve pull requests**.
-* Click the **Pages** section of the settings sidebar.
-* In the **Source** dropdown menu, select "GitHub Actions".
+Requires [elan](https://github.com/leanprover/elan) (the Lean version manager). The correct Lean toolchain is installed automatically from `lean-toolchain`.
 
-After following the steps above, you can remove this section from the README file.
+```sh
+lake build
+```

@@ -9,7 +9,7 @@
 // Contexts
 #let ctx = $thin upright("ctx")$
 #let drop = math.op("drop")
-// Scope markers and pop
+// Scope markers and pop (used by Lclass; Lbase uses truncate-based scoping instead)
 #let scopeMark(l) = $diamond.stroked_#l$
 #let pop(e, l) = $op("pop") (#e, #l)$
 #let popK(k, l) = $op("popK") (#k, #l)$
@@ -44,12 +44,16 @@
 // Types
 #let Nat = $sans("Nat")$
 #let Bool = $sans("Bool")$
+#let Unit = $sans("Unit")$
 
 // Exprs
 #let Skip = $sans("skip")$
 #let Return = $sans("return")$
 #let New = $sans("new")$
 #let Var = $sans("var")$
+#let UnitVal = $sans("unit")$
+#let Scope = $sans("scope")$
+#let Do = $sans("do")$
 #let If = $sans("if")$
 #let Then = $sans("then")$
 #let Else = $sans("else")$
@@ -76,7 +80,32 @@
 #let binopLK = math.op("binopLK")
 #let binopRK = math.op("binopRK")
 #let unopK = math.op("unopK")
-#let halt = $sans("halt")$
+#let halt = math.op("halt")
+
+// Lbase-specific continuation frames (scope/loop redesign)
+#let scopeBodyK = math.op("scopeBodyK")
+#let scopeExitK = math.op("scopeExitK")
+#let loopContK = math.op("loopContK")
+#let exprStmtK = math.op("exprStmtK")
+
+// Operations (scope/loop redesign)
+#let popLoopK(k) = $op("popLoopK") (#k)$
+#let truncate(e, n) = $#e bar.v_#n$
+
+// Continuation typing rule names (used in proof-tree labels and prose)
+#let IfCondK = math.op("IfCondK")
+#let DeclK = math.op("DeclK")
+#let AssignK = math.op("AssignK")
+#let BinOpLK = math.op("BinOpLK")
+#let BinOpRK = math.op("BinOpRK")
+#let UnOpK = math.op("UnOpK")
+#let LoopK = math.op("LoopK")
+#let LoopContK = math.op("LoopContK")
+#let ScopeExitK = math.op("ScopeExitK")
+#let ExprStmtK = math.op("ExprStmtK")
+#let HaltK = math.op("HaltK")
+#let SeqK = math.op("SeqK")
+#let ScopeBodyK = math.op("ScopeBodyK")
 
 // Meta-level operator application
 #let delta = $delta$
