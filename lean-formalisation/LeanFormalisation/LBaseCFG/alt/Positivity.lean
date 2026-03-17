@@ -36,6 +36,41 @@ partial def worklistForwardEdge
         let wl' := rest ++ g.succ n
         worklistForwardEdge g nodeTransfer edgeTransfer entryInit inF' outF' wl'
 
+abbrev Domain (A : Type) [Max A] [Bot A] := List A
+
+instance {A : Type} [Max A] [Bot A] : Bot (Domain A) where
+  bot := []
+
+def domainJoin {A : Type} [Max A] [Bot A] : Domain A -> Domain A -> Domain A
+| [], ys => ys
+| xs, [] => xs
+| x :: xs, y :: ys => (x ⊔ y) :: domainJoin xs ys
+
+instance {A : Type} [Max A] [Bot A] : Max (Domain A) where
+  max := domainJoin
+
+def getVar {A : Type} [Max A] [Bot A] (ρ : Domain A) (x : VarName) : A :=
+  ρ.getD x ⊥
+
+def setVar {A : Type} [Max A] [Bot A] : Domain A -> VarName -> A -> Domain A
+| [], 0, s => [s]
+| [], x + 1, s => ⊥ :: setVar [] x s
+| _ :: tl, 0, s => s :: tl
+| hd :: tl, x + 1, s => hd :: setVar tl x s
+
+def pushBinding {A : Type} [Max A] [Bot A] (ρ : Domain A) (v : A) : Domain A :=
+  v :: ρ
+
+def popBindings {A : Type} [Max A] [Bot A] (k : Nat) (ρ : Domain A) : Domain A :=
+  ρ.drop k
+
+instance {A : Type} [Max A] [Bot A] [Repr A] : Repr (Domain A) where
+  reprPrec := fun d _ =>
+    let rec go (i : Nat) : Domain A -> List String
+      | [] => []
+      | v :: tl => s!"x{i}:{repr v}" :: go (i + 1) tl
+    s!"[{String.intercalate ", " (go 0 d)}]"
+
 end Analysis
 
 namespace Positivity
@@ -149,42 +184,14 @@ def Sign.sub : Sign → Sign → Sign
 
 def Sign.excludeZero : Sign → Sign
 | s => Sign.fromAtomFlags s.hasNeg false s.hasPos
-
 end Sign
 
-abbrev Domain := List Sign
-abbrev PosFact := fact Domain
-
-instance : Bot Domain where
-  bot := []
-
-def domainJoin : Domain -> Domain -> Domain
-| [], ys => ys
-| xs, [] => xs
-| x :: xs, y :: ys => (x ⊔ y) :: domainJoin xs ys
-
-instance : Max Domain where
-  max := domainJoin
-
-def getVar (ρ : Domain) (x : VarName) : Sign :=
-  ρ.getD x .Bot
-
-def setVar : Domain -> VarName -> Sign -> Domain
-| [], 0, s => [s]
-| [], x + 1, s => .Bot :: setVar [] x s
-| _ :: tl, 0, s => s :: tl
-| hd :: tl, x + 1, s => hd :: setVar tl x s
-
-def pushBinding (ρ : Domain) (s : Sign) : Domain :=
-  s :: ρ
-
-def popBindings (k : Nat) (ρ : Domain) : Domain :=
-  ρ.drop k
+abbrev PosFact := fact (Domain Sign)
 
 def signOfNat (n : Nat) : Sign :=
   if n = 0 then .Zero else .Pos
 
-def evalExprSign (ρ : Domain) : Lang .Expr -> Sign
+def evalExprSign (ρ : Domain Sign) : Lang .Expr -> Sign
 | .Var x => getVar ρ x
 | .Nat n => signOfNat n
 | .BinOp e₁ e₂ op =>
@@ -208,14 +215,14 @@ def stmtDeclDelta : Lang .Stmt -> Nat
 | .Seq s₁ s₂ => stmtDeclDelta s₁ + stmtDeclDelta s₂
 | .Do _ => 0
 
-def transferPosNode (n : CFGNode) (ρ : Domain) : Domain :=
+def transferPosNode (n : CFGNode) (ρ : Domain Sign) : Domain Sign :=
   match n.kind with
   | .stmtExit (.Assign x rhs) => setVar ρ x (evalExprSign ρ rhs)
   | .stmtExit (.Decl _ init) => pushBinding ρ (evalExprSign ρ init)
   | .exprExit (.Scope s _) => popBindings (stmtDeclDelta s) ρ
   | _ => ρ
 
-def refineCond (cond : Lang .Expr) (assumeTrue : Bool) (ρ : Domain) : Domain :=
+def refineCond (cond : Lang .Expr) (assumeTrue : Bool) (ρ : Domain Sign) : Domain Sign :=
   match cond, assumeTrue with
   | .True, true => ρ
   | .True, false => ⊥
@@ -229,18 +236,17 @@ def refineCond (cond : Lang .Expr) (assumeTrue : Bool) (ρ : Domain) : Domain :=
   | .BinOp (.Nat 0) (.Var x) .NatEq, false => setVar ρ x ((getVar ρ x).excludeZero)
   | _, _ => ρ
 
-def transferPosEdge (e : CFGEdge) (ρ : Domain) : Domain :=
+def transferPosEdge (e : CFGEdge) (ρ : Domain Sign) : Domain Sign :=
   match e.kind, e.src.kind with
   | .trueBranch, .exprExit cond => refineCond cond true ρ
   | .falseBranch, .exprExit cond => refineCond cond false ρ
   | _, _ => ρ
 
-def runPositivity (g : CFG) (entryInit : Domain := ⊥) : PosFact × PosFact :=
+def runPositivity (g : CFG) (entryInit : Domain Sign := ⊥) : PosFact × PosFact :=
   worklistForwardEdge g transferPosNode transferPosEdge
     entryInit (fun _ => ⊥) (fun _ => ⊥) g.nodes
 
 end Positivity
-
 
 open Positivity
 def demoProgram : Lang .Stmt :=
@@ -261,16 +267,10 @@ def showSign : Sign -> String
 | .Bot => "∅"
 | .Top => "ℕ"
 
-def showDomain (d : Domain) : String :=
-  let rec go (i : Nat) : List Sign -> List String
-    | [] => []
-    | s :: tl => s!"x{i}:{showSign s}" :: go (i + 1) tl
-  s!"[{String.intercalate ", " (go 0 d)}]"
-
 def positivityOverlay (inF outF : PosFact) : AltCFGRepr.DotOverlay :=
   { nodeMeta := fun n =>
-      [ s!"in={showDomain (inF n)}"
-      , s!"out={showDomain (outF n)}"
+      [ s!"in={repr (inF n)}"
+      , s!"out={repr (outF n)}"
       ]
     edgeAttrs := fun e =>
       match e.kind with
