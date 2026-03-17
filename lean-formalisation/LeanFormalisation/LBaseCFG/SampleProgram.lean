@@ -53,4 +53,4 @@ def whileProgram : Lang .Stmt :=
     ))
   )
 
-def sampleProgram := whileProgram
+def sampleProgram := simpleProgram

@@ -2,9 +2,6 @@
 -- CFG construction for the language defined in LBase.
 
 import LeanFormalisation.LBase
-import ControlFlow.Graphs.FuncGraph
-import ControlFlow.Graphs.Digraph
-import ControlFlow.Graphs.CFG
 
 -- define symbolic representation of control flow
 -- Control mode: same structure as `Control` but with values erased
