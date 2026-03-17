@@ -167,7 +167,7 @@ We introduce a final typing judgement $tack.r m(x_i : tau_i): sigma { s }$ to as
   proof-tree(rule(name: "Method", $tack.r m(x_i : tau_i): sigma { s }$, typeStmt($x_i : tau_i$, $#Method (ell, sigma)$, $s$, $Gamma'$, $#Method (ell, sigma)$)))
 )
 
-The body is checked with only the arguments in scope and $Delta = #Method (ell, sigma)$ — a fresh jump context containing just the method boundary. The return type $sigma$ is embedded in $Delta$ and recovered by $#Return ell thin e$ via lookup. The output context $Gamma'$ is unconstrained; see Known Limitations regarding method body completeness.
+The body is checked with only the arguments in scope and $Delta = #Method (ell, sigma)$: a fresh jump context containing just the method boundary. The return type $sigma$ is embedded in $Delta$ and recovered by $#Return ell thin e$ via lookup. The output context $Gamma'$ is unconstrained.
 
 === Properties
 
@@ -515,7 +515,3 @@ Given a well-typed program $P$ and a state reachable from the initial state:
 - *Allocation Preserves Store Typing:* if $tack.r S "ok"$ and $S' = S, a -> C(f_1 := v_1, ..., f_n := v_n)$ where $tack.r v_i : tau_i$ and $f_i : tau_i in #fields (C)$, then $tack.r S' "ok"$.
 
 - *Determinacy:* each machine state has at most one successor (the transition relation is deterministic). Consequently, if the machine terminates, the terminal state is unique.
-
-=== Known Limitations
-
-- *Weakening is over $Gamma$ and $Delta$ independently:* the $Gamma$-weakening and $Delta$-weakening properties hold separately. $#Return$ and $#Break$ have polymorphic type $tau$ and satisfy both forms. $#Return$ constrains its sub-expression via $Delta(ell) = #Method (ell, sigma)$, which is preserved by $Delta$-extension (adding targets never removes existing ones). There is no combined weakening property that extends both simultaneously, though it would follow by composition.
