@@ -67,3 +67,31 @@ instance {A : Type} [Max A] [Bot A] [Repr A] : Repr (Domain A) where
       | [] => []
       | v :: tl => s!"x{i}:{repr v}" :: go (i + 1) tl
     s!"[{String.intercalate ", " (go 0 d)}]"
+
+section LangSpecific
+
+def stmtDeclDelta : Lang .Stmt -> Nat
+| .Decl _ _ => 1
+| .Assign _ _ => 0
+| .Seq s₁ s₂ => stmtDeclDelta s₁ + stmtDeclDelta s₂
+| .Do _ => 0
+
+abbrev LangEval (A : Type) [Max A] [Bot A] := Domain A -> Lang .Expr -> A
+
+def transferScopedNode {A : Type} [Max A] [Bot A]
+    (eval : LangEval A) (n : CFGNode) (ρ : Domain A) : Domain A :=
+  match n.kind with
+  | .stmtExit (.Assign x rhs) => setVar ρ x (eval ρ rhs)
+  | .stmtExit (.Decl _ init) => pushBinding ρ (eval ρ init)
+  | .exprExit (.Scope s _) => popBindings (stmtDeclDelta s) ρ
+  | _ => ρ
+
+def transferBranchEdge {A : Type} [Max A] [Bot A]
+    (refine : Lang .Expr -> Bool -> Domain A -> Domain A)
+    (e : CFGEdge) (ρ : Domain A) : Domain A :=
+  match e.kind, e.src.kind with
+  | .trueBranch, .exprExit cond => refine cond true ρ
+  | .falseBranch, .exprExit cond => refine cond false ρ
+  | _, _ => ρ
+
+end LangSpecific

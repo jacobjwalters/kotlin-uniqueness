@@ -13,10 +13,20 @@ inductive Sign where
 | NonNeg
 | Bot
 | Top
-deriving DecidableEq, Repr
+deriving DecidableEq
 
 instance : Bot Sign where bot := .Bot
 instance : Top Sign where top := .Top
+instance : Repr Sign where
+  reprPrec := fun s _ =>
+    match s with
+    | .Pos => "+"
+    | .Neg => "-"
+    | .Zero => "0"
+    | .NonPos => "<=0"
+    | .NonNeg => ">=0"
+    | .Bot => "∅"
+    | .Top => "ℕ"
 
 private def Sign.fromAtomFlags (hasNeg hasZero hasPos : Bool) : Sign :=
   match hasNeg, hasZero, hasPos with
@@ -138,18 +148,8 @@ def evalExprSign (ρ : Domain Sign) : Lang .Expr -> Sign
 | .While _ _
 | .Break => .Top
 
-def stmtDeclDelta : Lang .Stmt -> Nat
-| .Decl _ _ => 1
-| .Assign _ _ => 0
-| .Seq s₁ s₂ => stmtDeclDelta s₁ + stmtDeclDelta s₂
-| .Do _ => 0
-
 def transferPosNode (n : CFGNode) (ρ : Domain Sign) : Domain Sign :=
-  match n.kind with
-  | .stmtExit (.Assign x rhs) => setVar ρ x (evalExprSign ρ rhs)
-  | .stmtExit (.Decl _ init) => pushBinding ρ (evalExprSign ρ init)
-  | .exprExit (.Scope s _) => popBindings (stmtDeclDelta s) ρ
-  | _ => ρ
+  transferScopedNode evalExprSign n ρ
 
 def refineCond (cond : Lang .Expr) (assumeTrue : Bool) (ρ : Domain Sign) : Domain Sign :=
   match cond, assumeTrue with
@@ -166,10 +166,7 @@ def refineCond (cond : Lang .Expr) (assumeTrue : Bool) (ρ : Domain Sign) : Doma
   | _, _ => ρ
 
 def transferPosEdge (e : CFGEdge) (ρ : Domain Sign) : Domain Sign :=
-  match e.kind, e.src.kind with
-  | .trueBranch, .exprExit cond => refineCond cond true ρ
-  | .falseBranch, .exprExit cond => refineCond cond false ρ
-  | _, _ => ρ
+  transferBranchEdge refineCond e ρ
 
 def runPositivity (g : CFG) (entryInit : Domain Sign := ⊥) : PosFact × PosFact :=
   worklistForwardEdge g transferPosNode transferPosEdge
@@ -183,15 +180,6 @@ def demoProgram : Lang .Stmt :=
         (.BinOp (.Var 0) (.Nat 0) .NatEq)
         (.Scope (.Assign 0 (.Nat 0)) .Unit)
         (.Scope (.Assign 0 (.Nat 2)) .Unit)))
-
-def showSign : Sign -> String
-| .Pos => "+"
-| .Neg => "-"
-| .Zero => "0"
-| .NonPos => "<=0"
-| .NonNeg => ">=0"
-| .Bot => "∅"
-| .Top => "ℕ"
 
 def positivityOverlay (inF outF : PosFact) : AltCFGRepr.DotOverlay :=
   { nodeMeta := fun n =>
