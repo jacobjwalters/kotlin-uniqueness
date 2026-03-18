@@ -1,0 +1,25 @@
+name: Check Lean formalization
+
+on:
+  push:
+    paths:
+      - 'lean-formalisation/**'
+  pull_request:
+    paths:
+      - 'lean-formalisation/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: lean-formalisation
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Lean project
+        uses: leanprover/lean-action@v1
+        with:
+          build-args: ''
+          lake-package-directory: lean-formalisation
