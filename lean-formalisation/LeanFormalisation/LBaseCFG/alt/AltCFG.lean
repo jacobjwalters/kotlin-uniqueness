@@ -246,7 +246,7 @@ def CFG.nodes (g : CFG) : List CFGNode :=
 -- let _ : Nat = 5;
 -- do while (true) (scope { _₀ := 0 } unit)
 def exampleProgram : Lang .Stmt :=
-  .Seq (.Decl .Nat (.Nat 5))
+  .Seq (.Decl .nat (.Nat 5))
        (.Do (.While .True (.Scope (.Assign 0 (.Nat 0)) .Unit)))
 
 def exampleCFG : CFG := stmtCFG exampleProgram

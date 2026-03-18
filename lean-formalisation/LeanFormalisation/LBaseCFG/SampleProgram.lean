@@ -2,9 +2,9 @@ import LeanFormalisation.LBase
 
 def simpleProgram : Lang .Stmt :=
   .Seq
-  (.Decl .Nat (.Nat 5))
+  (.Decl .nat (.Nat 5))
   (.Seq
-    (.Decl .Nat (.Nat 3))
+    (.Decl .nat (.Nat 3))
     (.Do (.If (.BinOp (.Var 0) (.Var 1) .Add)
       (.Scope (.Assign 0 (.Nat 10)) .Unit)
       (.Scope (.Assign 1 (.Nat 20)) .Unit)
@@ -13,9 +13,9 @@ def simpleProgram : Lang .Stmt :=
 
 def complexProgram : Lang .Stmt :=
   .Seq
-  (.Decl .Nat (.Nat 100))
+  (.Decl .nat (.Nat 100))
   (.Seq
-    (.Decl .Nat (.Nat 50))
+    (.Decl .nat (.Nat 50))
     (.Do (.If (.BinOp (.Var 0) (.Var 1) .Add)
       (.Scope
         (.Seq
@@ -42,9 +42,9 @@ def complexProgram : Lang .Stmt :=
 
 def whileProgram : Lang .Stmt :=
   .Seq
-  (.Decl .Nat (.Nat 0))
+  (.Decl .nat (.Nat 0))
   (.Seq
-    (.Decl .Nat (.Nat 10))
+    (.Decl .nat (.Nat 10))
     (.Do (.While (.BinOp (.Var 0) (.Var 1) .Add)
       (.Scope
         (.Assign 0 (.Nat 1))

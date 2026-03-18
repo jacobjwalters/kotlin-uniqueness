@@ -172,15 +172,6 @@ def runPositivity (g : CFG) (entryInit : Domain Sign := ⊥) : PosFact × PosFac
   worklistForwardEdge g transferPosNode transferPosEdge
     entryInit (fun _ => ⊥) (fun _ => ⊥) g.nodes
 
-def demoProgram : Lang .Stmt :=
-  .Seq
-    (.Decl .Nat (.Nat 1))
-    (.Do
-      (.If
-        (.BinOp (.Var 0) (.Nat 0) .NatEq)
-        (.Scope (.Assign 0 (.Nat 0)) .Unit)
-        (.Scope (.Assign 0 (.Nat 2)) .Unit)))
-
 def positivityOverlay (inF outF : PosFact) : AltCFGRepr.DotOverlay :=
   { nodeMeta := fun n =>
       [ s!"in={repr (inF n)}"
@@ -199,6 +190,6 @@ def printResult (g : CFG) (inF outF : PosFact) : IO Unit := do
   IO.println (AltCFGRepr.toDotWith g (positivityOverlay inF outF))
 
 def main (_ : List String) : IO Unit := do
-  let g := stmtCFG demoProgram
+  let g := stmtCFG sampleProgram
   let (inF, outF) := runPositivity g
   printResult g inF outF

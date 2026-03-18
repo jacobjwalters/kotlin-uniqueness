@@ -150,15 +150,6 @@ def runConstProp (g : CFG) (entryInit : Domain Flat := ⊥) : FlatFact × FlatFa
   worklistForwardEdge g transferConstNode transferConstEdge
     entryInit (fun _ => ⊥) (fun _ => ⊥) g.nodes
 
-def demoProgram : Lang .Stmt :=
-  .Seq
-    (.Decl .Nat (.Nat 1))
-    (.Do
-      (.If
-        (.BinOp (.Var 0) (.Nat 0) .NatEq)
-        (.Scope (.Assign 0 (.Nat 0)) .Unit)
-        (.Scope (.Assign 0 (.BinOp (.Var 0) (.Nat 1) .Add)) .Unit)))
-
 def constOverlay (inF outF : FlatFact) : AltCFGRepr.DotOverlay :=
   { nodeMeta := fun n =>
       [ s!"in={repr (inF n)}"
@@ -177,6 +168,6 @@ def printResult (g : CFG) (inF outF : FlatFact) : IO Unit := do
   IO.println (AltCFGRepr.toDotWith g (constOverlay inF outF))
 
 def main (_ : List String) : IO Unit := do
-  let g := stmtCFG demoProgram
+  let g := stmtCFG sampleProgram
   let (inF, outF) := runConstProp g
   printResult g inF outF
