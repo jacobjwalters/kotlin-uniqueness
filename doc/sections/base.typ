@@ -329,7 +329,7 @@ Expression continuations (#typeContE($Gamma$, $Delta$, $K$, $tau$)) _consume_ a 
   proof-tree(rule(name: $#UnOpK$, typeContE($Gamma$, $Delta$, $#unopK (plus.o) dot.c K$, $tau_1$), $plus.o : tau_1 -> tau_2$, typeContE($Gamma$, $Delta$, $K$, $tau_2$))),
 
   proof-tree(rule(name: $#LoopK$, typeContE($Gamma$, $Delta$, $#loopK (c, e, n) dot.c K$, $#Bool$), typeExpr($Gamma$, $Delta$, $c$, $#Bool$), typeExpr($Gamma$, $Delta, #Loop (ell)$, $e$, $#Unit$), typeContE($#truncate($Gamma$, $n$)$, $Delta$, $K$, $#Unit$))),
-  proof-tree(rule(name: $#LoopContK$, typeContE($Gamma$, $Delta, #Loop (ell)$, $#loopContK (c, e) dot.c K$, $#Unit$), typeExpr($Gamma$, $Delta$, $c$, $#Bool$), typeExpr($Gamma$, $Delta, #Loop (ell)$, $e$, $#Unit$), typeContE($#truncate($Gamma$, $n$)$, $Delta$, $K$, $#Unit$))),
+  proof-tree(rule(name: $#LoopContK$, typeContE($Gamma$, $Delta, #Loop (ell)$, $#loopContK (c, e) dot.c K$, $#Unit$), typeExpr($Gamma$, $Delta$, $c$, $#Bool$), typeExpr($Gamma$, $Delta, #Loop (ell)$, $e$, $#Unit$), typeContE($Gamma$, $Delta$, $K$, $#Unit$))),
 
   proof-tree(rule(name: $#ScopeExitK$, typeContE($Gamma$, $Delta$, $#scopeExitK (n) dot.c K$, $tau$), typeContE($#truncate($Gamma$, $n$)$, $Delta$, $K$, $tau$))),
   proof-tree(rule(name: $#ExprStmtK$, typeContE($Gamma$, $Delta$, $#exprStmtK dot.c K$, $tau$), typeContC($Gamma$, $Delta$, $K$))),

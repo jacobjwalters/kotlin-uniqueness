@@ -425,7 +425,7 @@ Expression continuations (#typeContE($Gamma$, $Delta$, $K$, $tau$)) _consume_ a 
   proof-tree(rule(name: "NewK", typeContE($Gamma$, $Delta$, $#newK (C, overline(v), overline(e)) dot.c K$, $tau_i$), $#fields (C) = (f_1 : tau_1, ..., f_n : tau_n)$, $tack.r overline(v)_j : tau_j "for" j < i$, typeExpr($Gamma$, $Delta$, $overline(e)_k$, $tau_(i+k)$), typeContE($Gamma$, $Delta$, $K$, $C$))),
 
   proof-tree(rule(name: $#LoopK$, typeContE($Gamma$, $Delta$, $#loopK (c, e, n) dot.c K$, $#Bool$), typeExpr($Gamma$, $Delta$, $c$, $#Bool$), typeExpr($Gamma$, $Delta, #Loop (ell)$, $e$, $#Unit$), typeContE($#truncate($Gamma$, $n$)$, $Delta$, $K$, $#Unit$))),
-  proof-tree(rule(name: $#LoopContK$, typeContE($Gamma$, $Delta, #Loop (ell)$, $#loopContK (c, e) dot.c K$, $#Unit$), typeExpr($Gamma$, $Delta$, $c$, $#Bool$), typeExpr($Gamma$, $Delta, #Loop (ell)$, $e$, $#Unit$), typeContE($#truncate($Gamma$, $n$)$, $Delta$, $K$, $#Unit$))),
+  proof-tree(rule(name: $#LoopContK$, typeContE($Gamma$, $Delta, #Loop (ell)$, $#loopContK (c, e) dot.c K$, $#Unit$), typeExpr($Gamma$, $Delta$, $c$, $#Bool$), typeExpr($Gamma$, $Delta, #Loop (ell)$, $e$, $#Unit$), typeContE($Gamma$, $Delta$, $K$, $#Unit$))),
 
   proof-tree(rule(name: $#ScopeExitK$, typeContE($Gamma$, $Delta$, $#scopeExitK (n) dot.c K$, $tau$), typeContE($#truncate($Gamma$, $n$)$, $Delta$, $K$, $tau$))),
   proof-tree(rule(name: $#ExprStmtK$, typeContE($Gamma$, $Delta$, $#exprStmtK dot.c K$, $tau$), typeContC($Gamma$, $Delta$, $K$))),
