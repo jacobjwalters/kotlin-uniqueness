@@ -376,11 +376,11 @@ inductive Eval : CEK → CEK → Prop
 | IfTrue (s₁ s₂ : Lang .Expr) :
   Eval
     ⟨.value .True, E, .ifCondK s₁ s₂ :: K⟩
-    ⟨.sourceExpr e₁, E, K⟩
+    ⟨.sourceExpr s₁, E, K⟩
 | IfFalse (s₁ s₂ : Lang .Expr) :
   Eval
     ⟨.value .False, E, .ifCondK s₁ s₂ :: K⟩
-    ⟨.sourceExpr e₁, E, K⟩
+    ⟨.sourceExpr s₂, E, K⟩
 | VarDeclDone (type : Ty) (v : Value) :
   Eval
     ⟨.value v, E, .declK type :: K⟩
@@ -410,7 +410,7 @@ inductive Eval : CEK → CEK → Prop
 | LoopTrue (body : Lang .Expr) (c : Lang .Expr) (n : Nat) :
   Eval
     ⟨.value .True, E, .loopK c body n :: K⟩
-    ⟨.sourceExpr body, E, .loopK c body n :: K⟩
+    ⟨.sourceExpr body, E, .loopContK c body n :: K⟩
 | LoopFalse (body : Lang .Expr) (c : Lang .Expr) (n : Nat) :
   Eval
     ⟨.value .False, E, .loopK c body n :: K⟩
@@ -448,7 +448,7 @@ inductive ContType : (tg : Tag) → Ctx → List Cont → ContTypeRes tg → Pro
   ContType .Stmt (type :: Γ₁) K .Stmt →
   ContType .Expr Γ₁ (.declK type :: K) (.Expr type)
 | AssignK (x : VarName) (type : Ty) (Γ₁ : Ctx) :
-  (Γ₁[x]! = type) →
+  (Γ₁(x) = type) →
   ContType .Stmt Γ₁ K .Stmt →
   ContType .Expr Γ₁ (.assignK x :: K) (.Expr type)
 | BinOpLK (Γ₁ : Ctx) (op : BinOp) (e₂ : Lang .Expr) :
