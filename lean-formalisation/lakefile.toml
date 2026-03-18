@@ -14,9 +14,9 @@ name = "mathlib"
 scope = "leanprover-community"
 rev = "v4.28.0"
 
-[[require]]
-name = "controlflow"
-path = "../ControlFlow"
+# [[require]]
+# name = "controlflow"
+# path = "../ControlFlow"
 
 [[lean_lib]]
 name = "LeanFormalisation"
