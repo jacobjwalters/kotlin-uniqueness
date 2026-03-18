@@ -367,7 +367,7 @@ inductive Eval : CEK → CEK → Prop
   PopLoopK K K' n →
   Eval
     ⟨.sourceExpr .Break, E, K⟩
-    ⟨.skip, E.take n, K'⟩
+    ⟨.skip, E.drop (E.length - n), K'⟩
 | Scope (s : Lang .Stmt) (e : Lang .Expr) :
   Eval
     ⟨.sourceExpr (.Scope s e), E, K⟩
@@ -426,7 +426,7 @@ inductive Eval : CEK → CEK → Prop
 | ScopeExit (body : Lang .Expr) (n : Nat) (v : Value) :
   Eval
     ⟨.value V, E, .scopeExitK n :: K⟩
-    ⟨.value V, E.take n, K⟩
+    ⟨.value V, E.drop (E.length - n), K⟩
 
 
 def initState (s : Lang .Stmt) : CEK := ⟨.sourceStmt s, [], []⟩
@@ -465,15 +465,15 @@ inductive ContType : (tg : Tag) → Ctx → List Cont → ContTypeRes tg → Pro
 | LoopK (Γ₁ : Ctx) (body : Lang .Expr) (c : Lang .Expr) (n : Nat) :
   Typ .Expr Γ₁ c (.Expr .bool) →
   Typ .Expr Γ₁ e (.Expr .unit) →
-  ContType .Expr (Γ₁.take n) K (.Expr .unit) →
+  ContType .Expr (Γ₁.drop (Γ₁.length - n)) K (.Expr .unit) →
   ContType .Expr Γ₁ (.loopK c body n :: K) (.Expr .bool)
 | LoopContK (Γ₁ : Ctx) (body : Lang .Expr) (c : Lang .Expr) (n : Nat) :
   Typ .Expr Γ₁ c (.Expr .bool) →
   Typ .Expr Γ₁ e (.Expr .unit) →
-  ContType .Expr (Γ₁.take n) K (.Expr .unit) →
+  ContType .Expr (Γ₁.drop (Γ₁.length - n)) K (.Expr .unit) →
   ContType .Expr Γ₁ (.loopContK c body n :: K) (.Expr .bool)
 | ScopeExitK (Γ₁ : Ctx) (n : Nat) (type : Ty) :
-  ContType .Expr (Γ₁.take n) K (.Expr type) →
+  ContType .Expr (Γ₁.drop (Γ₁.length - n)) K (.Expr type) →
   ContType .Expr Γ₁ (.scopeExitK n :: K) (.Expr type)
 | ExprStmtK (Γ₁ : Ctx) (type : Ty) :
   ContType .Stmt Γ₁ K .Stmt →
@@ -487,5 +487,5 @@ inductive ContType : (tg : Tag) → Ctx → List Cont → ContTypeRes tg → Pro
   ContType .Stmt Γ₁ (.seqK s :: K) .Stmt
 | ScopeBodyK (Γ₁ : Ctx) (body : Lang .Stmt) (e : Lang .Expr) (type : Ty) (n : Nat) :
   Typ .Expr Γ₁ e (.Expr type) →
-  ContType .Expr (Γ₁.take n) K (.Expr type) →
+  ContType .Expr (Γ₁.drop (Γ₁.length - n)) K (.Expr type) →
   ContType .Stmt Γ₁ (.scopeBodyK c n :: K) .Stmt
