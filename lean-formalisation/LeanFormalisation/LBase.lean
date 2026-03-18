@@ -83,7 +83,7 @@ inductive Lang : Tag → Type
 notation:100 s₁:100 ";" s₂:101 => Lang.Seq s₁ s₂
 notation x "::=" exp => Lang.Assign x exp
 abbrev Ctx := List Ty
-notation Γ₁ "("x")" "=" type => x < List.length Γ₁ ∧ Γ₁[List.length Γ₁ - 1 - x]? = Option.some type
+notation Γ₁ "("x")" "=" type => x < List.length Γ₁ ∧ Γ₁[x]? = Option.some type
 
 def langShift {tg : Tag} (l : Nat) : Lang tg → Lang tg
 -- # Expr
@@ -124,8 +124,6 @@ section Types
 inductive TypR : Tag → Type
 | Stmt (Γ₁ : Ctx) : TypR .Stmt
 | Expr (type : Ty) : TypR .Expr
-
-inductive ExprType : Ctx → Lang .Expr → Ty → Prop
 
 inductive Typ : (tg : Tag) → Ctx → Lang tg → TypR tg → Prop
 -- # Expr
@@ -196,11 +194,11 @@ theorem typ_permutation (Γ₁ Γ₂ : Ctx) (tg : Tag) (Γ₃ : TypR tg) (e : La
     intro hg
     have leq : Γ₁.length = Γ₂.length := by
       by_cases h1: Γ₂.length < Γ₁.length
-      { have hi := hg Γ₁[0] (Γ₁.length - 1)
+      { have hi := hg Γ₁[Γ₁.length - 1] (Γ₁.length - 1)
         clear hg
         grind }
       by_cases h2: Γ₁.length < Γ₂.length
-      { have hi := hg Γ₂[0] (Γ₂.length - 1)
+      { have hi := hg Γ₂[Γ₂.length - 1] (Γ₂.length - 1)
         clear hg
         grind }
       grind
@@ -208,7 +206,7 @@ theorem typ_permutation (Γ₁ Γ₂ : Ctx) (tg : Tag) (Γ₃ : TypR tg) (e : La
       ext
       clear e
       rename_i idx el
-      have hi := hg el (Γ₁.length - idx - 1)
+      have hi := hg el idx
       by_cases hid: idx < Γ₁.length
       { clear hg
         grind }
@@ -257,19 +255,26 @@ lemma stmt_decl (type : Ty) : Typ .Stmt Γ₁ (.Decl type e) (.Stmt Γ₂) → �
   cases h
   rfl
 
+lemma p_index_r (Γ₁ Γ₂ : Ctx) (i : Nat) :
+  i < Γ₁.length →
+  (Γ₂ ++ Γ₁)[i + Γ₂.length]? = Γ₁[i]? := by
+    intro hlt
+    induction Γ₂ with
+    | nil => simp
+    | cons _ _ => grind
+
+
 theorem lang_extension (tg : Tag) (e : Lang tg) (res : TypR tg) (Γ₁ Γ₂ : Ctx) :
-  Typ tg Γ₁ e res → Typ tg (Γ₁ ++ Γ₂) (langShift Γ₂.length e) (res.extR Γ₂) := by
+  Typ tg Γ₁ e res → Typ tg (Γ₁ ++ Γ₂) (e) (res.extR Γ₂) := by
     intro h
     unhygienic induction h generalizing Γ₂ <;>try solve_by_elim
-    { rw [langShift, TypR.extR]
+    { rw [TypR.extR]
       apply Typ.VarAccess
       grind }
-    { rw [langShift]
-      solve_by_elim [Typ.ScopeExpr] }
-    { rw [langShift, TypR.extR]
+    { solve_by_elim [Typ.ScopeExpr] }
+    { rw [TypR.extR]
       apply Typ.VarAssign _ _ _ (a_ih Γ₂)
       grind }
-    rw [langShift]
     solve_by_elim [Typ.Seq]
 
 
@@ -310,7 +315,11 @@ inductive Cont
 | scopeExitK (n : Nat)
 | exprStmtK
 
-abbrev CEK := Control × Environment × List Cont
+
+structure CEK where
+  C : Control
+  E : Environment
+  K : List Cont
 
 inductive PopLoopK : List Cont → List Cont → Nat → Prop
 | loopK (c body : Lang .Expr) (n : Nat) (rest : List Cont) :
@@ -367,7 +376,7 @@ inductive Eval : CEK → CEK → Prop
   PopLoopK K K' n →
   Eval
     ⟨.sourceExpr .Break, E, K⟩
-    ⟨.skip, E.take n, K'⟩
+    ⟨.skip, E.drop n, K'⟩
 | Scope (s : Lang .Stmt) (e : Lang .Expr) :
   Eval
     ⟨.sourceExpr (.Scope s e), E, K⟩
@@ -425,8 +434,8 @@ inductive Eval : CEK → CEK → Prop
     ⟨.sourceExpr body, E, .scopeExitK n :: K⟩
 | ScopeExit (body : Lang .Expr) (n : Nat) (v : Value) :
   Eval
-    ⟨.value V, E, .scopeExitK n :: K⟩
-    ⟨.value V, E.take n, K⟩
+    ⟨.value v, E, .scopeExitK n :: K⟩
+    ⟨.value v, E.drop n, K⟩
 
 
 def initState (s : Lang .Stmt) : CEK := ⟨.sourceStmt s, [], []⟩
@@ -439,7 +448,7 @@ inductive ContTypeRes : Tag → Type
 
 -- # Expression Continuations
 inductive ContType : (tg : Tag) → Ctx → List Cont → ContTypeRes tg → Prop
-| IfCondK (s₁ : Lang .Expr) (s₂ : Lang .Expr) (Γ₁ Γ₂ Γ₃ : Ctx) (type : Ty) :
+| IfCondK (s₁ : Lang .Expr) (s₂ : Lang .Expr) (Γ₁ : Ctx) (type : Ty) :
   Typ .Expr Γ₁ s₁ (.Expr type) →
   Typ .Expr Γ₁ s₂ (.Expr type) →
   ContType .Expr Γ₁ K (.Expr type) →
@@ -452,7 +461,7 @@ inductive ContType : (tg : Tag) → Ctx → List Cont → ContTypeRes tg → Pro
   ContType .Stmt Γ₁ K .Stmt →
   ContType .Expr Γ₁ (.assignK x :: K) (.Expr type)
 | BinOpLK (Γ₁ : Ctx) (op : BinOp) (e₂ : Lang .Expr) :
-  ExprType Γ₁ e₂ op.args.2 →
+  Typ .Expr Γ₁ e₂ (.Expr op.args.2) →
   ContType .Expr Γ₁ K (.Expr op.args.out) →
   ContType .Expr Γ₁ (.binopLK op e₂ :: K) (.Expr op.args.1)
 | BinOpRK (Γ₁ : Ctx) (op : BinOp) (v₁ : Value) :
@@ -462,18 +471,18 @@ inductive ContType : (tg : Tag) → Ctx → List Cont → ContTypeRes tg → Pro
 | UnOpK (Γ₁ : Ctx) (op : UnOp) :
   ContType .Expr Γ₁ K (.Expr op.args.out) →
   ContType .Expr Γ₁ (.unopK op :: K) (.Expr op.args.1)
-| LoopK (Γ₁ : Ctx) (body : Lang .Expr) (c : Lang .Expr) (n : Nat) :
+| LoopK (Γ₁ : Ctx) (e : Lang .Expr) (c : Lang .Expr) (n : Nat) :
   Typ .Expr Γ₁ c (.Expr .bool) →
   Typ .Expr Γ₁ e (.Expr .unit) →
-  ContType .Expr (Γ₁.take n) K (.Expr .unit) →
-  ContType .Expr Γ₁ (.loopK c body n :: K) (.Expr .bool)
-| LoopContK (Γ₁ : Ctx) (body : Lang .Expr) (c : Lang .Expr) (n : Nat) :
+  ContType .Expr (Γ₁.drop n) K (.Expr .unit) →
+  ContType .Expr Γ₁ (.loopK c e n :: K) (.Expr .bool)
+| LoopContK (Γ₁ : Ctx) (e : Lang .Expr) (c : Lang .Expr) (n : Nat) :
   Typ .Expr Γ₁ c (.Expr .bool) →
   Typ .Expr Γ₁ e (.Expr .unit) →
-  ContType .Expr (Γ₁.take n) K (.Expr .unit) →
-  ContType .Expr Γ₁ (.loopContK c body n :: K) (.Expr .bool)
+  ContType .Expr (Γ₁.drop n) K (.Expr .unit) →
+  ContType .Expr Γ₁ (.loopContK c e n :: K) (.Expr .bool)
 | ScopeExitK (Γ₁ : Ctx) (n : Nat) (type : Ty) :
-  ContType .Expr (Γ₁.take n) K (.Expr type) →
+  ContType .Expr (Γ₁.drop n) K (.Expr type) →
   ContType .Expr Γ₁ (.scopeExitK n :: K) (.Expr type)
 | ExprStmtK (Γ₁ : Ctx) (type : Ty) :
   ContType .Stmt Γ₁ K .Stmt →
@@ -485,7 +494,149 @@ inductive ContType : (tg : Tag) → Ctx → List Cont → ContTypeRes tg → Pro
   Typ .Stmt Γ₁ s (.Stmt Γ₂) →
   ContType .Stmt Γ₂ K .Stmt →
   ContType .Stmt Γ₁ (.seqK s :: K) .Stmt
-| ScopeBodyK (Γ₁ : Ctx) (body : Lang .Stmt) (e : Lang .Expr) (type : Ty) (n : Nat) :
+| ScopeBodyK (Γ₁ : Ctx) (e : Lang .Expr) (type : Ty) (n : Nat) :
   Typ .Expr Γ₁ e (.Expr type) →
-  ContType .Expr (Γ₁.take n) K (.Expr type) →
-  ContType .Stmt Γ₁ (.scopeBodyK c n :: K) .Stmt
+  ContType .Expr (Γ₁.drop n) K (.Expr type) →
+  ContType .Stmt Γ₁ (.scopeBodyK e n :: K) .Stmt
+
+inductive Coh : Environment → Ctx → Prop
+| CohEmp :
+  Coh [] []
+| CohBind (v : Value) (type : Ty) :
+  Coh E Γ →
+  value_type v type →
+  Coh (v :: E) (type :: Γ)
+
+inductive Wt : CEK → Prop
+| WtExprE (e : Lang .Expr) (type : Ty) :
+  Coh E Γ →
+  Typ .Expr Γ e (.Expr type) →
+  ContType .Expr Γ K (.Expr type) →
+  Wt ⟨.sourceExpr e, E, K⟩
+| WtExprS (s : Lang .Stmt) :
+  Coh E Γ →
+  Typ .Stmt Γ s (.Stmt Γ₁) →
+  ContType .Stmt Γ₁ K .Stmt →
+  Wt ⟨.sourceStmt s, E, K⟩
+| WtContV (v : Value) (type : Ty) :
+  Coh E Γ →
+  value_type v type →
+  ContType .Expr Γ K (.Expr type) →
+  Wt ⟨.value v, E, K⟩
+| WtContS :
+  Coh E Γ →
+  ContType .Stmt Γ K .Stmt →
+  Wt ⟨.skip, E, K⟩
+
+-- do casing on Continuation
+theorem progress (s : CEK) :
+  Wt s →
+  (∃ E, terminalState E = s) ∨ ∃ s', Eval s s' := by
+    intro hwt
+    unhygienic induction s
+    by_cases ht : ∃ E1, terminalState E1 = ⟨C, E, K⟩
+    { grind }
+    simp [terminalState] at ht
+    right
+    unhygienic cases hwt
+    stop sorry
+
+lemma lift_value_type (v : Value) (type : Ty) :
+  Typ .Expr Γ (liftValue v) (.Expr type) → value_type v type := by
+    intro ht
+    cases v <;> cases ht <;> grind [value_type]
+
+lemma coh_len (E : Environment) (Γ : Ctx) :
+  Coh E Γ → E.length = Γ.length := by
+    intro h
+    induction h <;> grind
+
+lemma coh_get (E : Environment) (Γ : Ctx) (idx : Nat) :
+  Coh E Γ → idx < E.length →
+  value_type E[idx]! Γ[idx]! := by
+    intro h
+    induction h generalizing idx <;> grind
+
+lemma coh_mono (E : Environment) (Γ : Ctx) :
+  Coh E Γ → Coh (E.drop n) (Γ.drop n) := by
+    intro h
+    induction h generalizing n
+    { grind [Coh] }
+    have cons_append (α : Type) (li : List α) (x : α) :
+      [x] ++ li = x :: li := by grind
+    have (α : Type) (li : List α) (x : α) : n > 0 → ([x] ++ li).drop n = li.drop (n - 1) := by
+      rw [List.drop_append]
+      intro hn
+      rw [List.drop_cons]
+      { grind [List.take] }
+      grind
+    by_cases n = 0
+    { grind [Coh] }
+    rw [←cons_append, this]
+    { grind [Coh] }
+    grind
+
+theorem preservation (s s' : CEK) :
+  Wt s → Eval s s' → Wt s' := by
+    intro hw he
+    unhygienic induction he <;> unhygienic cases hw
+    all_goals try
+    { unhygienic cases a_1
+      apply Wt.WtExprE
+      { apply a }
+      { apply a_3 }
+      solve_by_elim }
+    { apply Wt.WtContV (type := type)
+      { apply a }
+      { apply lift_value_type v type a_1 }
+      apply a_2 }
+    { cases a_1
+      apply Wt.WtContV
+      { apply a }
+      { apply coh_get
+        { apply a }
+        grind [coh_len] }
+      grind }
+    { unhygienic cases a_1
+      apply Wt.WtExprE
+      { apply a }
+      { apply a_3 }
+      apply ContType.AssignK <;> grind }
+    { unhygienic cases a_1
+      apply Wt.WtExprS
+      { apply a }
+      { apply a_3 }
+      apply ContType.SeqK
+      { apply a_4 }
+      apply a_2 }
+    { unhygienic cases a_1
+      apply Wt.WtExprE
+      { apply a }
+      { apply a_3 }
+      apply ContType.LoopK
+      { apply a_3 }
+      { apply a_4 }
+      have : (Γ.drop (E.length)) = [] := by
+        rw [coh_len _ _ a]
+        grind
+      rw [this]
+      sorry }
+    { unhygienic cases a_2
+      apply Wt.WtContS
+      { apply coh_mono
+        apply a_1 }
+      sorry }
+    { unhygienic cases a_1
+      apply Wt.WtExprS
+      { apply a }
+      { apply a_3 }
+      apply ContType.ScopeBodyK
+      { apply a_4 }
+      have mono := stmt_mono _ _ _ _ a_3
+      rcases mono with ⟨m, hm⟩
+      simp [TypR.extR] at hm
+      cases m
+      simp at hm
+
+      sorry }
+    stop sorry
