@@ -35,17 +35,19 @@ structure CFG where
   edges : List CFGEdge
 deriving Repr
 
-private def mkEdge (src dst : CFGNode) (kind : EdgeKind := .normal) : CFGEdge :=
+namespace Internal
+
+def mkEdge (src dst : CFGNode) (kind : EdgeKind := .normal) : CFGEdge :=
   ⟨src, dst, kind⟩
 
-private structure BuildResult where
+structure BuildResult where
   entry : CFGNode
   exit : CFGNode
   edges : List CFGEdge
   nextId : Nat
 
 mutual
-  private def exprSize : Lang .Expr → Nat
+  def exprSize : Lang .Expr → Nat
   | .Var _
   | .True
   | .False
@@ -58,7 +60,7 @@ mutual
   | .While c body => 1 + exprSize c + exprSize body
   | .Scope s e => 1 + stmtSize s + exprSize e
 
-  private def stmtSize : Lang .Stmt → Nat
+  def stmtSize : Lang .Stmt → Nat
   | .Decl _ e => 1 + exprSize e
   | .Assign _ e => 1 + exprSize e
   | .Seq s₁ s₂ => 1 + stmtSize s₁ + stmtSize s₂
@@ -213,18 +215,20 @@ mutual
           }
 end
 
+end Internal
+
 def exprEdges (breakTarget : Option CFGNode) (e : Lang .Expr) : List CFGEdge :=
-  (buildExpr breakTarget 0 (exprSize e) e).edges
+  (Internal.buildExpr breakTarget 0 (Internal.exprSize e) e).edges
 
 def stmtEdges (breakTarget : Option CFGNode) (s : Lang .Stmt) : List CFGEdge :=
-  (buildStmt breakTarget 0 (stmtSize s) s).edges
+  (Internal.buildStmt breakTarget 0 (Internal.stmtSize s) s).edges
 
 def exprCFG (e : Lang .Expr) : CFG :=
-  let r := buildExpr none 0 (exprSize e) e
+  let r := Internal.buildExpr none 0 (Internal.exprSize e) e
   CFG.mk r.entry r.exit r.edges
 
 def stmtCFG (s : Lang .Stmt) : CFG :=
-  let r := buildStmt none 0 (stmtSize s) s
+  let r := Internal.buildStmt none 0 (Internal.stmtSize s) s
   CFG.mk r.entry r.exit r.edges
 
 def CFG.outEdges (g : CFG) (n : CFGNode) : List CFGEdge :=
