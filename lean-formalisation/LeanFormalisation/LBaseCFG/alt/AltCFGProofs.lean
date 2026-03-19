@@ -16,7 +16,6 @@
 
 import LeanFormalisation.LBaseCFG.alt.AltCFG
 import LeanFormalisation.LBaseCFG.alt.Analysis
-import Init.Data.List.Lemmas
 
 open LeanFormalisation
 open LeanFormalisation.AltCFG
