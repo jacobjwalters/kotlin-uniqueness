@@ -148,7 +148,7 @@ def transferConstEdge (e : CFGEdge) (ρ : Domain Flat) : Domain Flat :=
 
 def runConstProp (g : CFG) (entryInit : Domain Flat := ⊥) : FlatFact × FlatFact :=
   worklistForwardEdge g transferConstNode transferConstEdge
-    entryInit (fun _ => ⊥) (fun _ => ⊥) g.nodes
+    entryInit (fun _ => ⊥) (fun _ => ⊥) g.nodes (fun _ h => h)
 
 def constOverlay (inF outF : FlatFact) : AltCFGRepr.DotOverlay :=
   { nodeMeta := fun n =>

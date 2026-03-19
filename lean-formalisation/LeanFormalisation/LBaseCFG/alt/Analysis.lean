@@ -69,12 +69,45 @@ lemma sum_height_le_max {A : Type} [Max A] [FiniteHeight A] (l : List CFGNode) (
       _ ≤ maxHeight A * (t.length + 1) := by
         grind
 
+-- NOTE: LBase.lean defines a notation `Γ₁ "("x")" "=" type` that matches
+-- any `expr (expr) = expr` pattern at the top level, breaking lemma statements
+-- that use `... (fun x => ...) = ...`. We use `Eq` explicitly to work around this.
+
+private lemma map_height_update_eq {A : Type} [Max A] [FiniteHeight A]
+    (nodes : List CFGNode) (outF : fact A) (node : CFGNode) (newOut : A) :
+    Eq (nodes.map (fun x => FiniteHeight.height (fact.update outF node newOut x)))
+       (nodes.map (fun x => if x = node then FiniteHeight.height newOut
+        else FiniteHeight.height (outF x))) := by
+  congr 1; ext x; simp [fact.update]; split <;> rfl
+
+private lemma map_update_sum_lt {A : Type} [Max A] [FiniteHeight A]
+    (nodes : List CFGNode) (outF : fact A) (node : CFGNode) (newOut : A)
+    (hn : node ∈ nodes)
+    (hlt : FiniteHeight.height (outF node) < FiniteHeight.height newOut) :
+    (nodes.map (fun x => FiniteHeight.height (outF x))).sum
+    < (nodes.map (fun x => FiniteHeight.height (fact.update outF node newOut x))).sum := by
+  rw [map_height_update_eq]
+  exact Utils.sum_map_update_lt nodes
+    (fun x => FiniteHeight.height (outF x)) node (FiniteHeight.height newOut) hn hlt
+
+private theorem factHeight_decreases
+    {A : Type} [Max A] [FiniteHeight A]
+    (g : CFG) (outF : fact A) (node : CFGNode) (newOut : A)
+    (hn : node ∈ g.nodes)
+    (hlt : FiniteHeight.height (outF node) < FiniteHeight.height newOut) :
+    factHeight g (outF.update node newOut) < factHeight g outF := by
+  have h_le := sum_height_le_max g.nodes (outF.update node newOut)
+  have h_lt := map_update_sum_lt g.nodes outF node newOut hn hlt
+  unfold factHeight; simp only []
+  omega
+
 -- node/edgeTransfer to maintain branch sensitivity -> feed choice information
 -- to the branch's environments.
 def worklistForwardEdge
     [DecidableEq CFGNode] {A : Type} [Bot A] [Max A] [DecidableEq A] [FiniteHeight A]
     (g : CFG) (nodeTransfer : CFGNode -> A -> A) (edgeTransfer : CFGEdge -> A -> A)
     (entryInit : A) (inF outF : fact A) (wl : List CFGNode)
+    (hwl : ∀ x ∈ wl, x ∈ g.nodes)
     : fact A × fact A :=
   match wl with
   | [] => (inF, outF)
@@ -84,27 +117,24 @@ def worklistForwardEdge
       let newOut := outF n ⊔ nodeTransfer n newIn
       if newOut = outF n then
         worklistForwardEdge g nodeTransfer edgeTransfer entryInit inF outF rest
+          (fun x hx => hwl x (List.mem_cons_of_mem n hx))
       else
         let inF' := inF.update n newIn
         let outF' := outF.update n newOut
         let wl' := rest ++ g.succ n
         worklistForwardEdge g nodeTransfer edgeTransfer entryInit inF' outF' wl'
+          (fun x hx => by
+            cases List.mem_append.mp hx with
+            | inl h => exact hwl x (List.mem_cons_of_mem n h)
+            | inr h => exact g.succ_subset_nodes n x h)
 termination_by (factHeight g outF, wl.length)
 decreasing_by
   · refine Prod.Lex.right (factHeight g outF) ?_
     grind
   · refine Prod.Lex.left (rest ++ g.succ n).length (n :: rest).length ?_
-    simp [factHeight]
-
-    -- [[ FOR CLAUDE ]]
-    -- hi!!
-    -- prove the theorem from here, or argue why it can't be proven in its current
-    -- form, provide the fixes needed to prove it, and prove it.
-
-    -- i suspect some sort of combination of `grind`, the lemmas in `Utils` as well
-    -- as the global property on maxheight will be needed to prove this, but you
-    -- do you.
-    sorry
+    exact factHeight_decreases g outF n (outF n ⊔ nodeTransfer n newIn)
+      (hwl n (List.Mem.head _))
+      (FiniteHeight.height_mono _ _ (by assumption))
 
 abbrev Domain (A : Type) [Max A] [Bot A] := List A
 

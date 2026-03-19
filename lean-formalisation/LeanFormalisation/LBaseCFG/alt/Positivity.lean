@@ -170,7 +170,7 @@ def transferPosEdge (e : CFGEdge) (ρ : Domain Sign) : Domain Sign :=
 
 def runPositivity (g : CFG) (entryInit : Domain Sign := ⊥) : PosFact × PosFact :=
   worklistForwardEdge g transferPosNode transferPosEdge
-    entryInit (fun _ => ⊥) (fun _ => ⊥) g.nodes
+    entryInit (fun _ => ⊥) (fun _ => ⊥) g.nodes (fun _ h => h)
 
 def positivityOverlay (inF outF : PosFact) : AltCFGRepr.DotOverlay :=
   { nodeMeta := fun n =>
