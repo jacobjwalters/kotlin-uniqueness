@@ -123,66 +123,66 @@ def langShift {tg : Tag} (l : Nat) : Lang tg → Lang tg
 section Types
 
 inductive TypR : Tag → Type
-| Stmt (Γ₁ : Ctx) (Δ₁ : JCtx) : TypR .Stmt
+| Stmt (Γ₁ : Ctx) : TypR .Stmt
 | Expr (type : Ty) : TypR .Expr
 
-inductive Typ : (tg : Tag) → Ctx → JCtx → Lang tg → TypR tg → Prop
+inductive Typ : (tg : Tag) → JCtx → Ctx → Lang tg → TypR tg → Prop
 -- # Expr
 | TrueConst :
-  Typ .Expr Γ₁ Δ₁ .True (.Expr .bool)
+  Typ .Expr Δ₁ Γ₁ .True (.Expr .bool)
 | FalseConst :
-  Typ .Expr Γ₁ Δ₁ .False (.Expr .bool)
+  Typ .Expr Δ₁ Γ₁ .False (.Expr .bool)
 | NatConst (n : Nat) :
-  Typ .Expr Γ₁ Δ₁ (.Nat n) (.Expr .nat)
+  Typ .Expr Δ₁ Γ₁ (.Nat n) (.Expr .nat)
 | UnitConst :
-  Typ .Expr Γ₁ Δ₁ .Unit (.Expr .unit)
+  Typ .Expr Δ₁ Γ₁ .Unit (.Expr .unit)
 | VarAccess (x : VarName) (type : Ty) :
   (Γ₁(x) = type) →
-  Typ .Expr Γ₁ Δ₁ (.Var x) (.Expr type)
+  Typ .Expr Δ₁ Γ₁ (.Var x) (.Expr type)
 | UnOp (arg : Lang .Expr) (op : UnOp) :
-  Typ .Expr Γ₁ Δ₁ arg (.Expr op.args.1) →
-  Typ .Expr Γ₁ Δ₁ (.UnOp arg op) (.Expr op.args.2)
+  Typ .Expr Δ₁ Γ₁ arg (.Expr op.args.1) →
+  Typ .Expr Δ₁ Γ₁ (.UnOp arg op) (.Expr op.args.2)
 | BinOp (arg₁ arg₂ : Lang .Expr) (op : BinOp) :
-  Typ .Expr Γ₁ Δ₁ arg₁ (.Expr op.args.1) →
-  Typ .Expr Γ₁ Δ₁ arg₂ (.Expr op.args.2) →
-  Typ .Expr Γ₁ Δ₁ (.BinOp arg₁ arg₂ op) (.Expr op.args.3)
+  Typ .Expr Δ₁ Γ₁ arg₁ (.Expr op.args.1) →
+  Typ .Expr Δ₁ Γ₁ arg₂ (.Expr op.args.2) →
+  Typ .Expr Δ₁ Γ₁ (.BinOp arg₁ arg₂ op) (.Expr op.args.3)
 | IfExpr (cond : Lang .Expr) (e₁ : Lang .Expr) (e₂ : Lang .Expr) (type : Ty) :
-  Typ .Expr Γ₁ Δ₁ cond (.Expr .bool) →
-  Typ .Expr Γ₁ Δ₁ e₁ (.Expr type) →
-  Typ .Expr Γ₁ Δ₁ e₂ (.Expr type) →
-  Typ .Expr Γ₁ Δ₁ (.If cond e₁ e₂) (.Expr type)
+  Typ .Expr Δ₁ Γ₁ cond (.Expr .bool) →
+  Typ .Expr Δ₁ Γ₁ e₁ (.Expr type) →
+  Typ .Expr Δ₁ Γ₁ e₂ (.Expr type) →
+  Typ .Expr Δ₁ Γ₁ (.If cond e₁ e₂) (.Expr type)
 | WhileExpr (cond : Lang .Expr) (body : Lang .Expr) :
-  Typ .Expr Γ₁ Δ₁ cond (.Expr .bool) →
-  Typ .Expr Γ₁ (Δ₁ + 1) body (.Expr .unit) →
-  Typ .Expr Γ₁ Δ₁ (.While cond body) (.Expr .unit)
+  Typ .Expr Δ₁ Γ₁ cond (.Expr .bool) →
+  Typ .Expr (Δ₁ + 1) Γ₁ body (.Expr .unit) →
+  Typ .Expr Δ₁ Γ₁ (.While cond body) (.Expr .unit)
 | BreakExpr (type : Ty) (l : Nat) :
   l < Δ₁ →
-  Typ .Expr Γ₁ Δ₁ (.Break l) (.Expr .unit)
+  Typ .Expr Δ₁ Γ₁ (.Break l) (.Expr .unit)
 | ScopeExpr (s : Lang .Stmt) (e : Lang .Expr) (type : Ty) :
-  Typ .Stmt Γ₁ Δ₁ s (.Stmt Γ₂ Δ₁) →
-  Typ .Expr Γ₂ Δ₁ e (.Expr type) →
-  Typ .Expr Γ₁ Δ₁ (.Scope s e) (.Expr type)
+  Typ .Stmt Δ₁ Γ₁ s (.Stmt Γ₂) →
+  Typ .Expr Δ₁ Γ₂ e (.Expr type) →
+  Typ .Expr Δ₁ Γ₁ (.Scope s e) (.Expr type)
 -- # Stmt
 | VarDecl (e : Lang .Expr) (type : Ty) :
-  Typ .Expr Γ₁ Δ₁ e (.Expr type) →
-  Typ .Stmt Γ₁ Δ₁ (.Decl type e) (.Stmt (type :: Γ₁) Δ₁)
+  Typ .Expr Δ₁ Γ₁ e (.Expr type) →
+  Typ .Stmt Δ₁ Γ₁ (.Decl type e) (.Stmt (type :: Γ₁))
 | VarAssign (x : VarName) (e : Lang .Expr) (type : Ty) :
-  Typ .Expr Γ₁ Δ₁ e (.Expr type) → (Γ₁(x) = type) →
-  Typ .Stmt Γ₁ Δ₁ (.Assign x e) (.Stmt Γ₁ Δ₁)
+  Typ .Expr Δ₁ Γ₁ e (.Expr type) → (Γ₁(x) = type) →
+  Typ .Stmt Δ₁ Γ₁ (.Assign x e) (.Stmt Γ₁)
 | Seq (s₁ s₂ : Lang .Stmt) :
-  Typ .Stmt Γ₁ Δ₁ s₁ (.Stmt Γ₂ Δ₂) →
-  Typ .Stmt Γ₂ Δ₂ s₂ Γ₃ →
-  Typ .Stmt Γ₁ Δ₁ (s₁; s₂) Γ₃
+  Typ .Stmt Δ₁ Γ₁ s₁ (.Stmt Γ₂) →
+  Typ .Stmt Δ₁ Γ₂ s₂ Γ₃ →
+  Typ .Stmt Δ₁ Γ₁ (s₁; s₂) Γ₃
 | Do (e : Lang .Expr) (type : Ty) :
-  Typ .Expr Γ₁ Δ₁ e (.Expr type) →
-  Typ .Stmt Γ₁ Δ₁ (.Do e) (.Stmt Γ₁ Δ₁)
+  Typ .Expr Δ₁ Γ₁ e (.Expr type) →
+  Typ .Stmt Δ₁ Γ₁ (.Do e) (.Stmt Γ₁)
 
 end Types
 
 section TypeProperties
 
 theorem lang_det (Γ₁ : Ctx) (tg : Tag) (Γ₂ Γ₃ : TypR tg) (s : Lang tg) :
-  Typ tg Γ₁ Δ₁ s Γ₂ → Typ tg Γ₁ Δ₁ s Γ₃ → Γ₂ = Γ₃ := by
+  Typ tg Δ₁ Γ₁ s Γ₂ → Typ tg Δ₁ Γ₁ s Γ₃ → Γ₂ = Γ₃ := by
     intro h1 h2
     unhygienic induction h1 <;> try grind
     all_goals
@@ -191,7 +191,7 @@ theorem lang_det (Γ₁ : Ctx) (tg : Tag) (Γ₂ Γ₃ : TypR tg) (s : Lang tg) 
 
 theorem typ_permutation (Γ₁ Γ₂ : Ctx) (tg : Tag) (Γ₃ : TypR tg) (e : Lang tg) :
   (∀ tp x, (Γ₁(x) = tp) ↔ Γ₂(x) = tp) →
-  Typ tg Γ₁ Δ₁ e Γ₃ → Typ tg Γ₂ Δ₁ e Γ₃ := by
+  Typ tg Δ₁ Γ₁ e Γ₃ → Typ tg Δ₁ Γ₂ e Γ₃ := by
     intro hg
     have leq : Γ₁.length = Γ₂.length := by
       by_cases h1: Γ₂.length < Γ₁.length
@@ -217,14 +217,14 @@ theorem typ_permutation (Γ₁ Γ₂ : Ctx) (tg : Tag) (Γ₃ : TypR tg) (e : La
 
 def TypR.extL (Γ₁ : Ctx) (tg : Tag) : TypR tg → TypR tg
 | .Expr type => .Expr type
-| .Stmt Γ₂ Δ₂ => .Stmt (Γ₁ ++ Γ₂) Δ₂
+| .Stmt Γ₂ => .Stmt (Γ₁ ++ Γ₂)
 
 def TypR.extR (Γ₁ : Ctx) (tg : Tag) : TypR tg → TypR tg
 | .Expr type => .Expr type
-| .Stmt Γ₂ Δ₂ => .Stmt (Γ₂ ++ Γ₁) Δ₂
+| .Stmt Γ₂ => .Stmt (Γ₂ ++ Γ₁)
 
 lemma stmt_mono (Γ₁ : Ctx) (tg : Tag) (Γ₂ : TypR tg) (s : Lang tg) :
-  Typ tg Γ₁ Δ₁ s Γ₂ → ∃ Γ₃ : TypR tg, Γ₃.extR Γ₁ = Γ₂ := by
+  Typ tg Δ₁ Γ₁ s Γ₂ → ∃ Γ₃ : TypR tg, Γ₃.extR Γ₁ = Γ₂ := by
     intro hs
     unhygienic induction hs <;> try grind
     all_goals try
@@ -234,30 +234,27 @@ lemma stmt_mono (Γ₁ : Ctx) (tg : Tag) (Γ₂ : TypR tg) (s : Lang tg) :
       rw [TypR.extR]
       rotate_left
       { exact [type] }
-      { exact Δ₁_1 }
       grind }
     { eapply Exists.intro
       rw [TypR.extR]
       rotate_left
       { exact [] }
-      { exact Δ₁_1 }
       grind }
     { have ⟨g, hg⟩:= a_ih
       unhygienic cases g
       have ⟨g1, hg1⟩:= a_ih_1
       unhygienic cases g1
       simp only [TypR.extR] at *
-      exists TypR.Stmt (Γ₁_3 ++ Γ₁_2) Δ₁_3
+      exists TypR.Stmt (Γ₁_3 ++ Γ₁_2)
       grind }
     eapply Exists.intro
     rw [TypR.extR]
     rotate_left
     { exact [] }
-    { exact Δ₁_1 }
     grind
 
 
-lemma stmt_decl (type : Ty) : Typ .Stmt Γ₁ Δ₁ (.Decl type e) (.Stmt Γ₂ Δ₁) → Γ₂ = type :: Γ₁ := by
+lemma stmt_decl (type : Ty) : Typ .Stmt Δ₁ Γ₁ (.Decl type e) (.Stmt Γ₂) → Γ₂ = type :: Γ₁ := by
   intro h
   cases h
   rfl
@@ -272,7 +269,7 @@ lemma p_index_r (Γ₁ Γ₂ : Ctx) (i : Nat) :
 
 
 theorem lang_extension (tg : Tag) (e : Lang tg) (res : TypR tg) (Γ₁ Γ₂ : Ctx) :
-  Typ tg Γ₁ Δ₁ e res → Typ tg (Γ₁ ++ Γ₂) Δ₁ (e) (res.extR Γ₂) := by
+  Typ tg Δ₁ Γ₁ e res → Typ tg Δ₁ (Γ₁ ++ Γ₂) (e) (res.extR Γ₂) := by
     intro h
     unhygienic induction h generalizing Γ₂ <;>try solve_by_elim
     { rw [TypR.extR]
@@ -459,57 +456,57 @@ inductive ContTypeRes : Tag → Type
 | Stmt : ContTypeRes .Stmt
 
 -- # Expression Continuations
-inductive ContType : (tg : Tag) → Ctx → JCtx → List Cont → ContTypeRes tg → Prop
+inductive ContType : (tg : Tag) → JCtx → Ctx → List Cont → ContTypeRes tg → Prop
 | IfCondK (s₁ : Lang .Expr) (s₂ : Lang .Expr) (Γ₁ : Ctx) (type : Ty) :
-  Typ .Expr Γ₁ Δ₁ s₁ (.Expr type) →
-  Typ .Expr Γ₁ Δ₁ s₂ (.Expr type) →
-  ContType .Expr Γ₁ Δ₁ K (.Expr type) →
-  ContType .Expr Γ₁ Δ₁ (.ifCondK s₁ s₂ :: K) (.Expr .bool)
+  Typ .Expr Δ₁ Γ₁ s₁ (.Expr type) →
+  Typ .Expr Δ₁ Γ₁ s₂ (.Expr type) →
+  ContType .Expr Δ₁ Γ₁ K (.Expr type) →
+  ContType .Expr Δ₁ Γ₁ (.ifCondK s₁ s₂ :: K) (.Expr .bool)
 | DeclK (type : Ty) (Γ₁ : Ctx) :
-  ContType .Stmt (type :: Γ₁) Δ₁ K .Stmt →
-  ContType .Expr Γ₁ Δ₁ (.declK type :: K) (.Expr type)
+  ContType .Stmt Δ₁ (type :: Γ₁) K .Stmt →
+  ContType .Expr Δ₁ Γ₁ (.declK type :: K) (.Expr type)
 | AssignK (x : VarName) (type : Ty) (Γ₁ : Ctx) :
   (Γ₁[x]! = type) →
-  ContType .Stmt Γ₁ Δ₁ K .Stmt →
-  ContType .Expr Γ₁ Δ₁ (.assignK x :: K) (.Expr type)
+  ContType .Stmt Δ₁ Γ₁ K .Stmt →
+  ContType .Expr Δ₁ Γ₁ (.assignK x :: K) (.Expr type)
 | BinOpLK (Γ₁ : Ctx) (op : BinOp) (e₂ : Lang .Expr) :
-  Typ .Expr Γ₁ Δ₁ e₂ (.Expr op.args.2) →
-  ContType .Expr Γ₁ Δ₁ K (.Expr op.args.out) →
-  ContType .Expr Γ₁ Δ₁ (.binopLK op e₂ :: K) (.Expr op.args.1)
+  Typ .Expr Δ₁ Γ₁ e₂ (.Expr op.args.2) →
+  ContType .Expr Δ₁ Γ₁ K (.Expr op.args.out) →
+  ContType .Expr Δ₁ Γ₁ (.binopLK op e₂ :: K) (.Expr op.args.1)
 | BinOpRK (Γ₁ : Ctx) (op : BinOp) (v₁ : Value) :
   value_type v₁ op.args.1 →
-  ContType .Expr Γ₁ Δ₁ K (.Expr op.args.out) →
-  ContType .Expr Γ₁ Δ₁ (.binopRK op v₁ :: K) (.Expr op.args.2)
+  ContType .Expr Δ₁ Γ₁ K (.Expr op.args.out) →
+  ContType .Expr Δ₁ Γ₁ (.binopRK op v₁ :: K) (.Expr op.args.2)
 | UnOpK (Γ₁ : Ctx) (op : UnOp) :
-  ContType .Expr Γ₁ Δ₁ K (.Expr op.args.out) →
-  ContType .Expr Γ₁ Δ₁ (.unopK op :: K) (.Expr op.args.1)
+  ContType .Expr Δ₁ Γ₁ K (.Expr op.args.out) →
+  ContType .Expr Δ₁ Γ₁ (.unopK op :: K) (.Expr op.args.1)
 | LoopK (Γ₁ : Ctx) (e : Lang .Expr) (c : Lang .Expr) (n : Nat) :
-  Typ .Expr Γ₁ Δ₁ c (.Expr .bool) →
-  Typ .Expr Γ₁ (Δ₁ + 1) e (.Expr .unit) →
-  ContType .Expr (Γ₁.drop (Γ₁.length - n)) Δ₁ K (.Expr .unit) →
-  ContType .Expr Γ₁ Δ₁ (.loopK c e n :: K) (.Expr .bool)
+  Typ .Expr Δ₁ Γ₁ c (.Expr .bool) →
+  Typ .Expr (Δ₁ + 1) Γ₁ e (.Expr .unit) →
+  ContType .Expr Δ₁ (Γ₁.drop (Γ₁.length - n)) K (.Expr .unit) →
+  ContType .Expr Δ₁ Γ₁ (.loopK c e n :: K) (.Expr .bool)
 | LoopContK (Γ₁ : Ctx) (e : Lang .Expr) (c : Lang .Expr) (n : Nat) :
-  Typ .Expr Γ₁ Δ₁ c (.Expr .bool) →
-  Typ .Expr Γ₁ (Δ₁ + 1) e (.Expr .unit) →
-  ContType .Expr (Γ₁.drop (Γ₁.length - n)) Δ₁ K (.Expr .unit) →
-  ContType .Expr Γ₁ Δ₁ (.loopContK c e n :: K) (.Expr .bool)
+  Typ .Expr Δ₁ Γ₁ c (.Expr .bool) →
+  Typ .Expr (Δ₁ + 1) Γ₁ e (.Expr .unit) →
+  ContType .Expr Δ₁ (Γ₁.drop (Γ₁.length - n)) K (.Expr .unit) →
+  ContType .Expr Δ₁ Γ₁ (.loopContK c e n :: K) (.Expr .bool)
 | ScopeExitK (Γ₁ : Ctx) (n : Nat) (type : Ty) :
-  ContType .Expr (Γ₁.drop (Γ₁.length - n)) Δ₁ K (.Expr type) →
-  ContType .Expr Γ₁ Δ₁ (.scopeExitK n :: K) (.Expr type)
+  ContType .Expr Δ₁ (Γ₁.drop (Γ₁.length - n)) K (.Expr type) →
+  ContType .Expr Δ₁ Γ₁ (.scopeExitK n :: K) (.Expr type)
 | ExprStmtK (Γ₁ : Ctx) (type : Ty) :
-  ContType .Stmt Γ₁ Δ₁ K .Stmt →
-  ContType .Expr Γ₁ Δ₁ (.exprStmtK :: K) (.Expr type)
+  ContType .Stmt Δ₁ Γ₁ K .Stmt →
+  ContType .Expr Δ₁ Γ₁ (.exprStmtK :: K) (.Expr type)
 -- # Statement Continuations
 | HaltK (Γ₁ : Ctx) :
-  ContType .Stmt Γ₁ Δ₁ [] .Stmt
+  ContType .Stmt Δ₁ Γ₁ [] .Stmt
 | SeqK (Γ₁ : Ctx) (Γ₂ : Ctx) (s : Lang .Stmt) :
-  Typ .Stmt Γ₁ Δ₁ s (.Stmt Γ₂ Δ₁) →
-  ContType .Stmt Γ₂ Δ₁ K .Stmt →
-  ContType .Stmt Γ₁ Δ₁ (.seqK s :: K) .Stmt
+  Typ .Stmt Δ₁ Γ₁ s (.Stmt Γ₂) →
+  ContType .Stmt Δ₁ Γ₂ K .Stmt →
+  ContType .Stmt Δ₁ Γ₁ (.seqK s :: K) .Stmt
 | ScopeBodyK (Γ₁ : Ctx) (e : Lang .Expr) (type : Ty) (n : Nat) :
-  Typ .Expr Γ₁ Δ₁ e (.Expr type) →
-  ContType .Expr (Γ₁.drop (Γ₁.length - n)) Δ₁ K (.Expr type) →
-  ContType .Stmt Γ₁ Δ₁ (.scopeBodyK e n :: K) .Stmt
+  Typ .Expr Δ₁ Γ₁ e (.Expr type) →
+  ContType .Expr Δ₁ (Γ₁.drop (Γ₁.length - n)) K (.Expr type) →
+  ContType .Stmt Δ₁ Γ₁ (.scopeBodyK e n :: K) .Stmt
 
 inductive Coh : Environment → Ctx → Prop
 | CohEmp :
@@ -524,32 +521,32 @@ inductive JCoh : JStackCtx → Ctx → JCtx → Prop
   JCoh [] [] 0
 | JCohLoop (n : Nat) (Γ₁ : Ctx) (Δ₁ : JCtx) :
   JCoh J (Γ₁.drop (Γ₁.length - n)) Δ₁ →
-  ContType .Expr (Γ₁.drop (Γ₁.length - n)) Δ₁ K (.Expr .unit) →
+  ContType .Expr Δ₁ (Γ₁.drop (Γ₁.length - n)) K (.Expr .unit) →
   JCoh (⟨n, K⟩ :: J) Γ₁ (Δ₁ + 1)
 
 inductive Wt : CEK → Prop
 | WtExprE (e : Lang .Expr) (type : Ty) :
   Coh E Γ →
   JCoh J Γ Δ →
-  Typ .Expr Γ Δ e (.Expr type) →
-  ContType .Expr Γ Δ K (.Expr type) →
+  Typ .Expr Δ Γ e (.Expr type) →
+  ContType .Expr Δ Γ K (.Expr type) →
   Wt ⟨.sourceExpr e, E, J, K⟩
 | WtExprS (s : Lang .Stmt) :
   Coh E Γ →
   JCoh J Γ Δ →
-  Typ .Stmt Γ Δ s (.Stmt Γ₁ Δ) →
-  ContType .Stmt Γ₁ Δ K .Stmt →
+  Typ .Stmt Δ Γ s (.Stmt Γ₁) →
+  ContType .Stmt Δ Γ₁ K .Stmt →
   Wt ⟨.sourceStmt s, E, J, K⟩
 | WtContV (v : Value) (type : Ty) :
   Coh E Γ →
   JCoh J Γ Δ →
   value_type v type →
-  ContType .Expr Γ Δ K (.Expr type) →
+  ContType .Expr Δ Γ K (.Expr type) →
   Wt ⟨.value v, E, J, K⟩
 | WtContS :
   Coh E Γ →
   JCoh J Γ Δ →
-  ContType .Stmt Γ Δ K .Stmt →
+  ContType .Stmt Δ Γ K .Stmt →
   Wt ⟨.skip, E, J, K⟩
 
 -- do casing on Continuation
@@ -631,16 +628,14 @@ theorem preservation (s s' : CEK) :
       { apply a_1 }
       { apply a_4 }
       apply ContType.AssignK <;> grind }
-    { /-unhygienic cases a_2
+    { unhygienic cases a_2
       apply Wt.WtExprS
       { apply a }
       { apply a_1 }
       { apply a_4 }
       apply ContType.SeqK
-      { apply a_4 }
-      apply a_2-/
-      --check Seq rule
-      sorry }
+      { apply a_5 }
+      apply a_3 }
     { unhygienic cases a_2
       apply Wt.WtExprE
       { apply a }
