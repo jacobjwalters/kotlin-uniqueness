@@ -9,11 +9,6 @@
 // Contexts
 #let ctx = $thin upright("ctx")$
 #let drop = math.op("drop")
-// Scope markers and pop (used by Lclass; Lbase uses truncate-based scoping instead)
-#let scopeMark(l) = $diamond.stroked_#l$
-#let pop(e, l) = $op("pop") (#e, #l)$
-#let popK(k, l) = $op("popK") (#k, #l)$
-#let popCallK(k) = $op("popCallK") (#k)$
 #let body = math.op("body")
 #let args = math.op("args")
 #let fields = math.op("fields")
@@ -27,14 +22,27 @@
   })
 }
 
-// Judgement forms
-// Expression typing: Γ ⊢_σ e : τ ⊣ Γ'
-#let typeExpr(gin, ret, e, t, gout) = $#gin attach(tack.r, br: #ret) #e : #t tack.l #gout$
-// Statement typing: Γ ⊢_σ s ⊣ Γ'
-#let typeStmt(gin, ret, s, gout) = $#gin attach(tack.r, br: #ret) #s tack.l #gout$
+// Judgement forms (shared by Lbase and Lclass via jump context Δ)
+// Expression typing: Γ | Δ ⊢ e : τ
+#let typeExpr(gin, delta, e, t) = $#gin | #delta tack.r #e : #t$
+// Statement typing: Γ | Δ ⊢ s ⊣ Γ' | Δ'
+#let typeStmt(gin, din, s, gout, dout) = $#gin | #din tack.r #s tack.l #gout | #dout$
+// Continuation typing: Γ | Δ ⊢ K : τ̄ and Γ | Δ ⊢ K
+#let typeContE(gin, delta, k, t) = $#gin | #delta tack.r #k : overline(#t)$
+#let typeContC(gin, delta, k) = $#gin | #delta tack.r #k$
+// Coherence: E ~ Γ
+#let coh(e, g) = $#e tilde #g$
 
-// CESK machine state: ⟨C | E | S | K⟩
-#let cesk(c, e, s, k) = $chevron.l #c | #e | #s | #k chevron.r$
+// CEJK machine state: ⟨C | E | J | K⟩ with phase subscripts (Lbase)
+#let cek(c, e, j, k) = $chevron.l #c | #e | #j | #k chevron.r$
+#let cekE(c, e, j, k) = $chevron.l #c | #e | #j | #k chevron.r_e$
+#let cekC(c, e, j, k) = $chevron.l #c | #e | #j | #k chevron.r_c$
+// Jump stack coherence
+#let jcoh(j, g, d) = $#j tilde.op #g | #d$
+// CEJSK machine state: ⟨C | E | J | S | K⟩ with phase subscripts (Lclass)
+#let cesk(c, e, j, s, k) = $chevron.l #c | #e | #j | #s | #k chevron.r$
+#let ceskE(c, e, j, s, k) = $chevron.l #c | #e | #j | #s | #k chevron.r_e$
+#let ceskC(c, e, j, s, k) = $chevron.l #c | #e | #j | #s | #k chevron.r_c$
 // Multi-step
 #let ms = $op(~>)^*$
 
@@ -65,12 +73,16 @@
 #let While = $sans("while")$
 #let Break = $sans("break")$
 
+// Jump context Δ
+#let Loop = math.op("loop")
+#let Method = math.op("method")
+
 // CESK continuation frames
 #let fieldK = math.op("fieldK")
 #let ifCondK = math.op("ifCondK")
 #let jumpK = math.op("jumpK")
 #let declK = math.op("declK")
-#let returnK = $sans("returnK")$
+#let returnK = math.op("returnK")
 #let assignK = math.op("assignK")
 #let seqK = math.op("seqK")
 #let loopK = math.op("loopK")
@@ -88,8 +100,7 @@
 #let loopContK = math.op("loopContK")
 #let exprStmtK = math.op("exprStmtK")
 
-// Operations (scope/loop redesign)
-#let popLoopK(k) = $op("popLoopK") (#k)$
+// Operations
 #let truncate(e, n) = $#e bar.v_#n$
 
 // Continuation typing rule names (used in proof-tree labels and prose)
