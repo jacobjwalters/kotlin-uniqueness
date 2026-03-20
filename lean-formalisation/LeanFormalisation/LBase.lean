@@ -5,6 +5,8 @@ import Mathlib.Tactic.Basic
   1. Change JCtx to be list of Nat,
     where each element corresponds to the current length of the context.
     Change the typing definitions accordingly.
+    Note that ContType definitions which include List.drop
+    now have a property that n is at least jump context.
   2. With the new Typing definition, fix the "lang_extension" proof,
     by using map on JCtx arg to account for the extension.
   3. With the new Typing definition, fix the "preservation proof".
