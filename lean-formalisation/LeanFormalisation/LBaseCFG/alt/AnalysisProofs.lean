@@ -47,7 +47,7 @@ private lemma newIn_eq_expectedIn
     (g : CFG) (edgeTransfer : CFGEdge -> A -> A)
     (entryInit : A) (outF : fact A) (n : CFGNode)
     (newIn : A)
-    (hdef : Eq newIn (if h : n = g.entry then entryInit
+    (hdef : Eq newIn (if _ : n = g.entry then entryInit
         else joinPredEdges g edgeTransfer outF n)) :
     Eq newIn (expectedIn g edgeTransfer entryInit outF n) := by
   rw [hdef]; simp only [expectedIn]; exact ite_decEq_irrel _ _ _ _
@@ -57,7 +57,7 @@ private lemma ite_eq_newIn
     (g : CFG) (edgeTransfer : CFGEdge -> A -> A)
     (entryInit : A) (outF : fact A) (n : CFGNode)
     (newIn : A)
-    (hdef : Eq newIn (if h : n = g.entry then entryInit
+    (hdef : Eq newIn (if _ : n = g.entry then entryInit
         else joinPredEdges g edgeTransfer outF n)) :
     Eq (if n = g.entry then entryInit
         else joinPredEdges g edgeTransfer outF n) newIn := by
@@ -211,11 +211,13 @@ private theorem worklist_postfix_aux
       change Eq ((nodeTransfer m (expectedIn g edgeTransfer entryInit _outF' m)) ⊔ _outF' m) (_outF' m)
       change Eq ((nodeTransfer m (expectedIn g edgeTransfer entryInit (outF.update n _newOut) m))
         ⊔ (outF.update n _newOut) m) ((outF.update n _newOut) m)
-      simp only [fact.update, show (m = n) = False from by simp [hm], ite_false]
+      simp only [fact.update, hm, ite_false]
       rw [hexp_eq]
-      exact hinv m (fun h => by cases List.mem_cons.mp h with
-        | inl h => exact hm h
-        | inr h => exact hm_not_rest h)
+      refine hinv m ?_
+      intros h
+      cases List.mem_cons.mp h with
+      | inl h => exact hm h
+      | inr h => exact hm_not_rest h
 
 theorem worklist_sound_postfixpoint
     [DecidableEq CFGNode] {A : Type} [Bot A] [Max A] [DecidableEq A] [FiniteHeight A]
@@ -232,21 +234,6 @@ theorem worklist_sound_postfixpoint
 -- ============================================================
 -- Theorem 3: Fixpoint Soundness (placeholder)
 -- ============================================================
-
-theorem worklist_sound_fixpoint
-    [DecidableEq CFGNode] {A : Type} [Bot A] [Max A] [DecidableEq A] [FiniteHeight A]
-    (g : CFG) (nodeTransfer : CFGNode -> A -> A) (edgeTransfer : CFGEdge -> A -> A)
-    (entryInit : A) (out0 : fact A) (wl0 : List CFGNode)
-    (hwl0 : ∀ x ∈ wl0, x ∈ g.nodes)
-    [WorklistReq g nodeTransfer edgeTransfer] :
-    let res := worklistForwardEdge g nodeTransfer edgeTransfer entryInit out0 wl0 hwl0
-    IsForwardFixpoint g nodeTransfer edgeTransfer entryInit res := by
-  sorry
-
--- ============================================================
--- Theorem 5: Least Post-Fixpoint
--- ============================================================
-
 -- Monotonicity lemmas for joinPredEdges and expectedIn w.r.t. outF
 
 private lemma foldl_join_eT_mono
@@ -302,35 +289,29 @@ private lemma joinPredEdges_mono
     outF1 outF2 hle (g.inEdges n) ⊥ ⊥ (join_idem ⊥)
 
 private lemma expectedIn_mono
-    {A : Type} [Bot A] [Max A]
-    (join_comm : ∀ a b : A, a ⊔ b = b ⊔ a)
-    (join_assoc : ∀ a b c : A, (a ⊔ b) ⊔ c = a ⊔ (b ⊔ c))
-    (join_idem : ∀ a : A, a ⊔ a = a)
-    (g : CFG) (edgeTransfer : CFGEdge -> A -> A) (entryInit : A)
-    (edge_mono : ∀ e, monotoneD (edgeTransfer e))
-    (outF1 outF2 : fact A) (hle : factLe outF1 outF2) (n : CFGNode) :
-    Eq ((expectedIn g edgeTransfer entryInit outF1 n) ⊔
-        (expectedIn g edgeTransfer entryInit outF2 n))
-       (expectedIn g edgeTransfer entryInit outF1 n) := by
+  {A : Type} [Bot A] [Max A] [FiniteHeight A]
+  (g : CFG) (nodeTransfer : CFGNode -> A -> A) (edgeTransfer : CFGEdge -> A -> A) (entryInit : A)
+  [wr : WorklistReq g nodeTransfer edgeTransfer]
+  (edge_mono : ∀ e, monotoneD (edgeTransfer e)) (outF1 outF2 : fact A)
+  (hle : factLe outF1 outF2) (n : CFGNode) :
+  Eq ((expectedIn g edgeTransfer entryInit outF1 n) ⊔
+    (expectedIn g edgeTransfer entryInit outF2 n))
+     (expectedIn g edgeTransfer entryInit outF1 n) := by
   simp only [expectedIn]
   split
-  · exact join_idem _
-  · exact joinPredEdges_mono join_comm join_assoc join_idem g edgeTransfer edge_mono
+  · exact wr.join_idem _
+  · exact joinPredEdges_mono wr.join_comm wr.join_assoc wr.join_idem g edgeTransfer edge_mono
       outF1 outF2 hle n
 
-private lemma join_le_of_le_both {A : Type} [Max A]
-    (join_assoc : ∀ x y z : A, (x ⊔ y) ⊔ z = x ⊔ (y ⊔ z))
-    {a b c : A} (hab : a ⊔ b = a) (hac : a ⊔ c = a) :
-    a ⊔ (b ⊔ c) = a := by
-  calc a ⊔ (b ⊔ c) = (a ⊔ b) ⊔ c := by rw [← join_assoc]
-    _ = a ⊔ c := by rw [hab]
-    _ = a := hac
+-- ============================================================
+-- Theorem 5: Least Post-Fixpoint
+-- ============================================================
 
 private theorem worklist_least_postfix_aux
     [DecidableEq CFGNode]
     {A : Type} [Bot A] [Max A] [DecidableEq A] [FiniteHeight A]
     (g : CFG) (nodeTransfer : CFGNode -> A -> A) (edgeTransfer : CFGEdge -> A -> A)
-    (entryInit : A) (inF outF : fact A) (wl : List CFGNode)
+    (entryInit : A) (outF : fact A) (wl : List CFGNode)
     (hwl : ∀ x ∈ wl, x ∈ g.nodes)
     [wr : WorklistReq g nodeTransfer edgeTransfer]
     (post : fact A) (hpost : IsForwardPostFixpoint g nodeTransfer edgeTransfer entryInit post)
@@ -368,8 +349,8 @@ private theorem worklist_least_postfix_aux
       have h_post_postfix :
           (nodeTransfer k (expectedIn g edgeTransfer entryInit post k)) ⊔ (post k)
           = post k := hpost k
-      have h_exp_mono := expectedIn_mono wr.join_comm wr.join_assoc wr.join_idem
-        g edgeTransfer entryInit wr.edge_mono post outF hinv k
+      have h_exp_mono := expectedIn_mono g nodeTransfer edgeTransfer
+        entryInit wr.edge_mono post outF hinv k
       have h_nT_mono :
           (nodeTransfer k (expectedIn g edgeTransfer entryInit post k)) ⊔
           (nodeTransfer k (expectedIn g edgeTransfer entryInit outF k))
@@ -395,7 +376,7 @@ private theorem worklist_least_postfix_aux
       have h_newIn_eq := newIn_eq_expectedIn g edgeTransfer entryInit outF k _newIn rfl
       have h_post_ge_nT : (post k) ⊔ (nodeTransfer k _newIn) = post k := by
         rw [h_newIn_eq]; exact h_post_ge_nT_exp
-      exact join_le_of_le_both wr.join_assoc h_post_ge_out h_post_ge_nT
+      grind [wr.join_assoc]
     · exact hinv k
 
 -- Corrected statement: factLe post res.2 (post ≥ result, i.e., result is least)
@@ -404,12 +385,57 @@ theorem worklist_complete_least_postfixpoint
     [DecidableEq CFGNode]
     {A : Type} [Bot A] [Max A] [DecidableEq A] [FiniteHeight A]
     (g : CFG) (nodeTransfer : CFGNode -> A -> A) (edgeTransfer : CFGEdge -> A -> A)
-    (entryInit : A) (in0 out0 : fact A) (wl0 : List CFGNode)
+    (entryInit : A) (out0 : fact A) (wl0 : List CFGNode)
     (hwl0 : ∀ x ∈ wl0, x ∈ g.nodes)
     [wr : WorklistReq g nodeTransfer edgeTransfer]
     (post : fact A) (hpost : IsForwardPostFixpoint g nodeTransfer edgeTransfer entryInit post)
     (hbase : factLe post out0) :
     let res := worklistForwardEdge g nodeTransfer edgeTransfer entryInit out0 wl0 hwl0
     factLe post res :=
-  worklist_least_postfix_aux g nodeTransfer edgeTransfer entryInit in0 out0 wl0 hwl0
+  worklist_least_postfix_aux g nodeTransfer edgeTransfer entryInit out0 wl0 hwl0
     post hpost hbase
+
+private lemma T_postfix_of_postfix
+    {A : Type} [Bot A] [Max A] [FiniteHeight A]
+    (g : CFG) (nodeTransfer : CFGNode → A → A) (edgeTransfer : CFGEdge → A → A)
+    (entryInit : A) (f : fact A)
+    [wr : WorklistReq g nodeTransfer edgeTransfer]
+    (hpost : IsForwardPostFixpoint g nodeTransfer edgeTransfer entryInit f) :
+    IsForwardPostFixpoint g nodeTransfer edgeTransfer entryInit
+      (fun n => nodeTransfer n (expectedIn g edgeTransfer entryInit f n)) := by
+  intro n
+  rw [wr.join_comm]
+  apply wr.node_mono
+  apply expectedIn_mono g nodeTransfer edgeTransfer entryInit wr.edge_mono
+  intro m
+  simpa [wr.join_comm] using hpost m
+
+theorem worklist_sound_fixpoint
+    [DecidableEq CFGNode] {A : Type} [Bot A] [Max A] [DecidableEq A] [FiniteHeight A]
+    (g : CFG) (nodeTransfer : CFGNode -> A -> A) (edgeTransfer : CFGEdge -> A -> A)
+    (entryInit : A) (out0 : fact A) (wl0 : List CFGNode)
+    (hwl0 : ∀ x ∈ wl0, x ∈ g.nodes) (hinv0 : ∀ m, m ∉ wl0 →
+      nodeTransfer m (expectedIn g edgeTransfer entryInit out0 m) ⊔ out0 m = out0 m)
+    (hbot: ∀ n v, out0 n ⊔ v = v)
+    [wr : WorklistReq g nodeTransfer edgeTransfer] :
+    let res := worklistForwardEdge g nodeTransfer edgeTransfer entryInit out0 wl0 hwl0
+    IsForwardFixpoint g nodeTransfer edgeTransfer entryInit res := by
+  intro res
+  -- Step 1: res is a post-fixpoint: T(res)(n) ⊔ res(n) = res(n)
+  have hpostres : IsForwardPostFixpoint g nodeTransfer edgeTransfer entryInit res :=
+    worklist_sound_postfixpoint g nodeTransfer edgeTransfer entryInit out0 wl0 hwl0 hinv0
+  -- Step 2: T(res) is itself a post-fixpoint (by monotonicity of nodeTransfer/expectedIn)
+  have hpostT : IsForwardPostFixpoint g nodeTransfer edgeTransfer entryInit
+      (fun n => nodeTransfer n (expectedIn g edgeTransfer entryInit res n)) :=
+    T_postfix_of_postfix g nodeTransfer edgeTransfer entryInit res hpostres
+  -- Step 3: T(res) ≥ out0 pointwise (factLe: T(res)(n) ⊔ out0(n) = T(res)(n))
+  -- This holds because out0 = ⊥ absorbs under join
+  have hbase : factLe (fun n => nodeTransfer n (expectedIn g edgeTransfer entryInit res n)) out0 :=
+    fun n => by rw [wr.join_comm]; exact hbot n _
+  -- Step 4: By the least post-fixpoint lemma, res ≤ T(res)
+  -- i.e., factLe T(res) res: T(res)(n) ⊔ res(n) = T(res)(n)
+  have hleast : factLe (fun n => nodeTransfer n (expectedIn g edgeTransfer entryInit res n)) res :=
+    worklist_complete_least_postfixpoint g nodeTransfer edgeTransfer entryInit out0 wl0 hwl0
+      _ hpostT hbase
+  intro n
+  grind [hleast n, hpostres n]
