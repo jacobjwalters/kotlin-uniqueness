@@ -197,9 +197,8 @@ private theorem worklist_postfix_aux
     · -- m = n: outF' n = _newOut = outF n ⊔ nodeTransfer n _newIn
       subst hm
       -- After subst, n is gone, use m. _outF' = outF.update m _newOut
-      change Eq ((nodeTransfer m (expectedIn g edgeTransfer entryInit _outF' m)) ⊔ _outF' m) (_outF' m)
-      change Eq ((nodeTransfer m (expectedIn g edgeTransfer entryInit (outF.update m _newOut) m))
-        ⊔ (outF.update m _newOut) m) ((outF.update m _newOut) m)
+      change ((nodeTransfer m (expectedIn g edgeTransfer entryInit (outF.update m _newOut) m))
+        ⊔ (outF.update m _newOut) m) = (outF.update m _newOut) m
       simp only [fact.update, ↓reduceIte]
       rw [hexp_eq]
       rw [← newIn_eq_expectedIn g edgeTransfer entryInit outF m _newIn rfl]
@@ -208,9 +207,8 @@ private theorem worklist_postfix_aux
         wr.join_assoc (outF m) (nodeTransfer m _newIn) (nodeTransfer m _newIn),
         wr.join_idem]
     · -- m ≠ n: outF' m = outF m, expectedIn unchanged
-      change Eq ((nodeTransfer m (expectedIn g edgeTransfer entryInit _outF' m)) ⊔ _outF' m) (_outF' m)
-      change Eq ((nodeTransfer m (expectedIn g edgeTransfer entryInit (outF.update n _newOut) m))
-        ⊔ (outF.update n _newOut) m) ((outF.update n _newOut) m)
+      change ((nodeTransfer m (expectedIn g edgeTransfer entryInit (outF.update n _newOut) m))
+        ⊔ (outF.update n _newOut) m) = ((outF.update n _newOut) m)
       simp only [fact.update, hm, ite_false]
       rw [hexp_eq]
       refine hinv m ?_
