@@ -43,8 +43,9 @@ theorem worklist_sound_postfixpoint
     [DecidableEq CFGNode] {A : Type} [Bot A] [Max A] [DecidableEq A] [FiniteHeight A]
     (g : CFG) (nodeTransfer : CFGNode -> A -> A) (edgeTransfer : CFGEdge -> A -> A)
     (entryInit : A) (in0 out0 : fact A) (wl0 : List CFGNode)
+    (hwl0 : ∀ x ∈ wl0, x ∈ g.nodes)
     [WorklistReq g nodeTransfer edgeTransfer] :
-    let res := worklistForwardEdge g nodeTransfer edgeTransfer entryInit in0 out0 wl0
+    let res := worklistForwardEdge g nodeTransfer edgeTransfer entryInit in0 out0 wl0 hwl0
     IsForwardPostFixpoint g nodeTransfer edgeTransfer entryInit res.2 := by
   intros n
   sorry
@@ -53,8 +54,9 @@ theorem worklist_sound_fixpoint
     [DecidableEq CFGNode] {A : Type} [Bot A] [Max A] [DecidableEq A] [FiniteHeight A]
     (g : CFG) (nodeTransfer : CFGNode -> A -> A) (edgeTransfer : CFGEdge -> A -> A)
     (entryInit : A) (in0 out0 : fact A) (wl0 : List CFGNode)
+    (hwl0 : ∀ x ∈ wl0, x ∈ g.nodes)
     [WorklistReq g nodeTransfer edgeTransfer] :
-    let res := worklistForwardEdge g nodeTransfer edgeTransfer entryInit in0 out0 wl0
+    let res := worklistForwardEdge g nodeTransfer edgeTransfer entryInit in0 out0 wl0 hwl0
     IsForwardFixpoint g nodeTransfer edgeTransfer entryInit res.1 res.2 := by
   sorry
 
@@ -63,10 +65,11 @@ theorem worklist_complete_least_postfixpoint
     {A : Type} [Bot A] [Max A] [DecidableEq A] [FiniteHeight A]
     (g : CFG) (nodeTransfer : CFGNode -> A -> A) (edgeTransfer : CFGEdge -> A -> A)
     (entryInit : A) (in0 out0 : fact A) (wl0 : List CFGNode)
+    (hwl0 : ∀ x ∈ wl0, x ∈ g.nodes)
     [WorklistReq g nodeTransfer edgeTransfer]
     (Hinit : ∀ n, (out0 n) ⊔ (in0 n) = (out0 n))
     (post : fact A) (hpost : IsForwardPostFixpoint g nodeTransfer edgeTransfer entryInit post) :
-    let res := worklistForwardEdge g nodeTransfer edgeTransfer entryInit in0 out0 wl0
+    let res := worklistForwardEdge g nodeTransfer edgeTransfer entryInit in0 out0 wl0 hwl0
     factLe res.2 post := by
   sorry
 
@@ -75,7 +78,8 @@ theorem worklist_complete_fixpoint_stability
     {A : Type} [Bot A] [Max A] [DecidableEq A] [FiniteHeight A]
     (g : CFG) (nodeTransfer : CFGNode -> A -> A) (edgeTransfer : CFGEdge -> A -> A)
     (entryInit : A) (inF outF : fact A) (wl : List CFGNode)
+    (hwl : ∀ x ∈ wl, x ∈ g.nodes)
     [WorklistReq g nodeTransfer edgeTransfer]
     (hfp : IsForwardFixpoint g nodeTransfer edgeTransfer entryInit inF outF) :
-    worklistForwardEdge g nodeTransfer edgeTransfer entryInit inF outF wl = (inF, outF) := by
+    worklistForwardEdge g nodeTransfer edgeTransfer entryInit inF outF wl hwl = (inF, outF) := by
   sorry

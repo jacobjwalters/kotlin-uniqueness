@@ -246,6 +246,91 @@ def CFG.pred (g : CFG) (n : CFGNode) : List CFGNode :=
 def CFG.nodes (g : CFG) : List CFGNode :=
   (g.edges.foldr (fun ed acc => ed.src :: ed.dst :: acc) [g.entry, g.exit]).eraseDups
 
+private theorem mem_acc_mem_eraseDupsBy_loop {α : Type} (r : α → α → Bool)
+    (as acc : List α) (a : α)
+    (h : a ∈ acc) : a ∈ List.eraseDupsBy.loop r as acc := by
+  induction as generalizing acc with
+  | nil =>
+    unfold List.eraseDupsBy.loop
+    exact List.mem_reverse.mpr h
+  | cons x xs ih =>
+    unfold List.eraseDupsBy.loop
+    split
+    · exact ih acc h
+    · exact ih (x :: acc) (List.mem_cons_of_mem x h)
+
+private theorem mem_of_mem_eraseDupsBy_loop {α : Type} [BEq α] [LawfulBEq α]
+    (as acc : List α) (a : α)
+    (h : a ∈ as) : a ∈ List.eraseDupsBy.loop (fun x1 x2 => x1 == x2) as acc := by
+  induction as generalizing acc with
+  | nil => contradiction
+  | cons x xs ih =>
+    unfold List.eraseDupsBy.loop
+    cases List.mem_cons.mp h with
+    | inl heq =>
+      subst heq
+      split
+      next htrue =>
+        obtain ⟨b, hb_mem, hb_eq⟩ := List.any_eq_true.mp htrue
+        exact mem_acc_mem_eraseDupsBy_loop _ xs _ a (eq_of_beq hb_eq ▸ hb_mem)
+      next _ =>
+        exact mem_acc_mem_eraseDupsBy_loop _ xs (a :: acc) a (List.Mem.head _)
+    | inr hmem =>
+      split
+      · exact ih acc hmem
+      · exact ih (x :: acc) hmem
+
+theorem mem_of_mem_eraseDups {α : Type} [BEq α] [LawfulBEq α]
+    {a : α} {l : List α} (h : a ∈ l) : a ∈ l.eraseDups :=
+  mem_of_mem_eraseDupsBy_loop l [] a h
+
+private theorem eraseDupsBy_loop_subset {α : Type} (r : α → α → Bool)
+    (as acc : List α) (a : α)
+    (h : a ∈ List.eraseDupsBy.loop r as acc) : a ∈ as ∨ a ∈ acc := by
+  induction as generalizing acc with
+  | nil =>
+    unfold List.eraseDupsBy.loop at h
+    exact Or.inr (List.mem_reverse.mp h)
+  | cons x xs ih =>
+    unfold List.eraseDupsBy.loop at h
+    split at h
+    · cases ih acc h with
+      | inl h => exact Or.inl (List.mem_cons_of_mem x h)
+      | inr h => exact Or.inr h
+    · cases ih (x :: acc) h with
+      | inl h => exact Or.inl (List.mem_cons_of_mem x h)
+      | inr h =>
+        cases List.mem_cons.mp h with
+        | inl heq => exact Or.inl (heq ▸ List.Mem.head _)
+        | inr h => exact Or.inr h
+
+theorem mem_eraseDups_of {α : Type} [BEq α] [LawfulBEq α]
+    {a : α} {l : List α} (h : a ∈ l.eraseDups) : a ∈ l := by
+  cases eraseDupsBy_loop_subset _ l [] a h with
+  | inl h => exact h
+  | inr h => contradiction
+
+private lemma mem_foldr_edges_dst (edges : List CFGEdge) (init : List CFGNode) (e : CFGEdge)
+    (he : e ∈ edges) :
+    e.dst ∈ edges.foldr (fun ed acc => ed.src :: ed.dst :: acc) init := by
+  induction edges with
+  | nil => contradiction
+  | cons h t ih =>
+    simp only [List.foldr_cons]
+    cases List.mem_cons.mp he with
+    | inl heq => subst heq; exact List.mem_cons_of_mem _ (List.Mem.head _)
+    | inr hmem => exact List.mem_cons_of_mem _ (List.mem_cons_of_mem _ (ih hmem))
+
+lemma CFG.succ_subset_nodes (g : CFG) (n : CFGNode) :
+    ∀ x ∈ g.succ n, x ∈ g.nodes := by
+  intro x hx
+  simp only [CFG.succ, CFG.outEdges] at hx
+  have hx' := mem_eraseDups_of hx
+  obtain ⟨e, he_mem, he_dst⟩ := List.mem_map.mp hx'
+  subst he_dst
+  simp only [CFG.nodes]
+  exact mem_of_mem_eraseDups (mem_foldr_edges_dst g.edges _ e (List.mem_of_mem_filter he_mem))
+
 -- Example:
 -- let _ : Nat = 5;
 -- do while (true) (scope { _₀ := 0 } unit)
