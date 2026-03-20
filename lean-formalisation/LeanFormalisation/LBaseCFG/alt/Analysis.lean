@@ -106,23 +106,22 @@ private theorem factHeight_decreases
 def worklistForwardEdge
     [DecidableEq CFGNode] {A : Type} [Bot A] [Max A] [DecidableEq A] [FiniteHeight A]
     (g : CFG) (nodeTransfer : CFGNode -> A -> A) (edgeTransfer : CFGEdge -> A -> A)
-    (entryInit : A) (inF outF : fact A) (wl : List CFGNode)
+    (entryInit : A) (outF : fact A) (wl : List CFGNode)
     (hwl : ∀ x ∈ wl, x ∈ g.nodes)
-    : fact A × fact A :=
+    : fact A :=
   match wl with
-  | [] => (inF, outF)
+  | [] => outF
   | n :: rest =>
       let newIn :=
         if n = g.entry then entryInit else joinPredEdges g edgeTransfer outF n
       let newOut := outF n ⊔ nodeTransfer n newIn
       if newOut = outF n then
-        worklistForwardEdge g nodeTransfer edgeTransfer entryInit inF outF rest
+        worklistForwardEdge g nodeTransfer edgeTransfer entryInit outF rest
           (fun x hx => hwl x (List.mem_cons_of_mem n hx))
       else
-        let inF' := inF.update n newIn
         let outF' := outF.update n newOut
         let wl' := rest ++ g.succ n
-        worklistForwardEdge g nodeTransfer edgeTransfer entryInit inF' outF' wl'
+        worklistForwardEdge g nodeTransfer edgeTransfer entryInit outF' wl'
           (fun x hx => by
             cases List.mem_append.mp hx with
             | inl h => exact hwl x (List.mem_cons_of_mem n h)
@@ -135,6 +134,20 @@ decreasing_by
     exact factHeight_decreases g outF n (outF n ⊔ nodeTransfer n newIn)
       (hwl n (List.Mem.head _))
       (FiniteHeight.height_mono _ _ (by assumption))
+
+def expectedIn {A : Type} [Bot A] [Max A]
+    (g : CFG) (edgeTransfer : CFGEdge -> A -> A)
+    (entryInit : A) (outF : fact A) (n : CFGNode) : A :=
+  if n = g.entry then entryInit else joinPredEdges g edgeTransfer outF n
+
+def runDataflow
+    [DecidableEq CFGNode] {A : Type} [Bot A] [Max A] [DecidableEq A] [FiniteHeight A]
+    (g : CFG) (nodeTransfer : CFGNode -> A -> A) (edgeTransfer : CFGEdge -> A -> A)
+    (entryInit : A) (out0 : fact A) (wl0 : List CFGNode)
+    (hwl0 : ∀ x ∈ wl0, x ∈ g.nodes) : fact A × fact A :=
+  let finalOut := worklistForwardEdge g nodeTransfer edgeTransfer entryInit out0 wl0 hwl0
+  let finalIn := fun n => expectedIn g edgeTransfer entryInit finalOut n
+  ⟨finalIn, finalOut⟩
 
 abbrev Domain (A : Type) [Max A] [Bot A] := List A
 

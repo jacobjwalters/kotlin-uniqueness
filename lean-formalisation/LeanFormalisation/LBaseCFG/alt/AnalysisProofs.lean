@@ -3,11 +3,6 @@ import LeanFormalisation.LBaseCFG.alt.Analysis
 
 open LeanFormalisation.AltCFG
 
-def expectedIn {A : Type} [Bot A] [Max A]
-    (g : CFG) (edgeTransfer : CFGEdge -> A -> A)
-    (entryInit : A) (outF : fact A) (n : CFGNode) : A :=
-  if n = g.entry then entryInit else joinPredEdges g edgeTransfer outF n
-
 def IsForwardFixpoint {A : Type} [Bot A] [Max A]
     (g : CFG) (nodeTransfer : CFGNode -> A -> A) (edgeTransfer : CFGEdge -> A -> A)
     (entryInit : A) (inF outF : fact A) : Prop :=
@@ -228,7 +223,7 @@ private theorem worklist_postfix_aux
 theorem worklist_sound_postfixpoint
     [DecidableEq CFGNode] {A : Type} [Bot A] [Max A] [DecidableEq A] [FiniteHeight A]
     (g : CFG) (nodeTransfer : CFGNode -> A -> A) (edgeTransfer : CFGEdge -> A -> A)
-    (entryInit : A) (in0 out0 : fact A) (wl0 : List CFGNode)
+    (entryInit : A) (out0 : fact A) (wl0 : List CFGNode)
     (hwl0 : ∀ x ∈ wl0, x ∈ g.nodes)
     [wr : WorklistReq g nodeTransfer edgeTransfer]
     (hinv0 : ∀ m, m ∉ wl0 →
@@ -244,10 +239,10 @@ theorem worklist_sound_postfixpoint
 theorem worklist_sound_fixpoint
     [DecidableEq CFGNode] {A : Type} [Bot A] [Max A] [DecidableEq A] [FiniteHeight A]
     (g : CFG) (nodeTransfer : CFGNode -> A -> A) (edgeTransfer : CFGEdge -> A -> A)
-    (entryInit : A) (in0 out0 : fact A) (wl0 : List CFGNode)
+    (entryInit : A) (out0 : fact A) (wl0 : List CFGNode)
     (hwl0 : ∀ x ∈ wl0, x ∈ g.nodes)
     [WorklistReq g nodeTransfer edgeTransfer] :
-    let res := worklistForwardEdge g nodeTransfer edgeTransfer entryInit in0 out0 wl0 hwl0
+    let res := runDataflow g nodeTransfer edgeTransfer entryInit out0 wl0 hwl0
     IsForwardFixpoint g nodeTransfer edgeTransfer entryInit res.1 res.2 := by
   sorry
 
