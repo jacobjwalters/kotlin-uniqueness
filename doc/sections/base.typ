@@ -7,24 +7,24 @@
 == Syntax
 
 $
-  tau ::= & #Nat                        && "Naturals" \
-        | & #Bool                       && "Booleans" \
-        | & #Unit                       && "Unit" \
-    e ::= & x                           && "Variable Access" \
-        | & #True \
-        | & #False \
-        | & n in bb(N)                  && "Natural Numbers" \
-        | & #UnitVal                    && "Unit Value" \
-        | & e_1 plus.o e_2              && "Binary Operator" \
-        | & plus.o (e)                  && "Unary Operator" \
-        | & #If e #Then e_1 #Else e_2   && "If/Then/Else" \
-        | & #While c brace.l e brace.r  && "While Loop" \
-        | & #Break ell                  && "Loop Break (labelled)" \
-        | & #Scope brace.l s; e brace.r && "Scope Block" \
-    s ::= & #Var x : tau = e            && "(Mutable) Variable Declaration" \
-        | & x = e                       && "Variable Assignment/Mutation" \
-        | & s_1; s_2                    && "Statement Sequencing" \
-        | & #Do e                       && "Expression Statement" \
+tau ::=& #Nat && "Naturals" \
+  |& #Bool && "Booleans" \
+  |& #Unit && "Unit" \
+e ::=& x && "Variable Access" \
+  |& #True \
+  |& #False \
+  |& n in bb(N) && "Natural Numbers" \
+  |& #UnitVal && "Unit Value" \
+  |& e_1 plus.o e_2 && "Binary Operator" \
+  |& plus.o (e) && "Unary Operator" \
+  |& #If e #Then e_1 #Else e_2 && "If/Then/Else" \
+  |& #While c brace.l e brace.r && "While Loop" \
+  |& #Break ell && "Loop Break (labelled)" \
+  |& #Scope brace.l s; e brace.r && "Scope Block" \
+s ::=& #Var x : tau = e && "(Mutable) Variable Declaration" \
+  |& x = e && "Variable Assignment/Mutation" \
+  |& s_1; s_2 && "Statement Sequencing" \
+  |& #Do e && "Expression Statement" \
 $
 
 A program $P$ is a statement $s$. $x$ represents an infinite set of variable names. While we write names as strings in this document, for formalisation purposes, we use de Bruijn indices. We write $#Break$ as shorthand for $#Break ell$ where $ell$ is the most recently bound loop label.
@@ -54,8 +54,8 @@ Lookup ($Gamma(x) = tau$) returns the type from the rightmost binding of $x$ in 
 A jump context $Delta$ is a stack tracking which non-local jump targets are lexically in scope. In #Lbase, the only jump targets are loops:
 
 $
-  Delta ::= & dot                && "Empty" \
-          | & Delta, #Loop (ell) && "Loop boundary (labelled" ell")"
+Delta ::=& dot && "Empty" \
+  |& Delta, #Loop (ell) && "Loop boundary (labelled" ell")"
 $
 
 $#While$ extends $Delta$ with $#Loop (ell)$ for its body; $#Break ell$ requires that $ell$ is in $Delta$.
@@ -63,8 +63,8 @@ $#While$ extends $Delta$ with $#Loop (ell)$ for its body; $#Break ell$ requires 
 Lookup $Delta(ell)$ scans $Delta$ right-to-left for the entry with label $ell$:
 
 $
-   (Delta, #Loop (ell))(ell) & = #Loop (ell) \
-  (Delta, #Loop (ell'))(ell) & = Delta(ell)  && quad ell' != ell
+(Delta, #Loop (ell))(ell) &= #Loop (ell) \
+(Delta, #Loop (ell'))(ell) &= Delta(ell) && quad ell' != ell
 $
 
 Lookup is partial; in particular, $dot (ell)$ is undefined. This allows us to enforce that $#Break$ is only well typed when inside a loop.
@@ -83,43 +83,16 @@ Since expressions do not modify the typing context, we use the judgement form #t
 
   proof-tree(rule(name: "VarAccess", typeExpr($Gamma$, $Delta$, $x$, $tau$), $Gamma(x) = tau$)),
 
-  proof-tree(rule(
-    name: "BinOp",
-    typeExpr($Gamma$, $Delta$, $e_1 plus.o e_2$, $tau_3$),
-    typeExpr($Gamma$, $Delta$, $e_1$, $tau_1$),
-    typeExpr($Gamma$, $Delta$, $e_2$, $tau_2$),
-    $plus.o : tau_1 times tau_2 -> tau_3$,
-  )),
-  proof-tree(rule(
-    name: "UnOp",
-    typeExpr($Gamma$, $Delta$, $plus.o (e)$, $tau_2$),
-    typeExpr($Gamma$, $Delta$, $e$, $tau_1$),
-    $plus.o : tau_1 -> tau_2$,
-  )),
+  proof-tree(rule(name: "BinOp", typeExpr($Gamma$, $Delta$, $e_1 plus.o e_2$, $tau_3$), typeExpr($Gamma$, $Delta$, $e_1$, $tau_1$), typeExpr($Gamma$, $Delta$, $e_2$, $tau_2$), $plus.o : tau_1 times tau_2 -> tau_3$)),
+  proof-tree(rule(name: "UnOp", typeExpr($Gamma$, $Delta$, $plus.o (e)$, $tau_2$), typeExpr($Gamma$, $Delta$, $e$, $tau_1$), $plus.o : tau_1 -> tau_2$)),
 
-  proof-tree(rule(
-    name: "IfExpr",
-    typeExpr($Gamma$, $Delta$, $#If e #Then e_1 #Else e_2$, $tau$),
-    typeExpr($Gamma$, $Delta$, $e$, $#Bool$),
-    typeExpr($Gamma$, $Delta$, $e_1$, $tau$),
-    typeExpr($Gamma$, $Delta$, $e_2$, $tau$),
-  )),
+  proof-tree(rule(name: "IfExpr", typeExpr($Gamma$, $Delta$, $#If e #Then e_1 #Else e_2$, $tau$), typeExpr($Gamma$, $Delta$, $e$, $#Bool$), typeExpr($Gamma$, $Delta$, $e_1$, $tau$), typeExpr($Gamma$, $Delta$, $e_2$, $tau$))),
 
-  proof-tree(rule(
-    name: "WhileExpr",
-    typeExpr($Gamma$, $Delta$, $#While c brace.l e brace.r$, $#Unit$),
-    typeExpr($Gamma$, $Delta$, $c$, $#Bool$),
-    typeExpr($Gamma$, $Delta, #Loop (ell)$, $e$, $#Unit$),
-  )),
+  proof-tree(rule(name: "WhileExpr", typeExpr($Gamma$, $Delta$, $#While c brace.l e brace.r$, $#Unit$), typeExpr($Gamma$, $Delta$, $c$, $#Bool$), typeExpr($Gamma$, $Delta, #Loop (ell)$, $e$, $#Unit$))),
 
   proof-tree(rule(name: "BreakExpr", typeExpr($Gamma$, $Delta$, $#Break ell$, $tau$), $Delta(ell) = #Loop (ell)$)),
 
-  proof-tree(rule(
-    name: "ScopeExpr",
-    typeExpr($Gamma$, $Delta$, $#Scope brace.l s; e brace.r$, $tau$),
-    typeStmt($Gamma$, $Delta$, $s$, $Gamma'$, $Delta$),
-    typeExpr($Gamma'$, $Delta$, $e$, $tau$),
-  )),
+  proof-tree(rule(name: "ScopeExpr", typeExpr($Gamma$, $Delta$, $#Scope brace.l s; e brace.r$, $tau$), typeStmt($Gamma$, $Delta$, $s$, $Gamma'$, $Delta$), typeExpr($Gamma'$, $Delta$, $e$, $tau$))),
 )
 
 $#If$ expressions require both branches to have the same type $tau$; the condition must be $#Bool$. $#While$ expressions have type $#Unit$; the body is typed with $Delta$ extended by $#Loop (ell)$, making $#Break ell$ available inside the loop body. The condition is typed at $Delta$ (without $#Loop (ell)$), so $#Break$ in the condition targets an outer loop. $#Break ell$ has type $tau$ for any $tau$ since it never produces a value; the premise $Delta(ell) = #Loop (ell)$ ensures Break is only well typed when $ell$ is a valid loop label in $Delta$. $#Scope$ expressions run a sequence of statements $s$ (which may extend the context from $Gamma$ to $Gamma'$), then evaluate a trailing expression $e$ in the extended context $Gamma'$. The overall type is the type of $e$; the scope's local declarations are not visible outside.
@@ -147,32 +120,12 @@ The meta-level function $#delta$ is typed by the following rules, which define t
 Since statements may update their context, we use a "small-step" typing judgement form #typeStmt($Gamma$, $Delta$, $s$, $Gamma'$, $Delta'$), where $Gamma$ and $Delta$ are the contexts before the statement and $Gamma'$ and $Delta'$ after. Statements never introduce new jump labels, so we merely thread $Delta$ through until we reach an expression.
 
 #mathpar(
-  proof-tree(rule(name: "VarDecl", typeStmt($Gamma$, $Delta$, $#Var x : tau = e$, $Gamma, x : tau$, $Delta$), typeExpr(
-    $Gamma$,
-    $Delta$,
-    $e$,
-    $tau$,
-  ))),
-  proof-tree(rule(name: "VarAssign", typeStmt($Gamma$, $Delta$, $x = e$, $Gamma$, $Delta$), $Gamma(x) = tau$, typeExpr(
-    $Gamma$,
-    $Delta$,
-    $e$,
-    $tau$,
-  ))),
+  proof-tree(rule(name: "VarDecl", typeStmt($Gamma$, $Delta$, $#Var x : tau = e$, $Gamma, x : tau$, $Delta$), typeExpr($Gamma$, $Delta$, $e$, $tau$))),
+  proof-tree(rule(name: "VarAssign", typeStmt($Gamma$, $Delta$, $x = e$, $Gamma$, $Delta$), $Gamma(x) = tau$, typeExpr($Gamma$, $Delta$, $e$, $tau$))),
 
-  proof-tree(rule(
-    name: "Seq",
-    typeStmt($Gamma$, $Delta$, $s_1; s_2$, $Gamma''$, $Delta''$),
-    typeStmt($Gamma$, $Delta$, $s_1$, $Gamma'$, $Delta'$),
-    typeStmt($Gamma'$, $Delta'$, $s_2$, $Gamma''$, $Delta''$),
-  )),
+  proof-tree(rule(name: "Seq", typeStmt($Gamma$, $Delta$, $s_1; s_2$, $Gamma''$, $Delta''$), typeStmt($Gamma$, $Delta$, $s_1$, $Gamma'$, $Delta'$), typeStmt($Gamma'$, $Delta'$, $s_2$, $Gamma''$, $Delta''$))),
 
-  proof-tree(rule(name: "ExprStmt", typeStmt($Gamma$, $Delta$, $#Do e$, $Gamma$, $Delta$), typeExpr(
-    $Gamma$,
-    $Delta$,
-    $e$,
-    $tau$,
-  ))),
+  proof-tree(rule(name: "ExprStmt", typeStmt($Gamma$, $Delta$, $#Do e$, $Gamma$, $Delta$), typeExpr($Gamma$, $Delta$, $e$, $tau$))),
 )
 
 Variable declarations check the initialiser expression against the declared type, then extend the context, possibly shadowing an existing binding.
@@ -269,8 +222,8 @@ The environment is extended when variables are declared ($#Var x : tau = e$ adds
 The jump stack is the runtime mirror of the jump context $Delta$. Each entry stores a loop label, the saved environment size, and the continuation to restore on break:
 
 $
-  J ::= & dot                  && "Empty" \
-      | & J, #Loop (ell, n, K) && "Loop: label" ell", env size" n", exit continuation" K
+J ::=& dot && "Empty" \
+  |& J, #Loop (ell, n, K) && "Loop: label" ell", env size" n", exit continuation" K
 $
 
 Lookup $J(ell) = (n, K)$ scans $J$ right-to-left for the entry with label $ell$, returning the saved environment size and exit continuation. As with lookup for $Delta$, $dot (ell)$ is undefined.
@@ -281,19 +234,19 @@ $J$ is pushed at LoopTrue (entering a loop body) and popped at LoopCont (re-ente
 The continuation is a stack of frames that describes what to do after the current control finishes:
 
 $
-  K ::= & #halt                          && "Program complete" \
-      | & #ifCondK (e_1, e_2) dot.c K    && "After evaluating condition, branch to expression" \
-      | & #declK (x : tau) dot.c K       && "After evaluating initialiser of type" tau ", bind" x "in" E \
-      | & #assignK (x) dot.c K           && "After evaluating RHS, assign to" x "in" E \
-      | & #seqK (s) dot.c K              && "After first statement completes, continue with" s \
-      | & #binopLK (plus.o, e_2) dot.c K && "After evaluating left operand of" plus.o", evaluate" e_2 \
-      | & #binopRK (plus.o, v_1) dot.c K && "After evaluating right operand of" plus.o", apply to" v_1 \
-      | & #unopK (plus.o) dot.c K        && "After evaluating operand of unary" plus.o", apply" \
-      | & #loopK (c, e, n) dot.c K       && "While condition: body" e ", saved env size" n \
-      | & #loopContK (c, e) dot.c K      && "After loop body, re-evaluate condition" \
-      | & #scopeBodyK (e, n) dot.c K     && "After scope statements, evaluate trailing expr" e \
-      | & #scopeExitK (n) dot.c K        && "After trailing expr, truncate env to size" n \
-      | & #exprStmtK dot.c K             && "After expression evaluates, discard value"
+K ::=& #halt && "Program complete" \
+  |& #ifCondK (e_1, e_2) dot.c K && "After evaluating condition, branch to expression" \
+  |& #declK (x : tau) dot.c K && "After evaluating initialiser of type" tau ", bind" x "in" E \
+  |& #assignK (x) dot.c K && "After evaluating RHS, assign to" x "in" E \
+  |& #seqK (s) dot.c K && "After first statement completes, continue with" s \
+  |& #binopLK (plus.o, e_2) dot.c K && "After evaluating left operand of" plus.o", evaluate" e_2 \
+  |& #binopRK (plus.o, v_1) dot.c K && "After evaluating right operand of" plus.o", apply to" v_1 \
+  |& #unopK (plus.o) dot.c K && "After evaluating operand of unary" plus.o", apply" \
+  |& #loopK (c, e, n) dot.c K && "While condition: body" e ", saved env size" n \
+  |& #loopContK (c, e) dot.c K && "After loop body, re-evaluate condition" \
+  |& #scopeBodyK (e, n) dot.c K && "After scope statements, evaluate trailing expr" e \
+  |& #scopeExitK (n) dot.c K && "After trailing expr, truncate env to size" n \
+  |& #exprStmtK dot.c K && "After expression evaluates, discard value"
 $
 
 - $#halt$ signals that the program is finished; a terminal state is $#cekC($#Skip$, $E$, $J$, $#halt$)$.
@@ -315,19 +268,19 @@ We define a multi-step judgement $ms$ in the usual way.
 
 ==== Expr
 $
-  #cekE($v$, $E$, $J$, $K$) &~> #cekC($v$, $E$, $J$, $K$) && "Val" \
-  #cekE($x$, $E$, $J$, $K$) &~> #cekC($E(x)$, $E$, $J$, $K$) && "Var" \
-  #cekE($#Var x : tau = e$, $E$, $J$, $K$) &~> #cekE($e$, $E$, $J$, $#declK (x : tau) dot.c K$) && "VarDecl" \
-  #cekE($x = e$, $E$, $J$, $K$) &~> #cekE($e$, $E$, $J$, $#assignK (x) dot.c K$) && "Assign" \
-  #cekE($s_1 ; s_2$, $E$, $J$, $K$) &~> #cekE($s_1$, $E$, $J$, $#seqK (s_2) dot.c K$) && "Seq" \
-  #cekE($#Do e$, $E$, $J$, $K$) &~> #cekE($e$, $E$, $J$, $#exprStmtK dot.c K$) && "ExprStmt" \
-  #cekE($e_1 plus.o e_2$, $E$, $J$, $K$) &~> #cekE($e_1$, $E$, $J$, $#binopLK (plus.o, e_2) dot.c K$) && "BinOp" \
-  #cekE($#IsZero (e)$, $E$, $J$, $K$) &~> #cekE($e$, $E$, $J$, $#unopK (#IsZero) dot.c K$) && "UnOp" \
-  #cekE($#If e #Then e_1 #Else e_2$, $E$, $J$, $K$) &~> #cekE($e$, $E$, $J$, $#ifCondK (e_1, e_2) dot.c K$) && "If" \
-  #cekE($#While c brace.l e brace.r$, $E$, $J$, $K$) &~> #cekE($c$, $E$, $J$, $#loopK (c, e, |E|) dot.c K$) && "While" \
-  #cekE($#Break ell$, $E$, $J$, $K$) &~> #cekC($#UnitVal$, $#truncate($E$, $n$)$, $J'$, $K'$) && "Break" \
-  & quad "where" J(ell) = (n, K') \
-  #cekE($#Scope brace.l s ; e brace.r$, $E$, $J$, $K$) &~> #cekE($s$, $E$, $J$, $#scopeBodyK (e, |E|) dot.c K$) && "Scope"
+#cekE($v$, $E$, $J$, $K$) &~> #cekC($v$, $E$, $J$, $K$) && "Val" \
+#cekE($x$, $E$, $J$, $K$) &~> #cekC($E(x)$, $E$, $J$, $K$) && "Var" \
+#cekE($#Var x : tau = e$, $E$, $J$, $K$) &~> #cekE($e$, $E$, $J$, $#declK (x : tau) dot.c K$) && "VarDecl" \
+#cekE($x = e$, $E$, $J$, $K$) &~> #cekE($e$, $E$, $J$, $#assignK (x) dot.c K$) && "Assign" \
+#cekE($s_1 ; s_2$, $E$, $J$, $K$) &~> #cekE($s_1$, $E$, $J$, $#seqK (s_2) dot.c K$) && "Seq" \
+#cekE($#Do e$, $E$, $J$, $K$) &~> #cekE($e$, $E$, $J$, $#exprStmtK dot.c K$) && "ExprStmt" \
+#cekE($e_1 plus.o e_2$, $E$, $J$, $K$) &~> #cekE($e_1$, $E$, $J$, $#binopLK (plus.o, e_2) dot.c K$) && "BinOp" \
+#cekE($#IsZero (e)$, $E$, $J$, $K$) &~> #cekE($e$, $E$, $J$, $#unopK (#IsZero) dot.c K$) && "UnOp" \
+#cekE($#If e #Then e_1 #Else e_2$, $E$, $J$, $K$) &~> #cekE($e$, $E$, $J$, $#ifCondK (e_1, e_2) dot.c K$) && "If" \
+#cekE($#While c brace.l e brace.r$, $E$, $J$, $K$) &~> #cekE($c$, $E$, $J$, $#loopK (c, e, |E|) dot.c K$) && "While" \
+#cekE($#Break ell$, $E$, $J$, $K$) &~> #cekC($#UnitVal$, $#truncate($E$, $n$)$, $J'$, $K'$) && "Break" \
+& quad "where" J(ell) = (n, K') \
+#cekE($#Scope brace.l s ; e brace.r$, $E$, $J$, $K$) &~> #cekE($s$, $E$, $J$, $#scopeBodyK (e, |E|) dot.c K$) && "Scope"
 $
 Val transitions a source value expression ($#True$, $#False$, $n$, $#UnitVal$) into Cont mode. Var looks up the rightmost binding of $x$ in $E$.
 
@@ -335,20 +288,20 @@ The remaining rules decompose a compound form by pushing a continuation frame. B
 
 ==== Cont
 $
-  #cekC($#True$, $E$, $J$, $#ifCondK (e_1, e_2) dot.c K$) &~> #cekE($e_1$, $E$, $J$, $K$) && "IfTrue" \
-  #cekC($#False$, $E$, $J$, $#ifCondK (e_1, e_2) dot.c K$) &~> #cekE($e_2$, $E$, $J$, $K$) && "IfFalse" \
-  #cekC($v$, $E$, $J$, $#declK (x : tau) dot.c K$) &~> #cekC($#Skip$, $E, x := v$, $J$, $K$) && "VarDeclDone" \
-  #cekC($v$, $E$, $J$, $#assignK (x) dot.c K$) &~> #cekC($#Skip$, $E[x |-> v]$, $J$, $K$) && "AssignDone" \
-  #cekC($#Skip$, $E$, $J$, $#seqK (s_2) dot.c K$) &~> #cekE($s_2$, $E$, $J$, $K$) && "SeqDone" \
-  #cekC($v$, $E$, $J$, $#exprStmtK dot.c K$) &~> #cekC($#Skip$, $E$, $J$, $K$) && "ExprStmtDone" \
-  #cekC($v_1$, $E$, $J$, $#binopLK (plus.o, e_2) dot.c K$) &~> #cekE($e_2$, $E$, $J$, $#binopRK (plus.o, v_1) dot.c K$) && "BinOpL" \
-  #cekC($v_2$, $E$, $J$, $#binopRK (plus.o, v_1) dot.c K$) &~> #cekC($#delta (plus.o, v_1, v_2)$, $E$, $J$, $K$) && "BinOpR" \
-  #cekC($v$, $E$, $J$, $#unopK (plus.o) dot.c K$) &~> #cekC($#delta (plus.o, v)$, $E$, $J$, $K$) && "UnOpDone" \
-  #cekC($#True$, $E$, $J$, $#loopK (c, e, n) dot.c K$) &~> #cekE($e$, $E$, $J, #Loop (ell, n, K)$, $#loopContK (c, e) dot.c K$) && "LoopTrue" \
-  #cekC($#False$, $E$, $J$, $#loopK (c, e, n) dot.c K$) &~> #cekC($#UnitVal$, $#truncate($E$, $n$)$, $J$, $K$) && "LoopFalse" \
-  #cekC($#UnitVal$, $E$, $J, #Loop (ell, n, K')$, $#loopContK (c, e) dot.c K'$) &~> #cekE($c$, $E$, $J$, $#loopK (c, e, n) dot.c K'$) && "LoopCont" \
-  #cekC($#Skip$, $E$, $J$, $#scopeBodyK (e, n) dot.c K$) &~> #cekE($e$, $E$, $J$, $#scopeExitK (n) dot.c K$) && "ScopeBody" \
-  #cekC($v$, $E$, $J$, $#scopeExitK (n) dot.c K$) &~> #cekC($v$, $#truncate($E$, $n$)$, $J$, $K$) && "ScopeExit"
+#cekC($#True$, $E$, $J$, $#ifCondK (e_1, e_2) dot.c K$) &~> #cekE($e_1$, $E$, $J$, $K$) && "IfTrue" \
+#cekC($#False$, $E$, $J$, $#ifCondK (e_1, e_2) dot.c K$) &~> #cekE($e_2$, $E$, $J$, $K$) && "IfFalse" \
+#cekC($v$, $E$, $J$, $#declK (x : tau) dot.c K$) &~> #cekC($#Skip$, $E, x := v$, $J$, $K$) && "VarDeclDone" \
+#cekC($v$, $E$, $J$, $#assignK (x) dot.c K$) &~> #cekC($#Skip$, $E[x |-> v]$, $J$, $K$) && "AssignDone" \
+#cekC($#Skip$, $E$, $J$, $#seqK (s_2) dot.c K$) &~> #cekE($s_2$, $E$, $J$, $K$) && "SeqDone" \
+#cekC($v$, $E$, $J$, $#exprStmtK dot.c K$) &~> #cekC($#Skip$, $E$, $J$, $K$) && "ExprStmtDone" \
+#cekC($v_1$, $E$, $J$, $#binopLK (plus.o, e_2) dot.c K$) &~> #cekE($e_2$, $E$, $J$, $#binopRK (plus.o, v_1) dot.c K$) && "BinOpL" \
+#cekC($v_2$, $E$, $J$, $#binopRK (plus.o, v_1) dot.c K$) &~> #cekC($#delta (plus.o, v_1, v_2)$, $E$, $J$, $K$) && "BinOpR" \
+#cekC($v$, $E$, $J$, $#unopK (plus.o) dot.c K$) &~> #cekC($#delta (plus.o, v)$, $E$, $J$, $K$) && "UnOpDone" \
+#cekC($#True$, $E$, $J$, $#loopK (c, e, n) dot.c K$) &~> #cekE($e$, $E$, $J, #Loop (ell, n, K)$, $#loopContK (c, e) dot.c K$) && "LoopTrue" \
+#cekC($#False$, $E$, $J$, $#loopK (c, e, n) dot.c K$) &~> #cekC($#UnitVal$, $#truncate($E$, $n$)$, $J$, $K$) && "LoopFalse" \
+#cekC($#UnitVal$, $E$, $J, #Loop (ell, n, K')$, $#loopContK (c, e) dot.c K'$) &~> #cekE($c$, $E$, $J$, $#loopK (c, e, n) dot.c K'$) && "LoopCont" \
+#cekC($#Skip$, $E$, $J$, $#scopeBodyK (e, n) dot.c K$) &~> #cekE($e$, $E$, $J$, $#scopeExitK (n) dot.c K$) && "ScopeBody" \
+#cekC($v$, $E$, $J$, $#scopeExitK (n) dot.c K$) &~> #cekC($v$, $#truncate($E$, $n$)$, $J$, $K$) && "ScopeExit"
 $
 $E[x |-> v]$ updates the rightmost binding of $x$ in $E$. BinOpL/BinOpR implement left-to-right evaluation of binary operators. IfTrue/IfFalse dispatch directly to the branch expression.
 
@@ -359,8 +312,8 @@ ScopeBody loads the trailing expression after the scope's statements complete. S
 === Initial and Terminal States
 
 $
-   "Initial:" && #cekE($s$, $dot$, $dot$, $#halt$) && "where" s "is the program" \
-  "Terminal:" && #cekC($#Skip$, $E$, $J$, $#halt$)
+"Initial:" && #cekE($s$, $dot$, $dot$, $#halt$) && "where" s "is the program" \
+"Terminal:" && #cekC($#Skip$, $E$, $J$, $#halt$)
 $
 
 === Continuation Typing
@@ -372,73 +325,20 @@ We write $#truncate($Gamma$, $n$)$ for the first $n$ bindings of $Gamma$, mirror
 Expression continuations (#typeContE($Gamma$, $Delta$, $K$, $tau$)) _consume_ a value of type $tau$ in context $Gamma$ with jump context $Delta$.
 
 #mathpar(
-  proof-tree(rule(
-    name: $#IfCondK$,
-    typeContE($Gamma$, $Delta$, $#ifCondK (e_1, e_2) dot.c K$, $#Bool$),
-    typeExpr($Gamma$, $Delta$, $e_1$, $tau$),
-    typeExpr($Gamma$, $Delta$, $e_2$, $tau$),
-    typeContE($Gamma$, $Delta$, $K$, $tau$),
-  )),
+  proof-tree(rule(name: $#IfCondK$, typeContE($Gamma$, $Delta$, $#ifCondK (e_1, e_2) dot.c K$, $#Bool$), typeExpr($Gamma$, $Delta$, $e_1$, $tau$), typeExpr($Gamma$, $Delta$, $e_2$, $tau$), typeContE($Gamma$, $Delta$, $K$, $tau$))),
 
-  proof-tree(rule(name: $#DeclK$, typeContE($Gamma$, $Delta$, $#declK (x : tau) dot.c K$, $tau$), typeContC(
-    $Gamma, x : tau$,
-    $Delta$,
-    $K$,
-  ))),
-  proof-tree(rule(
-    name: $#AssignK$,
-    typeContE($Gamma$, $Delta$, $#assignK (x) dot.c K$, $tau$),
-    $Gamma(x) = tau$,
-    typeContC($Gamma$, $Delta$, $K$),
-  )),
+  proof-tree(rule(name: $#DeclK$, typeContE($Gamma$, $Delta$, $#declK (x : tau) dot.c K$, $tau$), typeContC($Gamma, x : tau$, $Delta$, $K$))),
+  proof-tree(rule(name: $#AssignK$, typeContE($Gamma$, $Delta$, $#assignK (x) dot.c K$, $tau$), $Gamma(x) = tau$, typeContC($Gamma$, $Delta$, $K$))),
 
-  proof-tree(rule(
-    name: $#BinOpLK$,
-    typeContE($Gamma$, $Delta$, $#binopLK (plus.o, e_2) dot.c K$, $tau_1$),
-    $plus.o : tau_1 times tau_2 -> tau_3$,
-    typeExpr($Gamma$, $Delta$, $e_2$, $tau_2$),
-    typeContE($Gamma$, $Delta$, $K$, $tau_3$),
-  )),
-  proof-tree(rule(
-    name: $#BinOpRK$,
-    typeContE($Gamma$, $Delta$, $#binopRK (plus.o, v_1) dot.c K$, $tau_2$),
-    $plus.o : tau_1 times tau_2 -> tau_3$,
-    $tack.r v_1 : tau_1$,
-    typeContE($Gamma$, $Delta$, $K$, $tau_3$),
-  )),
-  proof-tree(rule(
-    name: $#UnOpK$,
-    typeContE($Gamma$, $Delta$, $#unopK (plus.o) dot.c K$, $tau_1$),
-    $plus.o : tau_1 -> tau_2$,
-    typeContE($Gamma$, $Delta$, $K$, $tau_2$),
-  )),
+  proof-tree(rule(name: $#BinOpLK$, typeContE($Gamma$, $Delta$, $#binopLK (plus.o, e_2) dot.c K$, $tau_1$), $plus.o : tau_1 times tau_2 -> tau_3$, typeExpr($Gamma$, $Delta$, $e_2$, $tau_2$), typeContE($Gamma$, $Delta$, $K$, $tau_3$))),
+  proof-tree(rule(name: $#BinOpRK$, typeContE($Gamma$, $Delta$, $#binopRK (plus.o, v_1) dot.c K$, $tau_2$), $plus.o : tau_1 times tau_2 -> tau_3$, $tack.r v_1 : tau_1$, typeContE($Gamma$, $Delta$, $K$, $tau_3$))),
+  proof-tree(rule(name: $#UnOpK$, typeContE($Gamma$, $Delta$, $#unopK (plus.o) dot.c K$, $tau_1$), $plus.o : tau_1 -> tau_2$, typeContE($Gamma$, $Delta$, $K$, $tau_2$))),
 
-  proof-tree(rule(
-    name: $#LoopK$,
-    typeContE($Gamma$, $Delta$, $#loopK (c, e, n) dot.c K$, $#Bool$),
-    typeExpr($Gamma$, $Delta$, $c$, $#Bool$),
-    typeExpr($Gamma$, $Delta, #Loop (ell)$, $e$, $#Unit$),
-    typeContE($#truncate($Gamma$, $n$)$, $Delta$, $K$, $#Unit$),
-  )),
-  proof-tree(rule(
-    name: $#LoopContK$,
-    typeContE($Gamma$, $Delta, #Loop (ell)$, $#loopContK (c, e) dot.c K$, $#Unit$),
-    typeExpr($Gamma$, $Delta$, $c$, $#Bool$),
-    typeExpr($Gamma$, $Delta, #Loop (ell)$, $e$, $#Unit$),
-    typeContE($#truncate($Gamma$, $n$)$, $Delta$, $K$, $#Unit$),
-  )),
+  proof-tree(rule(name: $#LoopK$, typeContE($Gamma$, $Delta$, $#loopK (c, e, n) dot.c K$, $#Bool$), typeExpr($Gamma$, $Delta$, $c$, $#Bool$), typeExpr($Gamma$, $Delta, #Loop (ell)$, $e$, $#Unit$), typeContE($#truncate($Gamma$, $n$)$, $Delta$, $K$, $#Unit$))),
+  proof-tree(rule(name: $#LoopContK$, typeContE($Gamma$, $Delta, #Loop (ell)$, $#loopContK (c, e) dot.c K$, $#Unit$), typeExpr($Gamma$, $Delta$, $c$, $#Bool$), typeExpr($Gamma$, $Delta, #Loop (ell)$, $e$, $#Unit$), typeContE($#truncate($Gamma$, $n$)$, $Delta$, $K$, $#Unit$))),
 
-  proof-tree(rule(name: $#ScopeExitK$, typeContE($Gamma$, $Delta$, $#scopeExitK (n) dot.c K$, $tau$), typeContE(
-    $#truncate($Gamma$, $n$)$,
-    $Delta$,
-    $K$,
-    $tau$,
-  ))),
-  proof-tree(rule(name: $#ExprStmtK$, typeContE($Gamma$, $Delta$, $#exprStmtK dot.c K$, $tau$), typeContC(
-    $Gamma$,
-    $Delta$,
-    $K$,
-  ))),
+  proof-tree(rule(name: $#ScopeExitK$, typeContE($Gamma$, $Delta$, $#scopeExitK (n) dot.c K$, $tau$), typeContE($#truncate($Gamma$, $n$)$, $Delta$, $K$, $tau$))),
+  proof-tree(rule(name: $#ExprStmtK$, typeContE($Gamma$, $Delta$, $#exprStmtK dot.c K$, $tau$), typeContC($Gamma$, $Delta$, $K$))),
 )
 
 $#IfCondK$ accepts $#Bool$ and types both branches as expressions under $Gamma | Delta$.
@@ -457,18 +357,8 @@ Statement continuations (#typeContC($Gamma$, $Delta$, $K$)) accept $#Skip$ in co
 
 #mathpar(
   proof-tree(rule(name: $#HaltK$, typeContC($Gamma$, $Delta$, $#halt$))),
-  proof-tree(rule(
-    name: $#SeqK$,
-    typeContC($Gamma$, $Delta$, $#seqK (s) dot.c K$),
-    typeStmt($Gamma$, $Delta$, $s$, $Gamma'$, $Delta$),
-    typeContC($Gamma'$, $Delta$, $K$),
-  )),
-  proof-tree(rule(
-    name: $#ScopeBodyK$,
-    typeContC($Gamma$, $Delta$, $#scopeBodyK (e, n) dot.c K$),
-    typeExpr($Gamma$, $Delta$, $e$, $tau$),
-    typeContE($#truncate($Gamma$, $n$)$, $Delta$, $K$, $tau$),
-  )),
+  proof-tree(rule(name: $#SeqK$, typeContC($Gamma$, $Delta$, $#seqK (s) dot.c K$), typeStmt($Gamma$, $Delta$, $s$, $Gamma'$, $Delta$), typeContC($Gamma'$, $Delta$, $K$))),
+  proof-tree(rule(name: $#ScopeBodyK$, typeContC($Gamma$, $Delta$, $#scopeBodyK (e, n) dot.c K$), typeExpr($Gamma$, $Delta$, $e$, $tau$), typeContE($#truncate($Gamma$, $n$)$, $Delta$, $K$, $tau$))),
 )
 
 === Environment-Context Coherence
@@ -486,12 +376,7 @@ We define _jump stack coherence_ between a jump stack and a jump context, writte
 
 #mathpar(
   proof-tree(rule(name: "JCohEmp", $#jcoh($dot$, $Gamma$, $dot$)$)),
-  proof-tree(rule(
-    name: "JCohLoop",
-    $#jcoh($J, #Loop (ell, n, K)$, $Gamma$, $Delta, #Loop (ell)$)$,
-    $#jcoh($J$, $#truncate($Gamma$, $n$)$, $Delta$)$,
-    typeContE($#truncate($Gamma$, $n$)$, $Delta$, $K$, $#Unit$),
-  )),
+  proof-tree(rule(name: "JCohLoop", $#jcoh($J, #Loop (ell, n, K)$, $Gamma$, $Delta, #Loop (ell)$)$, $#jcoh($J$, $#truncate($Gamma$, $n$)$, $Delta$)$, typeContE($#truncate($Gamma$, $n$)$, $Delta$, $K$, $#Unit$))),
 )
 
 Each loop entry in $J$ records a label $ell$, a saved environment size $n$, and an exit continuation $K$. The exit continuation is well typed at the context and jump context from _after_ the loop exits (i.e. $#truncate($Gamma$, $n$)$ and $Delta$ without $#Loop (ell)$). This is what makes Break's preservation proof direct: the target $K$ is already known to be well typed.
@@ -501,37 +386,10 @@ Each loop entry in $J$ records a label $ell$, a saved environment size $n$, and 
 A machine state is _well typed_ when coherence and jump stack coherence bridge the runtime state to a context $Gamma$ and jump context $Delta$ that type both the control and the continuation:
 
 #mathpar(
-  proof-tree(rule(
-    name: "WtExprE",
-    $tack.r #cekE($e$, $E$, $J$, $K$) "ok"$,
-    $#coh($E$, $Gamma$)$,
-    $#jcoh($J$, $Gamma$, $Delta$)$,
-    typeExpr($Gamma$, $Delta$, $e$, $tau$),
-    typeContE($Gamma$, $Delta$, $K$, $tau$),
-  )),
-  proof-tree(rule(
-    name: "WtExprS",
-    $tack.r #cekE($s$, $E$, $J$, $K$) "ok"$,
-    $#coh($E$, $Gamma$)$,
-    $#jcoh($J$, $Gamma$, $Delta$)$,
-    typeStmt($Gamma$, $Delta$, $s$, $Gamma'$, $Delta$),
-    typeContC($Gamma'$, $Delta$, $K$),
-  )),
-  proof-tree(rule(
-    name: "WtContV",
-    $tack.r #cekC($v$, $E$, $J$, $K$) "ok"$,
-    $#coh($E$, $Gamma$)$,
-    $#jcoh($J$, $Gamma$, $Delta$)$,
-    $tack.r v : tau$,
-    typeContE($Gamma$, $Delta$, $K$, $tau$),
-  )),
-  proof-tree(rule(
-    name: "WtContS",
-    $tack.r #cekC($#Skip$, $E$, $J$, $K$) "ok"$,
-    $#coh($E$, $Gamma$)$,
-    $#jcoh($J$, $Gamma$, $Delta$)$,
-    typeContC($Gamma$, $Delta$, $K$),
-  )),
+  proof-tree(rule(name: "WtExprE", $tack.r #cekE($e$, $E$, $J$, $K$) "ok"$, $#coh($E$, $Gamma$)$, $#jcoh($J$, $Gamma$, $Delta$)$, typeExpr($Gamma$, $Delta$, $e$, $tau$), typeContE($Gamma$, $Delta$, $K$, $tau$))),
+  proof-tree(rule(name: "WtExprS", $tack.r #cekE($s$, $E$, $J$, $K$) "ok"$, $#coh($E$, $Gamma$)$, $#jcoh($J$, $Gamma$, $Delta$)$, typeStmt($Gamma$, $Delta$, $s$, $Gamma'$, $Delta$), typeContC($Gamma'$, $Delta$, $K$))),
+  proof-tree(rule(name: "WtContV", $tack.r #cekC($v$, $E$, $J$, $K$) "ok"$, $#coh($E$, $Gamma$)$, $#jcoh($J$, $Gamma$, $Delta$)$, $tack.r v : tau$, typeContE($Gamma$, $Delta$, $K$, $tau$))),
+  proof-tree(rule(name: "WtContS", $tack.r #cekC($#Skip$, $E$, $J$, $K$) "ok"$, $#coh($E$, $Gamma$)$, $#jcoh($J$, $Gamma$, $Delta$)$, typeContC($Gamma$, $Delta$, $K$))),
 )
 
 === Properties
