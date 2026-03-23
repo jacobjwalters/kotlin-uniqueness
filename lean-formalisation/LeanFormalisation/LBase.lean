@@ -476,6 +476,10 @@ inductive ContTypeRes : Tag → Type
 | Expr (type : Ty) : ContTypeRes .Expr
 | Stmt : ContTypeRes .Stmt
 
+def ctx_limit (n : Nat) : JCtx → Prop
+| [] => True
+| x :: _ => x ≤ n
+
 -- # Expression Continuations
 inductive ContType : (tg : Tag) → JCtx → Ctx → List Cont → ContTypeRes tg → Prop
 | IfCondK (s₁ : Lang .Expr) (s₂ : Lang .Expr) (Γ₁ : Ctx) (type : Ty) :
@@ -501,20 +505,19 @@ inductive ContType : (tg : Tag) → JCtx → Ctx → List Cont → ContTypeRes t
 | UnOpK (Γ₁ : Ctx) (op : UnOp) :
   ContType .Expr Δ₁ Γ₁ K (.Expr op.args.out) →
   ContType .Expr Δ₁ Γ₁ (.unopK op :: K) (.Expr op.args.1)
-| LoopK (Γ₁ : Ctx) (e : Lang .Expr) (c : Lang .Expr) (n : Nat) :
+-- is this rule too strong now?
+| LoopK (Γ₁ : Ctx) (e : Lang .Expr) (c : Lang .Expr) :
   Typ .Expr Δ₁ Γ₁ c (.Expr .bool) →
   Typ .Expr (Γ₁.length :: Δ₁) Γ₁ e (.Expr .unit) →
-  n ≤ Γ₁.length →
-  ContType .Expr Δ₁ (Γ₁.drop (Γ₁.length - n)) K (.Expr .unit) →
-  ContType .Expr Δ₁ Γ₁ (.loopK c e n :: K) (.Expr .bool)
+  ContType .Expr Δ₁ Γ₁ K (.Expr .unit) →
+  ContType .Expr Δ₁ Γ₁ (.loopK c e Γ₁.length :: K) (.Expr .bool)
 | LoopContK (Γ₁ : Ctx) (e : Lang .Expr) (c : Lang .Expr) (n : Nat) :
   Typ .Expr Δ₁ Γ₁ c (.Expr .bool) →
   Typ .Expr (Γ₁.length :: Δ₁) Γ₁ e (.Expr .unit) →
-  n ≤ Γ₁.length →
   ContType .Expr Δ₁ (Γ₁.drop (Γ₁.length - n)) K (.Expr .unit) →
   ContType .Expr (Γ₁.length :: Δ₁) Γ₁ (.loopContK c e n :: K) (.Expr .unit)
 | ScopeExitK (Γ₁ : Ctx) (n : Nat) (type : Ty) :
-  n ≤ Γ₁.length →
+  ctx_limit n Δ₁ →
   ContType .Expr Δ₁ (Γ₁.drop (Γ₁.length - n)) K (.Expr type) →
   ContType .Expr Δ₁ Γ₁ (.scopeExitK n :: K) (.Expr type)
 | ExprStmtK (Γ₁ : Ctx) (type : Ty) :
@@ -529,7 +532,7 @@ inductive ContType : (tg : Tag) → JCtx → Ctx → List Cont → ContTypeRes t
   ContType .Stmt Δ₁ Γ₁ (.seqK s :: K) .Stmt
 | ScopeBodyK (Γ₁ : Ctx) (e : Lang .Expr) (type : Ty) (n : Nat) :
   Typ .Expr Δ₁ Γ₁ e (.Expr type) →
-  n ≤ Γ₁.length →
+  ctx_limit n Δ₁ →
   ContType .Expr Δ₁ (Γ₁.drop (Γ₁.length - n)) K (.Expr type) →
   ContType .Stmt Δ₁ Γ₁ (.scopeBodyK e n :: K) .Stmt
 
@@ -636,14 +639,19 @@ lemma coh_mono (E : Environment) (Γ : Ctx) :
     rw [←cons_append, this]
     { grind [Coh] }
     grind
-
+/-
 -- Not used in the current development; right-extension of context does not
 -- interact well with List.drop when n ≤ Γ.length.  The prepend variant
 -- (used via jcoh_ext) is what preservation actually needs.
-lemma cont_type_ext (tg : Tag) (Γ₁ : ContTypeRes tg) :
+lemma cont_type_ext (tg : Tag) (Γ₁ : ContTypeRes tg) (n : Nat) :
     ContType tg Δ Γ K Γ₁ →
-    ContType tg Δ (Γ ++ Γ₂) K Γ₁ := by
-    sorry -- right-extension form not needed; see jcoh_ext
+    ctx_limit n Δ →
+    ContType tg Δ (Γ.drop (Γ.length - n)) K Γ₁ := by
+    intro hx hc
+    induction hx generalizing n
+    { sorry }
+    stop sorry -- right-extension form not needed; see jcoh_ext
+-/
 
 lemma drop_suffix_prepend {α : Type} (Γ₁ Γ₂ : List α) (n : Nat)
     (hn : n ≤ Γ₂.length) :
@@ -667,7 +675,28 @@ lemma jcoh_ext (J : JStackCtx) (Γ Γ₁ : Ctx) :
     { rw [hdrop]; assumption }
     { rw [hdrop]; assumption }
 
-lemma jcoh_sub (J : JStackCtx) (Γ : Ctx) (l : Nat) :
+lemma jcoh_sub (J : JStackCtx) (Γ : Ctx) :
+    JCoh J Γ Δ → ctx_limit n Δ →
+    JCoh J (Γ.drop (Γ.length - n)) Δ := by
+    intro h hc
+    unhygienic induction h generalizing n
+    { exact JCoh.JCohEmp }
+    apply JCoh.JCohLoop
+    { grind [ctx_limit] }
+    { simp at *
+      grind [ctx_limit] }
+    simp
+    grind [ctx_limit]
+
+lemma List.eq_take_drop (Γ : List α) (n : Nat) :
+  Γ = Γ.take n ++ Γ.drop n := by
+    induction Γ generalizing n
+    { grind }
+    by_cases ∃ k, n = k + 1
+    { grind }
+    simp at *
+
+lemma jcoh_drop (J : JStackCtx) (Γ : Ctx) (l : Nat) :
     JCoh J Γ Δ →
     JCoh (J.drop (l + 1))
       (Γ.drop (Γ.length - J[l]!.1)) (Δ.drop (l + 1)) := by
@@ -678,10 +707,45 @@ lemma jcoh_sub (J : JStackCtx) (Γ : Ctx) (l : Nat) :
       grind }
     unhygienic cases hj
     { grind [JCoh] }
-    simp
-    -- need: inner JCoh uses dropped context, IH needs matching drop
-    -- requires drop_drop_suffix lemma and m ≤ n extraction from JCoh
-    sorry
+    simp only [List.drop_succ_cons]
+    apply a
+    have : Γ = Γ.take (Γ.length - n_1) ++ (Γ.drop (Γ.length - n_1)) := by
+      clear a a_2
+      exact List.eq_take_drop Γ _
+    rw [this]
+    apply jcoh_ext
+    apply a_2
+
+lemma jcoh_cont_type_drop (J : JStackCtx) (Γ : Ctx) (l : Nat) :
+    l < Δ.length →
+    JCoh J Γ Δ →
+    ContType Tag.Expr
+      (List.drop (l + 1) Δ)
+      (List.drop (List.length Γ - J[l]!.1) Γ)
+      J[l]!.2
+      (ContTypeRes.Expr Ty.unit) := by
+    intro hl hj
+    unhygienic induction l generalizing J Δ Γ
+    { cases hj <;> grind }
+    unhygienic cases hj
+    { grind }
+    simp only [List.drop_succ_cons]
+    apply a
+    { grind }
+    have : Γ = Γ.take (Γ.length - n_1) ++ (Γ.drop (Γ.length - n_1)) := by
+      clear a a_2
+      exact List.eq_take_drop Γ _
+    rw [this]
+    apply jcoh_ext
+    apply a_2
+
+lemma jcoh_ctx :
+  JCoh J Γ Δ → ctx_limit Γ.length Δ := by
+    intro hj
+    induction hj
+    { grind [ctx_limit] }
+    rw [ctx_limit]
+    grind
 
 theorem preservation (s s' : CEK) :
   Wt s → Eval s s' → Wt s' := by
@@ -717,20 +781,12 @@ theorem preservation (s s' : CEK) :
       { apply a }
       { apply a_1 }
       { apply a_4 }
+      rw [coh_len _ _ a]
       apply ContType.LoopK
       { apply a_4 }
-      { apply a_5 }
-      { -- E.length ≤ Γ.length follows from Coh
-        have hlen := coh_len E Γ a
-        omega }
-      { -- Γ.drop (Γ.length - E.length) = Γ since E.length = Γ.length
-        have hlen := coh_len E Γ a
-        have hdrop : List.drop (List.length Γ - List.length E) Γ
-            = Γ := by
-          have : List.length Γ - List.length E = 0 := by omega
-          rw [this]; simp
-        rw [hdrop]
-        assumption } }
+      { grind [coh_len] }
+      { grind [jcoh_ctx] }
+    /-apply a_3-/ }
     -- Break: jump to saved context
     { unhygienic cases a_2
       apply Wt.WtContV (type := Ty.unit)
@@ -738,15 +794,29 @@ theorem preservation (s s' : CEK) :
       { apply coh_mono
         apply a }
       { rw [coh_len E Γ a]
-        apply jcoh_sub
+        apply jcoh_drop
         apply a_1 }
       { simp [value_type] }
-      -- need ContType for break target from JCoh
-      sorry -- requires extracting ContType from JCoh at level l
+      rw [coh_len _ _ a]
+      apply jcoh_cont_type_drop <;> solve_by_elim
       }
     -- Scope: push ScopeBodyK continuation
-    { -- need ScopeBodyK with n ≤ Γ₂.length and ContType for drop
-      sorry }
+    { unhygienic cases a_2
+      apply Wt.WtExprS
+      { apply a }
+      { apply a_1 }
+      { apply a_4 }
+      apply ContType.ScopeBodyK
+      { apply a_5 }
+      { rw [ctx_limit.eq_def]
+        grind [coh_len, JCoh] }
+      { rcases stmt_mono _ _ _ _ a_4 with ⟨g, hg⟩
+        cases g
+        rw [TypR.extR] at hg
+        rw [coh_len _ _ a]
+        simp at hg
+        simp [←hg]
+        grind } }
     -- VarDeclDone: extend environment
     { unhygienic cases a_3
       apply Wt.WtContS (Δ := Δ)
@@ -781,19 +851,71 @@ theorem preservation (s s' : CEK) :
         rw [value_type.eq_2]; trivial }
       { solve_by_elim } }
     -- LoopTrue: enter loop body, push JStackCtx
-    { cases a_3
+    { unhygienic cases a_3
+      apply Wt.WtExprE
+      { apply a }
+      { apply JCoh.JCohLoop
+        { grind }
+        { apply jcoh_sub
+          { apply a_1 }
+          grind [jcoh_ctx] }
+        grind }
       -- need n = Γ.length (holds via Coh at loop entry)
       -- then JCtx becomes Γ.length :: Δ matching body typing
-      sorry }
+      { apply a_5 }
+      apply ContType.LoopContK
+      { apply a_4 }
+      { apply a_5 }
+      grind }
     -- LoopFalse: exit loop, drop environment
-    { cases a_3
+    { unhygienic cases a_3
       -- need JCoh after dropping env to loop entry length
-      sorry }
+      apply Wt.WtContV
+      { apply coh_mono
+        apply a }
+      { rw [coh_len _ _ a]
+        apply jcoh_sub
+        { apply a_1 }
+        grind [jcoh_ctx] }
+      { rw [value_type.eq_4]
+        simp }
+      rw [coh_len _ _ a]
+      grind }
     -- LoopCont: pop JStackCtx, re-enter condition
     { unhygienic cases a_3
-      -- need JCoh after popping top JStackCtx entry
-      sorry }
+      unhygienic cases a_1
+      apply Wt.WtExprE
+      { apply a }
+      { simp only [Nat.sub_self, List.drop_zero] at a_7
+        apply a_7 }
+      { apply a_4 }
+      apply ContType.LoopK
+      { apply a_4 }
+      { apply a_5 }
+      grind }
     -- ScopeExit: drop environment, restore context
-    cases a_3
-    -- need JCoh after dropping env to scope entry length
-    sorry
+    unhygienic cases Δ
+    { unhygienic cases a_3
+      apply Wt.WtContV
+      { apply coh_mono
+        apply a }
+      { cases a_1
+        apply JCoh.JCohEmp }
+      { apply a_2 }
+      grind [coh_len] }
+    unhygienic cases a_3
+    apply Wt.WtContV
+    { apply coh_mono
+      apply a }
+    { unhygienic cases a_1
+      rw [ctx_limit] at a_4
+      have : (List.length E - n + (List.length Γ - (List.length E - n) - head)) =
+        (Γ.length - head) := by grind [coh_len]
+      apply JCoh.JCohLoop
+      { grind [coh_len] }
+      { simp only [List.length_drop, List.drop_drop, this]
+        apply a_6 }
+      simp only [List.length_drop, List.drop_drop, this]
+      apply a_7 }
+    { apply a_2 }
+    grind [coh_len]
