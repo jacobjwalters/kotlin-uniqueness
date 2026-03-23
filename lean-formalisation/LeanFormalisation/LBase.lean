@@ -183,12 +183,37 @@ section TypeProperties
 
 theorem lang_det (Γ₁ : Ctx) (tg : Tag) (Γ₂ Γ₃ : TypR tg) (s : Lang tg) :
   Typ tg Δ₁ Γ₁ s Γ₂ → Typ tg Δ₁ Γ₁ s Γ₃ → Γ₂ = Γ₃ := by
-    sorry
+    intro h1 h2
+    unhygienic induction h1 <;> try grind
+    all_goals
+    { cases h2
+      grind }
 
 theorem typ_permutation (Γ₁ Γ₂ : Ctx) (tg : Tag) (Γ₃ : TypR tg) (e : Lang tg) :
   (∀ tp x, (Γ₁(x) = tp) ↔ Γ₂(x) = tp) →
   Typ tg Δ₁ Γ₁ e Γ₃ → Typ tg Δ₁ Γ₂ e Γ₃ := by
-    sorry
+    intro hg
+    have leq : Γ₁.length = Γ₂.length := by
+      by_cases h1: Γ₂.length < Γ₁.length
+      { have hi := hg Γ₁[Γ₁.length - 1] (Γ₁.length - 1)
+        clear hg
+        grind }
+      by_cases h2: Γ₁.length < Γ₂.length
+      { have hi := hg Γ₂[Γ₂.length - 1] (Γ₂.length - 1)
+        clear hg
+        grind }
+      grind
+    have : Γ₁ = Γ₂ := by
+      ext
+      clear e
+      rename_i idx el
+      have hi := hg el idx
+      by_cases hid: idx < Γ₁.length
+      { clear hg
+        grind }
+      grind
+    rw [this]
+    grind
 
 def TypR.extL (Γ₁ : Ctx) (tg : Tag) : TypR tg → TypR tg
 | .Expr type => .Expr type
@@ -200,28 +225,83 @@ def TypR.extR (Γ₁ : Ctx) (tg : Tag) : TypR tg → TypR tg
 
 lemma stmt_mono (Γ₁ : Ctx) (tg : Tag) (Γ₂ : TypR tg) (s : Lang tg) :
   Typ tg Δ₁ Γ₁ s Γ₂ → ∃ Γ₃ : TypR tg, Γ₃.extR Γ₁ = Γ₂ := by
-    sorry
+    intro hs
+    unhygienic induction hs <;> try grind
+    all_goals try
+    { eapply Exists.intro
+      rw [TypR.extR] }
+    { eapply Exists.intro
+      rw [TypR.extR]
+      rotate_left
+      { exact [type] }
+      grind }
+    { eapply Exists.intro
+      rw [TypR.extR]
+      rotate_left
+      { exact [] }
+      grind }
+    { have ⟨g, hg⟩:= a_ih
+      unhygienic cases g
+      have ⟨g1, hg1⟩:= a_ih_1
+      unhygienic cases g1
+      simp only [TypR.extR] at *
+      exists TypR.Stmt (Γ₁_3 ++ Γ₁_2)
+      grind }
+    eapply Exists.intro
+    rw [TypR.extR]
+    rotate_left
+    { exact [] }
+    grind
+
 
 lemma stmt_decl (type : Ty) : Typ .Stmt Δ₁ Γ₁ (.Decl type e) (.Stmt Γ₂) → Γ₂ = type :: Γ₁ := by
-    sorry
+  intro h
+  cases h
+  rfl
 
 lemma p_index_r (Γ₁ Γ₂ : Ctx) (i : Nat) :
   i < Γ₁.length →
   (Γ₂ ++ Γ₁)[i + Γ₂.length]? = Γ₁[i]? := by
-    sorry
+    intro hlt
+    induction Γ₂ with
+    | nil => simp
+    | cons _ _ => grind
+
 
 theorem lang_extension (tg : Tag) (e : Lang tg) (res : TypR tg)
     (Γ₁ Γ₂ : Ctx) :
     Typ tg Δ₁ Γ₁ e res →
     Typ tg (Δ₁.map (fun x => x + Γ₂.length)) (Γ₁ ++ Γ₂) (e)
       (res.extR Γ₂) := by
-    sorry
+    intro h
+    unhygienic induction h generalizing Γ₂ <;>try solve_by_elim
+    { rw [TypR.extR]
+      apply Typ.VarAccess
+      grind }
+    { apply Typ.WhileExpr
+      { solve_by_elim }
+      { -- map distributes over cons: map f (n :: Δ) = f n :: map f Δ
+        -- and f n = n + len = (Γ₁ ++ Γ₂).length
+        have h := a_ih_1 Γ₂
+        simp only [List.map_cons, List.length_append,
+          TypR.extR] at h ⊢
+        exact h } }
+    { exact Typ.BreakExpr .unit _
+        (by rw [List.length_map]; exact a) }
+    { solve_by_elim [Typ.ScopeExpr] }
+    { rw [TypR.extR]
+      apply Typ.VarAssign _ _ _ (a_ih Γ₂)
+      grind }
+    solve_by_elim [Typ.Seq]
 
 theorem typ_ext (e : Lang .Expr) (type : Ty) (Γ₁ Γ₂ : Ctx) :
     Typ .Expr Δ₁ Γ₁ e (.Expr type) →
     Typ .Expr (Δ₁.map (fun x => x + Γ₂.length)) (Γ₁ ++ Γ₂) e
       (.Expr type) := by
-    sorry
+    intro h
+    have lm := lang_extension _ _ _ _ Γ₂ h
+    rw [TypR.extR] at lm
+    apply lm
 
 end TypeProperties
 
@@ -268,6 +348,18 @@ structure CEK where
   J : JStackCtx
   K : List Cont
 
+-- Do we need this relation in the current Jump Context implementation?
+/-
+inductive PopLoopK : List Cont → List Cont → Nat → Prop
+| loopK (c body : Lang .Expr) (n : Nat) (rest : List Cont) :
+  PopLoopK (.loopK c body n :: rest) rest n
+| loopContK (c body : Lang .Expr) (n : Nat) (rest : List Cont) :
+  PopLoopK (.loopContK c body n :: rest) rest n
+| skip (k : Cont) (rest result : List Cont) (n : Nat) :
+  PopLoopK rest result n →
+  PopLoopK (k :: rest) result n
+-/
+
 inductive Eval : CEK → CEK → Prop
 -- # Expr
 | Val (v : Value) :
@@ -313,6 +405,7 @@ inductive Eval : CEK → CEK → Prop
 | Break (K' : List Cont) (l : Nat):
   Eval
     ⟨.sourceExpr (.Break l), E, J, K⟩
+    -- was skip before, should it be .skip?
     ⟨.value .Unit, E.drop (E.length - J[l]!.1), J.drop (l + 1), J[l]!.2⟩
 | Scope (s : Lang .Stmt) (e : Lang .Expr) :
   Eval
@@ -383,6 +476,10 @@ inductive ContTypeRes : Tag → Type
 | Expr (type : Ty) : ContTypeRes .Expr
 | Stmt : ContTypeRes .Stmt
 
+def ctx_limit (n : Nat) : JCtx → Prop
+| [] => True
+| x :: _ => x ≤ n
+
 -- # Expression Continuations
 inductive ContType : (tg : Tag) → JCtx → Ctx → List Cont → ContTypeRes tg → Prop
 | IfCondK (s₁ : Lang .Expr) (s₂ : Lang .Expr) (Γ₁ : Ctx) (type : Ty) :
@@ -408,20 +505,19 @@ inductive ContType : (tg : Tag) → JCtx → Ctx → List Cont → ContTypeRes t
 | UnOpK (Γ₁ : Ctx) (op : UnOp) :
   ContType .Expr Δ₁ Γ₁ K (.Expr op.args.out) →
   ContType .Expr Δ₁ Γ₁ (.unopK op :: K) (.Expr op.args.1)
-| LoopK (Γ₁ : Ctx) (e : Lang .Expr) (c : Lang .Expr) (n : Nat) :
+-- is this rule too strong now?
+| LoopK (Γ₁ : Ctx) (e : Lang .Expr) (c : Lang .Expr) :
   Typ .Expr Δ₁ Γ₁ c (.Expr .bool) →
   Typ .Expr (Γ₁.length :: Δ₁) Γ₁ e (.Expr .unit) →
-  n ≤ Γ₁.length →
-  ContType .Expr Δ₁ (Γ₁.drop (Γ₁.length - n)) K (.Expr .unit) →
-  ContType .Expr Δ₁ Γ₁ (.loopK c e n :: K) (.Expr .bool)
+  ContType .Expr Δ₁ Γ₁ K (.Expr .unit) →
+  ContType .Expr Δ₁ Γ₁ (.loopK c e Γ₁.length :: K) (.Expr .bool)
 | LoopContK (Γ₁ : Ctx) (e : Lang .Expr) (c : Lang .Expr) (n : Nat) :
   Typ .Expr Δ₁ Γ₁ c (.Expr .bool) →
   Typ .Expr (Γ₁.length :: Δ₁) Γ₁ e (.Expr .unit) →
-  n ≤ Γ₁.length →
   ContType .Expr Δ₁ (Γ₁.drop (Γ₁.length - n)) K (.Expr .unit) →
   ContType .Expr (Γ₁.length :: Δ₁) Γ₁ (.loopContK c e n :: K) (.Expr .unit)
 | ScopeExitK (Γ₁ : Ctx) (n : Nat) (type : Ty) :
-  n ≤ Γ₁.length →
+  ctx_limit n Δ₁ →
   ContType .Expr Δ₁ (Γ₁.drop (Γ₁.length - n)) K (.Expr type) →
   ContType .Expr Δ₁ Γ₁ (.scopeExitK n :: K) (.Expr type)
 | ExprStmtK (Γ₁ : Ctx) (type : Ty) :
@@ -436,7 +532,7 @@ inductive ContType : (tg : Tag) → JCtx → Ctx → List Cont → ContTypeRes t
   ContType .Stmt Δ₁ Γ₁ (.seqK s :: K) .Stmt
 | ScopeBodyK (Γ₁ : Ctx) (e : Lang .Expr) (type : Ty) (n : Nat) :
   Typ .Expr Δ₁ Γ₁ e (.Expr type) →
-  n ≤ Γ₁.length →
+  ctx_limit n Δ₁ →
   ContType .Expr Δ₁ (Γ₁.drop (Γ₁.length - n)) K (.Expr type) →
   ContType .Stmt Δ₁ Γ₁ (.scopeBodyK e n :: K) .Stmt
 
@@ -482,55 +578,343 @@ inductive Wt : CEK → Prop
   ContType .Stmt Δ Γ K .Stmt →
   Wt ⟨.skip, E, J, K⟩
 
+-- do casing on Continuation
 theorem progress (s : CEK) :
   Wt s →
   (∃ E, terminalState E = s) ∨ ∃ s', Eval s s' := by
-    sorry
+    intro hwt
+    unhygienic induction s
+    by_cases ht : ∃ E1, terminalState E1 = ⟨C, E, J, K⟩
+    { grind }
+    simp [terminalState] at ht
+    right
+    unhygienic cases hwt
+    stop sorry
 
 lemma lift_value_type (v : Value) (type : Ty) :
   Typ .Expr Γ Δ (liftValue v) (.Expr type) → value_type v type := by
-    sorry
+    intro ht
+    cases v <;> cases ht <;> grind [value_type]
 
 lemma coh_len (E : Environment) (Γ : Ctx) :
   Coh E Γ → E.length = Γ.length := by
-    sorry
+    intro h
+    induction h <;> grind
 
 lemma coh_get (E : Environment) (Γ : Ctx) (idx : Nat) :
   Coh E Γ → idx < E.length →
   value_type E[idx]! Γ[idx]! := by
-    sorry
+    intro h
+    induction h generalizing idx <;> grind
 
 lemma coh_set (E : Environment) (Γ : Ctx) (idx : Nat) (v : Value) :
   Coh E Γ → idx < E.length →
   value_type v Γ[idx]! →
   Coh (E.set idx v) Γ := by
-    sorry
+    intro h
+    induction h generalizing idx
+    { grind }
+    by_cases h0 : ∃ idx₁, idx = idx₁ + 1
+    { grind [Coh] }
+    simp only [Nat.exists_eq_add_one, not_lt, Nat.le_zero_eq] at h0
+    rw [h0, List.set_cons_zero]
+    grind [Coh]
+
 
 lemma coh_mono (E : Environment) (Γ : Ctx) :
   Coh E Γ → Coh (E.drop n) (Γ.drop n) := by
-    sorry
-
-lemma cont_type_ext (tg : Tag) (Γ₁ : ContTypeRes tg) :
+    intro h
+    induction h generalizing n
+    { grind [Coh] }
+    have cons_append (α : Type) (li : List α) (x : α) :
+      [x] ++ li = x :: li := by grind
+    have (α : Type) (li : List α) (x : α) : n > 0 → ([x] ++ li).drop n = li.drop (n - 1) := by
+      rw [List.drop_append]
+      intro hn
+      rw [List.drop_cons]
+      { grind [List.take] }
+      grind
+    by_cases n = 0
+    { grind [Coh] }
+    rw [←cons_append, this]
+    { grind [Coh] }
+    grind
+/-
+-- Not used in the current development; right-extension of context does not
+-- interact well with List.drop when n ≤ Γ.length.  The prepend variant
+-- (used via jcoh_ext) is what preservation actually needs.
+lemma cont_type_ext (tg : Tag) (Γ₁ : ContTypeRes tg) (n : Nat) :
     ContType tg Δ Γ K Γ₁ →
-    ContType tg Δ (Γ ++ Γ₂) K Γ₁ := by
-    sorry
-
+    ctx_limit n Δ →
+    ContType tg Δ (Γ.drop (Γ.length - n)) K Γ₁ := by
+    intro hx hc
+    induction hx generalizing n
+    { sorry }
+    stop sorry -- right-extension form not needed; see jcoh_ext
+-/
 lemma drop_suffix_prepend {α : Type} (Γ₁ Γ₂ : List α) (n : Nat)
     (hn : n ≤ Γ₂.length) :
     List.drop (List.length (Γ₁ ++ Γ₂) - n) (Γ₁ ++ Γ₂) =
     List.drop (List.length Γ₂ - n) Γ₂ := by
-    sorry
+  rw [List.drop_append]
+  have h1 : List.drop (List.length (Γ₁ ++ Γ₂) - n) Γ₁ = [] := by
+    rw [List.drop_eq_nil_iff]; simp; omega
+  rw [h1, List.nil_append]
+  congr 1; simp; omega
 
 lemma jcoh_ext (J : JStackCtx) (Γ Γ₁ : Ctx) :
     JCoh J Γ Δ → JCoh J (Γ₁ ++ Γ) Δ := by
-    sorry
+    intro h
+    unhygienic induction h generalizing Γ₁
+    { exact JCoh.JCohEmp }
+    rename_i Γ₂
+    have hdrop := drop_suffix_prepend Γ₁ Γ₂ n a
+    apply JCoh.JCohLoop
+    { simp; omega }
+    { rw [hdrop]; assumption }
+    { rw [hdrop]; assumption }
 
-lemma jcoh_sub (J : JStackCtx) (Γ : Ctx) (l : Nat) :
+lemma jcoh_sub (J : JStackCtx) (Γ : Ctx) :
+    JCoh J Γ Δ → ctx_limit n Δ →
+    JCoh J (Γ.drop (Γ.length - n)) Δ := by
+    intro h hc
+    unhygienic induction h generalizing n
+    { exact JCoh.JCohEmp }
+    apply JCoh.JCohLoop
+    { grind [ctx_limit] }
+    { simp at *
+      grind [ctx_limit] }
+    simp
+    grind [ctx_limit]
+
+lemma List.eq_take_drop (Γ : List α) (n : Nat) :
+  Γ = Γ.take n ++ Γ.drop n := by
+    induction Γ generalizing n
+    { grind }
+    by_cases ∃ k, n = k + 1
+    { grind }
+    simp at *
+
+lemma jcoh_drop (J : JStackCtx) (Γ : Ctx) (l : Nat) :
     JCoh J Γ Δ →
     JCoh (J.drop (l + 1))
       (Γ.drop (Γ.length - J[l]!.1)) (Δ.drop (l + 1)) := by
-    sorry
+    intro hj
+    unhygienic induction l generalizing J Δ Γ
+    { cases hj
+      { grind [JCoh] }
+      grind }
+    unhygienic cases hj
+    { grind [JCoh] }
+    simp only [List.drop_succ_cons]
+    apply a
+    have : Γ = Γ.take (Γ.length - n_1) ++ (Γ.drop (Γ.length - n_1)) := by
+      clear a a_2
+      exact List.eq_take_drop Γ _
+    rw [this]
+    apply jcoh_ext
+    apply a_2
+
+lemma jcoh_cont_type_drop (J : JStackCtx) (Γ : Ctx) (l : Nat) :
+    l < Δ.length →
+    JCoh J Γ Δ →
+    ContType Tag.Expr
+      (List.drop (l + 1) Δ)
+      (List.drop (List.length Γ - J[l]!.1) Γ)
+      J[l]!.2
+      (ContTypeRes.Expr Ty.unit) := by
+    intro hl hj
+    unhygienic induction l generalizing J Δ Γ
+    { cases hj <;> grind }
+    unhygienic cases hj
+    { grind }
+    simp only [List.drop_succ_cons]
+    apply a
+    { grind }
+    have : Γ = Γ.take (Γ.length - n_1) ++ (Γ.drop (Γ.length - n_1)) := by
+      clear a a_2
+      exact List.eq_take_drop Γ _
+    rw [this]
+    apply jcoh_ext
+    apply a_2
+
+lemma jcoh_ctx :
+  JCoh J Γ Δ → ctx_limit Γ.length Δ := by
+    intro hj
+    induction hj
+    { grind [ctx_limit] }
+    rw [ctx_limit]
+    grind
 
 theorem preservation (s s' : CEK) :
   Wt s → Eval s s' → Wt s' := by
-    sorry
+    intro hw he
+    unhygienic induction he <;> unhygienic cases hw
+    -- Batch: simple cases handled by solve_by_elim
+    all_goals try
+    { unhygienic cases a_2
+      try (apply Wt.WtExprE <;> solve_by_elim)
+      try (apply Wt.WtExprS <;> solve_by_elim) }
+    all_goals try
+    { unhygienic cases a_3
+      try (apply Wt.WtExprE <;> solve_by_elim)
+      try (apply Wt.WtExprS <;> solve_by_elim) }
+    -- Val: liftValue preserves type
+    { apply Wt.WtContV (type := type)
+      { apply a }
+      { apply a_1 }
+      { apply lift_value_type v type a_2 }
+      apply a_3 }
+    -- Var: environment lookup
+    { cases a_2
+      apply Wt.WtContV
+      { apply a }
+      { apply a_1 }
+      { apply coh_get
+        { apply a }
+        grind [coh_len] }
+      grind }
+    -- While: push LoopK continuation
+    { unhygienic cases a_2
+      apply Wt.WtExprE
+      { apply a }
+      { apply a_1 }
+      { apply a_4 }
+      rw [coh_len _ _ a]
+      apply ContType.LoopK
+      { apply a_4 }
+      { grind [coh_len] }
+      { grind [jcoh_ctx] }
+    /-apply a_3-/ }
+    -- Break: jump to saved context
+    { unhygienic cases a_2
+      apply Wt.WtContV (type := Ty.unit)
+        (Δ := Δ.drop (l + 1))
+      { apply coh_mono
+        apply a }
+      { rw [coh_len E Γ a]
+        apply jcoh_drop
+        apply a_1 }
+      { simp [value_type] }
+      rw [coh_len _ _ a]
+      apply jcoh_cont_type_drop <;> solve_by_elim
+      }
+    -- Scope: push ScopeBodyK continuation
+    { unhygienic cases a_2
+      apply Wt.WtExprS
+      { apply a }
+      { apply a_1 }
+      { apply a_4 }
+      apply ContType.ScopeBodyK
+      { apply a_5 }
+      { rw [ctx_limit.eq_def]
+        grind [coh_len, JCoh] }
+      { rcases stmt_mono _ _ _ _ a_4 with ⟨g, hg⟩
+        cases g
+        rw [TypR.extR] at hg
+        rw [coh_len _ _ a]
+        simp at hg
+        simp [←hg]
+        grind } }
+    -- VarDeclDone: extend environment
+    { unhygienic cases a_3
+      apply Wt.WtContS (Δ := Δ)
+      { apply Coh.CohBind
+        { apply a }
+        apply a_2 }
+      { exact jcoh_ext J Γ [type] a_1 }
+      apply a_4 }
+    -- AssignDone: update environment
+    { unhygienic cases a_3
+      apply Wt.WtContS
+      { apply coh_set
+        { apply a }
+        { grind [coh_len] }
+        grind }
+      { apply a_1 }
+      apply a_5 }
+    -- BinOpR: step produces result
+    { cases a_4
+      apply Wt.WtContV (type := op.args.out)
+      { apply a_1 }
+      { apply a_2 }
+      { cases a <;> grind [BinOp.args, value_type] }
+      solve_by_elim }
+    -- UnOpDone: step produces result
+    { cases a_4
+      apply Wt.WtContV
+      { apply a_1 }
+      { apply a_2 }
+      { cases a
+        { rw [value_type.eq_1]; trivial }
+        rw [value_type.eq_2]; trivial }
+      { solve_by_elim } }
+    -- LoopTrue: enter loop body, push JStackCtx
+    { unhygienic cases a_3
+      apply Wt.WtExprE
+      { apply a }
+      { apply JCoh.JCohLoop
+        { grind }
+        { apply jcoh_sub
+          { apply a_1 }
+          grind [jcoh_ctx] }
+        grind }
+      -- need n = Γ.length (holds via Coh at loop entry)
+      -- then JCtx becomes Γ.length :: Δ matching body typing
+      { apply a_5 }
+      apply ContType.LoopContK
+      { apply a_4 }
+      { apply a_5 }
+      grind }
+    -- LoopFalse: exit loop, drop environment
+    { unhygienic cases a_3
+      -- need JCoh after dropping env to loop entry length
+      apply Wt.WtContV
+      { apply coh_mono
+        apply a }
+      { rw [coh_len _ _ a]
+        apply jcoh_sub
+        { apply a_1 }
+        grind [jcoh_ctx] }
+      { rw [value_type.eq_4]
+        simp }
+      rw [coh_len _ _ a]
+      grind }
+    -- LoopCont: pop JStackCtx, re-enter condition
+    { unhygienic cases a_3
+      unhygienic cases a_1
+      apply Wt.WtExprE
+      { apply a }
+      { simp only [Nat.sub_self, List.drop_zero] at a_7
+        apply a_7 }
+      { apply a_4 }
+      apply ContType.LoopK
+      { apply a_4 }
+      { apply a_5 }
+      grind }
+    -- ScopeExit: drop environment, restore context
+    unhygienic cases Δ
+    { unhygienic cases a_3
+      apply Wt.WtContV
+      { apply coh_mono
+        apply a }
+      { cases a_1
+        apply JCoh.JCohEmp }
+      { apply a_2 }
+      grind [coh_len] }
+    unhygienic cases a_3
+    apply Wt.WtContV
+    { apply coh_mono
+      apply a }
+    { unhygienic cases a_1
+      rw [ctx_limit] at a_4
+      have : (List.length E - n + (List.length Γ - (List.length E - n) - head)) =
+        (Γ.length - head) := by grind [coh_len]
+      apply JCoh.JCohLoop
+      { grind [coh_len] }
+      { simp only [List.length_drop, List.drop_drop, this]
+        apply a_6 }
+      simp only [List.length_drop, List.drop_drop, this]
+      apply a_7 }
+    { apply a_2 }
+    grind [coh_len]
