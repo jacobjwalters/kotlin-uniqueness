@@ -474,7 +474,7 @@ inductive Eval : CEK → CEK → Prop
 
 def initState (s : Lang .Stmt) : CEK := ⟨.sourceStmt s, [], [], []⟩
 
-def terminalState (E : Environment) : CEK := ⟨.skip, E, [], []⟩
+def terminalState (E : Environment) (J : JStackCtx) : CEK := ⟨.skip, E, J, []⟩
 
 inductive ContTypeRes : Tag → Type
 | Expr (type : Ty) : ContTypeRes .Expr
@@ -585,10 +585,10 @@ inductive Wt : CEK → Prop
 -- do casing on Continuation
 theorem progress (s : CEK) :
   Wt s →
-  (∃ E, terminalState E = s) ∨ ∃ s', Eval s s' := by
+  (∃ E J, terminalState E J = s) ∨ ∃ s', Eval s s' := by
     intro hwt
     unhygienic induction s
-    by_cases ht : ∃ E1, terminalState E1 = ⟨C, E, J, K⟩
+    by_cases ht : ∃ E1 J1, terminalState E1 J1 = ⟨C, E, J, K⟩
     { grind }
     simp [terminalState] at ht
     right
