@@ -766,6 +766,13 @@ theorem preservation (s s' : CEK) :
     { unhygienic cases a_3
       try (apply Wt.WtExprE <;> solve_by_elim)
       try (apply Wt.WtExprS <;> solve_by_elim) }
+    -- ExprStmtDone: discard value, become skip
+    all_goals try
+    { unhygienic cases a_3
+      apply Wt.WtContS
+      { apply a }
+      { apply a_1 }
+      apply a_4 }
     -- Val: liftValue preserves type
     { apply Wt.WtContV (type := type)
       { apply a }
