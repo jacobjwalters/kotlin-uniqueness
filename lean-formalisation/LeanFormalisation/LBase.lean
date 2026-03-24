@@ -432,6 +432,10 @@ inductive Eval : CEK → CEK → Prop
   Eval
     ⟨.skip, E, J, .seqK s₂ :: K⟩
     ⟨.sourceStmt s₂, E, J, K⟩
+| ExprStmtDone (v : Value) :
+  Eval
+    ⟨.value v, E, J, .exprStmtK :: K⟩
+    ⟨.skip, E, J, K⟩
 | BinOpL (op : BinOp) (v₁ : Value) (e₂ : Lang .Expr) :
   Eval
     ⟨.value v₁, E, J, .binopLK op e₂ :: K⟩
