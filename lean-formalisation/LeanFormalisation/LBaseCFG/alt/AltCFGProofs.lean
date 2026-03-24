@@ -56,7 +56,7 @@ def EdgeEnabled (σ : CEK) (e : CFGEdge) : Prop :=
   match e.kind, σ.1 with
   | .normal, _ => True
   | .back, .value _ => True
-  | .breakOut, .sourceExpr .Break => True
+  | .breakOut, .sourceExpr (.Break _) => True
   | .trueBranch, .value .True => True
   | .falseBranch, .value .False => True
   | _, _ => False
