@@ -366,7 +366,7 @@ inductive Eval : CEK → CEK → Prop
   Eval
     ⟨.sourceExpr (liftValue v), E, J, K⟩
     ⟨.value v, E, J, K⟩
-| Var (v : Value) (x : VarName) :
+| Var (x : VarName) :
   Eval
     ⟨.sourceExpr (.Var x), E, J, K⟩
     ⟨.value (E[x]!), E, J, K⟩
