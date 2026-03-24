@@ -837,6 +837,8 @@ theorem preservation (s s' : CEK) :
         grind }
       { apply a_1 }
       apply a_5 }
+    { cases a_3
+      apply Wt.WtContS <;> solve_by_elim }
     -- BinOpR: step produces result
     { cases a_4
       apply Wt.WtContV (type := op.args.out)
