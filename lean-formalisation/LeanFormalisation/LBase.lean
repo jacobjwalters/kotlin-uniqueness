@@ -458,9 +458,9 @@ inductive Eval : CEK → CEK → Prop
   Eval
     ⟨.value .False, E, J, .loopK c body n :: K⟩
     ⟨.value .Unit, E.drop (E.length - n), J, K⟩
-| LoopCont (body : Lang .Expr) (c : Lang .Expr) (n : Nat) :
+| LoopCont (body : Lang .Expr) (c : Lang .Expr) (n : Nat) (K' : List Cont) :
   Eval
-    ⟨.value .Unit, E, ⟨n, K⟩ :: J, .loopContK c body n :: K⟩
+    ⟨.value .Unit, E, ⟨n, K⟩ :: J, .loopContK c body n :: K'⟩
     ⟨.sourceExpr c, E, J, .loopK c body n :: K⟩
 | ScopeBody (body : Lang .Expr) (n : Nat) :
   Eval
