@@ -380,11 +380,11 @@ inductive Eval : CEK → CEK → Prop
 | IfTrue (s₁ s₂ : Lang .Expr) :
   Eval
     ⟨.value .True, E, .ifCondK s₁ s₂ :: K⟩
-    ⟨.sourceExpr e₁, E, K⟩
+    ⟨.sourceExpr s₁, E, K⟩
 | IfFalse (s₁ s₂ : Lang .Expr) :
   Eval
     ⟨.value .False, E, .ifCondK s₁ s₂ :: K⟩
-    ⟨.sourceExpr e₁, E, K⟩
+    ⟨.sourceExpr s₂, E, K⟩
 | VarDeclDone (type : Ty) (v : Value) :
   Eval
     ⟨.value v, E, .declK type :: K⟩
@@ -431,6 +431,10 @@ inductive Eval : CEK → CEK → Prop
   Eval
     ⟨.value V, E, .scopeExitK n :: K⟩
     ⟨.value V, E.drop (E.length - n), K⟩
+| ExprStmtDone (v : Value) :
+  Eval
+    ⟨.value v, E, .exprStmtK :: K⟩
+    ⟨.skip, E, K⟩
 
 
 def initState (s : Lang .Stmt) : CEK := ⟨.sourceStmt s, [], []⟩

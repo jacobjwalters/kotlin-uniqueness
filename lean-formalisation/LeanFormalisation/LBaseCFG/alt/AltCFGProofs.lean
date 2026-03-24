@@ -7,15 +7,13 @@
   1. correctness of the cfg translation in `altcfg` (both directions), and
   2. correctness of the forward worklist solver in `analysis` (both directions).
 
-
   the strategy is to define a concrete CEK-to-CFG relation (kind compatibility
   plus synchronized reachability from entry), prove one-step soundness and
   completeness obligations against cfg edges, and then lift these obligations
   to whole-path correspondence via reflexive-transitive induction.
 -/
 
-import LeanFormalisation.LBaseCFG.alt.AltCFG
-import LeanFormalisation.LBaseCFG.alt.Analysis
+import LeanFormalisation.LBaseCFG.alt.AltCFGDefs
 
 open LeanFormalisation
 open LeanFormalisation.AltCFG
@@ -25,75 +23,6 @@ namespace LeanFormalisation
 namespace AltCFGProofs
 
 section Translation
-
-abbrev StateRel := CEK -> CFGNode -> Prop
-
-def CFGStep (g : CFG) (n m : CFGNode) : Prop :=
-  ∃ e ∈ g.edges, e.src = n ∧ e.dst = m
-
-abbrev CFGReach (g : CFG) := Relation.ReflTransGen (CFGStep g)
-abbrev CEKReach := Relation.ReflTransGen Eval
-
-/-!
-## concrete relation candidate
--/
-
-/--
-Coarse control-kind compatibility between a CEK state and a CFG node.
--/
-def KindRel (σ : CEK) (n : CFGNode) : Prop :=
-  match σ.1, n.kind with
-  | .sourceStmt s, .stmtEntry s' => s = s'
-  | .sourceExpr e, .exprEntry e' => e = e'
-  | .skip, .stmtExit _ => True
-  | .value _, .exprExit _ => True
-  | _, _ => False
-
-/--
-Branch-sensitive edge guard used in the concrete CEK/CFG simulation step.
--/
-def EdgeEnabled (σ : CEK) (e : CFGEdge) : Prop :=
-  match e.kind, σ.1 with
-  | .normal, _ => True
-  | .back, .value _ => True
-  | .breakOut, .sourceExpr .Break => True
-  | .trueBranch, .value .True => True
-  | .falseBranch, .value .False => True
-  | _, _ => False
-
-/--
-Single synchronized step on CEK state and CFG node.
--/
-def CEKCFGStep (s : Lang .Stmt) (p q : CEK × CFGNode) : Prop :=
-  ∃ e ∈ (stmtCFG s).edges,
-    e.src = p.2 ∧ e.dst = q.2 ∧ Eval p.1 q.1 ∧ EdgeEnabled p.1 e
-
-/--
-Concrete relation: local kind agreement plus existence of a synchronized path
-from program entry to the current CEK/node pair.
--/
-def stateRelConcrete (s : Lang .Stmt) : StateRel :=
-  fun σ n =>
-    KindRel σ n ∧
-      Relation.ReflTransGen (CEKCFGStep s)
-        (initState s, (stmtCFG s).entry)
-        (σ, n)
-
-/-!
-## basic requirements for the semantics/cfg correspondence
--/
-class TranslationReq (s : Lang .Stmt) : Prop where
-  init_related : stateRelConcrete s (initState s) (stmtCFG s).entry
-  terminal_related : ∀ E, stateRelConcrete s (terminalState E) (stmtCFG s).exit
-
-  step_sound :
-    ∀ {σ σ' n}, stateRelConcrete s σ n -> Eval σ σ' ->
-      ∃ n', stateRelConcrete s σ' n' ∧ CFGStep (stmtCFG s) n n'
-
-  edge_complete :
-    ∀ {n m}, CFGStep (stmtCFG s) n m ->
-      ∀ {σ}, stateRelConcrete s σ n ->
-        ∃ σ', Eval σ σ' ∧ stateRelConcrete s σ' m
 
 /-!
 ## structural cfg obligations
@@ -156,7 +85,7 @@ theorem stmtCFG_entry_exit_in_nodes (s : Lang .Stmt) :
 Computes the kind of the exit node returned by `buildExpr`: it is always
 `exprExit expr`. Use: discharges the direct branch-edge cases in mutual proofs.
 -/
-private theorem buildExpr_exit_kind
+theorem buildExpr_exit_kind
     (breakTarget : Option CFGNode) (nextId fuel : Nat) (expr : Lang .Expr) :
     (buildExpr breakTarget nextId fuel expr).exit.kind = .exprExit expr := by
   cases fuel <;> cases expr <;> simp [buildExpr]
@@ -165,10 +94,20 @@ private theorem buildExpr_exit_kind
 Computes the kind of the entry node returned by `buildExpr`: it is always
 `exprEntry expr`. Use: identifies the destination of `.back` edges in while.
 -/
-private theorem buildExpr_entry_kind
+theorem buildExpr_entry_kind
     (breakTarget : Option CFGNode) (nextId fuel : Nat) (expr : Lang .Expr) :
     (buildExpr breakTarget nextId fuel expr).entry.kind = .exprEntry expr := by
   cases fuel <;> cases expr <;> simp [buildExpr]
+
+theorem buildStmt_entry_kind
+    (breakTarget : Option CFGNode) (nextId fuel : Nat) (stmt : Lang .Stmt) :
+    (buildStmt breakTarget nextId fuel stmt).entry.kind = .stmtEntry stmt := by
+  cases fuel <;> cases stmt <;> simp [buildStmt]
+
+theorem buildStmt_exit_kind
+    (breakTarget : Option CFGNode) (nextId fuel : Nat) (stmt : Lang .Stmt) :
+    (buildStmt breakTarget nextId fuel stmt).exit.kind = .stmtExit stmt := by
+  cases fuel <;> cases stmt <;> simp [buildStmt]
 
 /--
 Mutual fuel-induction core: any `.trueBranch`/`.falseBranch` edge produced by
@@ -750,71 +689,192 @@ theorem stmtCFG_break_edges_target_loop_exit (s : Lang .Stmt) :
   exact buildStmt_break_edge_target_exprExit none 0 (stmtSize s) s
     (by simp [BreakTargetWellFormed]) e he hkind
 
-/-!
-## cfg translation correctness: two directions
--/
-
-/-
-  translation wrappers: these do not add proof content, they expose class fields
-  under theorem names used by downstream developments.
--/
-
-/--
-Restates `TranslationReq.step_sound` as a theorem with explicit arguments. Use:
-convenient entry point for proof scripts that avoid direct class-field access.
--/
-theorem translation_sound_step
-  (s : Lang .Stmt) [TranslationReq s]
-    {σ σ' : CEK} {n : CFGNode}
-  (hrel : stateRelConcrete s σ n) (hstep : Eval σ σ') :
-  ∃ n', stateRelConcrete s σ' n' ∧ CFGStep (stmtCFG s) n n' := by
-  exact TranslationReq.step_sound hrel hstep
-
-/--
-Restates `TranslationReq.edge_complete` as a theorem with explicit arguments.
-Use: convenient entry point for completeness proofs over CFG edges.
--/
-theorem translation_complete_edge
-    (s : Lang .Stmt) [TranslationReq s]
-    {n m : CFGNode}
-    (hedge : CFGStep (stmtCFG s) n m)
-    {σ : CEK} (hrel : stateRelConcrete s σ n) :
-    ∃ σ', Eval σ σ' ∧ stateRelConcrete s σ' m := by
-  exact TranslationReq.edge_complete hedge hrel
-
-/--
-one side correspondence between reachability and relation
--/
-theorem translation_sound_reachability
-      (s : Lang .Stmt) [TranslationReq s]
-      {σ σ' : CEK} {n : CFGNode}
-      (hrel : stateRelConcrete s σ n)
-      (hreach : CEKReach σ σ') :
-    ∃ n', stateRelConcrete s σ' n' ∧ CFGReach (stmtCFG s) n n' := by
-  induction hreach with
-  | refl => exists n
-  | tail hsb hbc ih =>
-    obtain ⟨mid, hbmid, hreachMid⟩ := ih
-    obtain ⟨mid', hcmid', hstepMid⟩ :=
-      translation_sound_step s hbmid hbc
-    exact ⟨mid', hcmid', Relation.ReflTransGen.tail hreachMid hstepMid⟩
-
-theorem translation_complete_reachability
-      (s : Lang .Stmt) [TranslationReq s]
-      {σ : CEK} {n m : CFGNode}
-      (hrel : stateRelConcrete s σ n)
-      (hpath : CFGReach (stmtCFG s) n m) :
-    ∃ σ', CEKReach σ σ' ∧ stateRelConcrete s σ' m := by
-  induction hpath with
-  | refl =>
-    exists σ
-  | tail hsb hbc ih =>
-    obtain ⟨mid, hbmid, hreacMid⟩ := ih
-    obtain ⟨σ', hstep, hrel'⟩ :=
-      translation_complete_edge s hbc hreacMid
-    exact ⟨σ', Relation.ReflTransGen.tail hbmid hstep, hrel'⟩
-
 end Translation
+
+section TranslationTests
+
+set_option relaxedAutoImplicit true
+
+/-!
+## Continuation-CFG invariant
+
+`ContCFGInv g K x` asserts that when the current sub-computation finishes at
+CFG node `x`, the continuation stack `K` describes exactly the CFG edges
+leading back to `g.exit`.  Each constructor corresponds to a `Cont` frame and
+records the CFG nodes and edges that the frame implies.
+-/
+inductive ContCFGInv (g : CFG) : List Cont → CFGNode → Prop where
+  /-- Empty stack: the current exit IS the top-level exit. -/
+  | halt : x = g.exit → ContCFGInv g [] x
+  /-- Left operand of BinOp done → edge to right operand entry,
+      then right exit → parent exit. -/
+  | binopLK (op : BinOp) (e₂ : Lang .Expr)
+      (e₂en e₂ex pex : CFGNode) :
+      e₂en.kind = .exprEntry e₂ →
+      e₂ex.kind = .exprExit e₂ →
+      CFGStep g x e₂en → CFGStep g e₂ex pex →
+      ContCFGInv g K pex →
+      ContCFGInv g (.binopLK op e₂ :: K) x
+  /-- Right operand of BinOp done → edge to parent exit. -/
+  | binopRK (op : BinOp) (v₁ : Value) (pex : CFGNode) :
+      CFGStep g x pex → ContCFGInv g K pex →
+      ContCFGInv g (.binopRK op v₁ :: K) x
+  /-- Operand of UnOp done → edge to parent exit. -/
+  | unopK (op : UnOp) (pex : CFGNode) :
+      CFGStep g x pex → ContCFGInv g K pex →
+      ContCFGInv g (.unopK op :: K) x
+  /-- Condition of If done → trueBranch/falseBranch edges to branch
+      entries, both branch exits → parent exit. -/
+  | ifCondK (e₁ e₂ : Lang .Expr)
+      (e₁en e₁ex e₂en e₂ex pex : CFGNode) :
+      e₁en.kind = .exprEntry e₁ →
+      e₁ex.kind = .exprExit e₁ →
+      e₂en.kind = .exprEntry e₂ →
+      e₂ex.kind = .exprExit e₂ →
+      CFGStep g x e₁en → CFGStep g x e₂en →
+      CFGStep g e₁ex pex → CFGStep g e₂ex pex →
+      ContCFGInv g K pex →
+      ContCFGInv g (.ifCondK e₁ e₂ :: K) x
+  /-- Init expr of Decl done → edge to stmt exit. -/
+  | declK (ty : Ty) (sex : CFGNode) :
+      CFGStep g x sex → ContCFGInv g K sex →
+      ContCFGInv g (.declK ty :: K) x
+  /-- RHS of Assign done → edge to stmt exit. -/
+  | assignK (v : VarName) (sex : CFGNode) :
+      CFGStep g x sex → ContCFGInv g K sex →
+      ContCFGInv g (.assignK v :: K) x
+  /-- First statement of Seq done → edge to s₂ entry,
+      then s₂ exit → parent exit. -/
+  | seqK (s₂ : Lang .Stmt) (s₂en s₂ex pex : CFGNode) :
+      s₂en.kind = .stmtEntry s₂ →
+      s₂ex.kind = .stmtExit s₂ →
+      CFGStep g x s₂en → CFGStep g s₂ex pex →
+      ContCFGInv g K pex →
+      ContCFGInv g (.seqK s₂ :: K) x
+  /-- Expr of Do stmt done → edge to stmt exit. -/
+  | exprStmtK (sex : CFGNode) :
+      CFGStep g x sex → ContCFGInv g K sex →
+      ContCFGInv g (.exprStmtK :: K) x
+  /-- Condition of While done (x = condExit).
+      trueBranch → bodyEntry, falseBranch → whileExit,
+      bodyExit → condEntry (back edge). -/
+  | loopK (c body : Lang .Expr) (n : Nat)
+      (ben bex cen pex : CFGNode) :
+      ben.kind = .exprEntry body →
+      bex.kind = .exprExit body →
+      cen.kind = .exprEntry c →
+      CFGStep g x ben → CFGStep g x pex →
+      CFGStep g bex cen →
+      ContCFGInv g K pex →
+      ContCFGInv g (.loopK c body n :: K) x
+  /-- Body of While done (x = bodyExit).
+      back edge → condEntry, then full loop structure from condExit. -/
+  | loopContK (c body : Lang .Expr) (n : Nat)
+      (cen cex ben bex pex : CFGNode) :
+      cen.kind = .exprEntry c →
+      cex.kind = .exprExit c →
+      ben.kind = .exprEntry body →
+      bex.kind = .exprExit body →
+      CFGStep g x cen →
+      CFGStep g cex ben → CFGStep g cex pex →
+      CFGStep g bex cen →
+      ContCFGInv g K pex →
+      ContCFGInv g (.loopContK c body n :: K) x
+  /-- Statement part of Scope done → edge to result expr entry,
+      then result exit → parent exit. -/
+  | scopeBodyK (e : Lang .Expr) (n : Nat)
+      (een eex pex : CFGNode) :
+      een.kind = .exprEntry e →
+      eex.kind = .exprExit e →
+      CFGStep g x een → CFGStep g eex pex →
+      ContCFGInv g K pex →
+      ContCFGInv g (.scopeBodyK e n :: K) x
+  /-- Result expr of Scope done → edge to parent exit. -/
+  | scopeExitK (n : Nat) (pex : CFGNode) :
+      CFGStep g x pex → ContCFGInv g K pex →
+      ContCFGInv g (.scopeExitK n :: K) x
+
+/-!
+## CEK-to-CFG correspondence relation (strengthened)
+
+`cfgcekRel s` relates a CEK state `σ` to a CFG node `n` when:
+  1. `n` belongs to the CFG built for `s`,
+  2. the CEK control component matches the node kind, and
+  3. the continuation stack satisfies `ContCFGInv` at the corresponding
+     exit node — ensuring the stack shape mirrors the CFG nesting structure.
+
+For entry nodes, the constructor stores the corresponding exit node `ex`
+so that `ContCFGInv` can be anchored there.  For exit nodes, the invariant
+is directly on the current node.
+-/
+inductive cfgcekRel (s : Lang .Stmt) : StateRel where
+  | exprEntry (e : Lang .Expr) (E : Environment) (K : List Cont)
+      (n ex : CFGNode) :
+      n.kind = .exprEntry e →
+      ex.kind = .exprExit e →
+      n ∈ (stmtCFG s).nodes →
+      ContCFGInv (stmtCFG s) K ex →
+      cfgcekRel s (.sourceExpr e, E, K) n
+  | exprExit (e : Lang .Expr) (v : Value) (E : Environment)
+      (K : List Cont) (n : CFGNode) :
+      n.kind = .exprExit e →
+      n ∈ (stmtCFG s).nodes →
+      ContCFGInv (stmtCFG s) K n →
+      cfgcekRel s (.value v, E, K) n
+  | stmtEntry (st : Lang .Stmt) (E : Environment) (K : List Cont)
+      (n ex : CFGNode) :
+      n.kind = .stmtEntry st →
+      ex.kind = .stmtExit st →
+      n ∈ (stmtCFG s).nodes →
+      ContCFGInv (stmtCFG s) K ex →
+      cfgcekRel s (.sourceStmt st, E, K) n
+  | stmtExit (st : Lang .Stmt) (E : Environment)
+      (K : List Cont) (n : CFGNode) :
+      n.kind = .stmtExit st →
+      n ∈ (stmtCFG s).nodes →
+      ContCFGInv (stmtCFG s) K n →
+      cfgcekRel s (.skip, E, K) n
+
+/-!
+### Proof strategy for `step_sound` and `edge_complete`
+
+Both proofs proceed by case-splitting on the `Eval` rule (for `step_sound`)
+or the CFG edge (for `edge_complete`) and the `cfgcekRel` constructor.
+
+**`step_sound`:** Given `cfgcekRel s σ n` and `Eval σ σ'`, produce `n'` with
+`cfgcekRel s σ' n'` and `CFGStep g n n'`.  The `ContCFGInv` invariant provides
+the exact CFG edge for continuation-driven transitions (e.g., `BinOpL` uses
+the `binopLK` constructor's stored edge `x → e₂en`), while the node kind
+determines the edge for control-driven transitions (e.g., `BinOp` entry has
+edge to `r₁.entry`).  Requires structural lemmas about `buildExpr`/`buildStmt`
+producing specific edges from entry nodes.
+
+**`edge_complete`:** Given `CFGStep g n m` and `cfgcekRel s σ n`, produce
+`σ'` with `Eval σ σ'` and `cfgcekRel s σ' m`.  The node kind plus `ContCFGInv`
+determines the CEK control and top continuation frame.  The `CEKReach`
+precondition provides well-typedness for operator totality (BinOpR/UnOpDone).
+-/
+
+noncomputable def cfgcekRelReq (s : Lang .Stmt) :
+    TranslationReq s (cfgcekRel s) where
+  init_related := by
+    exact cfgcekRel.stmtEntry s [] []
+      (stmtCFG s).entry (stmtCFG s).exit
+      (buildStmt_entry_kind none 0 (stmtSize s) s)
+      (buildStmt_exit_kind none 0 (stmtSize s) s)
+      (cfg_entry_in_nodes _)
+      (ContCFGInv.halt rfl)
+  terminal_related := by
+    intro E
+    exact cfgcekRel.stmtExit s E []
+      (stmtCFG s).exit
+      (buildStmt_exit_kind none 0 (stmtSize s) s)
+      (cfg_exit_in_nodes _)
+      (ContCFGInv.halt rfl)
+  step_sound := sorry
+  edge_complete := sorry
+
+end TranslationTests
 
 end AltCFGProofs
 end LeanFormalisation
