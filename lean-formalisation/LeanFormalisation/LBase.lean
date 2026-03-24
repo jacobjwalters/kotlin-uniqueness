@@ -515,11 +515,11 @@ inductive ContType : (tg : Tag) → JCtx → Ctx → List Cont → ContTypeRes t
   Typ .Expr (Γ₁.length :: Δ₁) Γ₁ e (.Expr .unit) →
   ContType .Expr Δ₁ Γ₁ K (.Expr .unit) →
   ContType .Expr Δ₁ Γ₁ (.loopK c e Γ₁.length :: K) (.Expr .bool)
-| LoopContK (Γ₁ : Ctx) (e : Lang .Expr) (c : Lang .Expr) (n : Nat) :
+| LoopContK (Γ₁ : Ctx) (e : Lang .Expr) (c : Lang .Expr) :
   Typ .Expr Δ₁ Γ₁ c (.Expr .bool) →
   Typ .Expr (Γ₁.length :: Δ₁) Γ₁ e (.Expr .unit) →
-  ContType .Expr Δ₁ (Γ₁.drop (Γ₁.length - n)) K (.Expr .unit) →
-  ContType .Expr (Γ₁.length :: Δ₁) Γ₁ (.loopContK c e n :: K) (.Expr .unit)
+  ContType .Expr Δ₁ Γ₁ K (.Expr .unit) →
+  ContType .Expr (Γ₁.length :: Δ₁) Γ₁ (.loopContK c e Γ₁.length :: K) (.Expr .unit)
 | ScopeExitK (Γ₁ : Ctx) (n : Nat) (type : Ty) :
   ctx_limit n Δ₁ →
   ContType .Expr Δ₁ (Γ₁.drop (Γ₁.length - n)) K (.Expr type) →
