@@ -1,6 +1,6 @@
 // Custom definitions and commands
 
-#import "@preview/curryst:0.3.0": rule, proof-tree
+#import "@preview/curryst:0.3.0": proof-tree, rule
 
 // Language names
 #let Lbase = $cal(L)_sans("Base")$

@@ -6,7 +6,7 @@ inductive Ty
 | nat
 | bool
 | unit
-deriving Repr, Inhabited
+deriving Repr, Inhabited, DecidableEq --! qtz: added DecidableEq
 
 
 inductive Value
@@ -14,13 +14,14 @@ inductive Value
 | False
 | Nat (n : Nat)
 | Unit
-deriving Inhabited, Repr
+deriving Inhabited, Repr, DecidableEq --! qtz: added DecidableEq
 
 inductive BinOp
 | Add
 | Sub
 | NatEq
 | BoolEq
+deriving Repr, DecidableEq --! qtz: added this line
 
 structure BinOpArgs where
   arg₁ : Ty
@@ -29,6 +30,7 @@ structure BinOpArgs where
 
 inductive UnOp
 | IsZero
+deriving Repr, DecidableEq --! qtz: added this line
 
 structure UnOpArgs where
   arg : Ty
@@ -60,6 +62,7 @@ inductive UnOp.step : UnOp → Value → Value → Prop
 inductive Tag
 | Expr
 | Stmt
+deriving Repr, DecidableEq --! qtz: added this line
 
 inductive Lang : Tag → Type
 -- # Expr
@@ -79,6 +82,7 @@ inductive Lang : Tag → Type
 | Assign (x : VarName) (e : Lang .Expr) : Lang .Stmt
 | Seq (s₁ : Lang .Stmt) (s₂ : Lang .Stmt) : Lang .Stmt
 | Do (e : Lang .Expr) : Lang .Stmt
+deriving Repr, DecidableEq --! qtz: added this line
 
 notation:100 s₁:100 ";" s₂:101 => Lang.Seq s₁ s₂
 notation x "::=" exp => Lang.Assign x exp

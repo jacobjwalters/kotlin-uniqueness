@@ -32,10 +32,10 @@ A program $P$ is a statement $s$. $x$ represents an infinite set of variable nam
 We write $plus.o$ to range over binary operators ${+, ∸, ==}$ and unary operators ${#IsZero}$. The meta-level function $#delta$ maps an operator and its argument value(s) to the result:
 
 $
-#delta (+, n_1, n_2) &= n_1 + n_2 \
-#delta (∸, n_1, n_2) &= max(n_1 - n_2, 0) \
-#delta (==, v_1, v_2) &= cases(#True &"if" v_1 = v_2, #False &"otherwise") \
-#delta (#IsZero, n) &= cases(#True &"if" n = 0, #False &"otherwise")
+   #delta (+, n_1, n_2) & = n_1 + n_2 \
+   #delta (∸, n_1, n_2) & = max(n_1 - n_2, 0) \
+  #delta (==, v_1, v_2) & = cases(#True &"if" v_1 = v_2, #False &"otherwise") \
+    #delta (#IsZero, n) & = cases(#True &"if" n = 0, #False &"otherwise")
 $
 
 == Typing Contexts
@@ -44,8 +44,8 @@ Typing contexts (hereafter contexts) in #Lbase are ordered, rightwards-growing l
 The grammar for contexts is as follows:
 
 $
-Gamma ::=& dot && "Empty" \
-  |& Gamma, x : tau && "Variable Extension"
+  Gamma ::= & dot            && "Empty" \
+          | & Gamma, x : tau && "Variable Extension"
 $
 
 Lookup ($Gamma(x) = tau$) returns the type from the rightmost binding of $x$ in $Gamma$, permitting shadowing.
@@ -106,7 +106,13 @@ The meta-level function $#delta$ is typed by the following rules, which define t
 #mathpar(
   proof-tree(rule(name: "DeltaAdd", $tack.r #delta (+, v_1, v_2) : #Nat$, $tack.r v_1 : #Nat$, $tack.r v_2 : #Nat$)),
   proof-tree(rule(name: "DeltaSub", $tack.r #delta (∸, v_1, v_2) : #Nat$, $tack.r v_1 : #Nat$, $tack.r v_2 : #Nat$)),
-  proof-tree(rule(name: "DeltaEq", $tack.r #delta (==, v_1, v_2) : #Bool$, $tack.r v_1 : tau$, $tack.r v_2 : tau$, $tau in {#Nat, #Bool}$)),
+  proof-tree(rule(
+    name: "DeltaEq",
+    $tack.r #delta (==, v_1, v_2) : #Bool$,
+    $tack.r v_1 : tau$,
+    $tack.r v_2 : tau$,
+    $tau in {#Nat, #Bool}$,
+  )),
   proof-tree(rule(name: "DeltaIsZero", $tack.r #delta (#IsZero, v) : #Bool$, $tack.r v : #Nat$)),
 )
 
@@ -163,7 +169,7 @@ The CEK machine operates on a run-time language that extends the source syntax w
 Values are fully evaluated expressions:
 
 $
-v ::=& #True |& #False |& n in bb(N) |& #UnitVal
+  v ::= & #True | & #False | & n in bb(N) | & #UnitVal
 $
 
 We write $tack.r v : tau$ for value typing: $tack.r #True : #Bool$, $tack.r #False : #Bool$, $tack.r n : #Nat$ for $n in bb(N)$, and $tack.r #UnitVal : #Unit$.
@@ -194,21 +200,21 @@ The machine state is a 4-tuple $#cek($C$, $E$, $J$, $K$)$. The machine operates 
 The control component holds whatever syntactic construct the machine is currently processing:
 
 $
-C ::=& e && "Source expression (to evaluate)" \
-  |& s && "Source statement (to execute)" \
-  |& v && "Value (expression result)" \
-  |& #Skip && "Statement completed"
+  C ::= & e     && "Source expression (to evaluate)" \
+      | & s     && "Source statement (to execute)" \
+      | & v     && "Value (expression result)" \
+      | & #Skip && "Statement completed"
 $
 
 Expression evaluation terminates with a value $v$ in the control. Statement execution terminates with $#Skip$.
 
 ==== Environment ($E$)
 $
-E ::=& dot && "Empty" \
-  |& E, x := v && "Variable binding"
+  E ::= & dot       && "Empty" \
+      | & E, x := v && "Variable binding"
 $
 
-The environment is an ordered, rightwards-growing list of variable-to-value bindings. Lookup and update scan right-to-left. Lookup finds the rightmost binding for a given variable name (permitting shadowing). Update ($E[x |-> v]$) modifies the rightmost binding of $x$ in place.
+The environment is an ordered, rightwards-growing list of variable-to-value bindings interspersed with labelled scope markers. Lookup and update scan right-to-left, skipping scope markers. Lookup finds the rightmost binding for a given variable name (permitting shadowing). Update ($E[x |-> v]$) modifies the rightmost binding of $x$ in place.
 
 The environment is extended when variables are declared ($#Var x : tau = e$ adds $x := v$ to the rightmost position, where $v$ is the value of $e$) and individual bindings are updated on assignment ($x = v$ updates the rightmost $x$). We write $|E|$ for the length (number of bindings) of $E$. The operation $#truncate($E$, $n$)$ returns the first $n$ bindings of $E$, dropping everything from position $n + 1$ onward. Scoping constructs record $|E|$ at entry and truncate back to that size at exit.
 
