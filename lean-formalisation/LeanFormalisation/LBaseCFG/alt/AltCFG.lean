@@ -53,7 +53,7 @@ mutual
   | .False
   | .Nat _
   | .Unit
-  | .Break => 1
+  | .Break _ => 1
   | .BinOp e₁ e₂ _ => 1 + exprSize e₁ + exprSize e₂
   | .UnOp e _ => 1 + exprSize e
   | .If c e₁ e₂ => 1 + exprSize c + exprSize e₁ + exprSize e₂
@@ -141,7 +141,7 @@ mutual
               ] ++ c.edges ++ b.edges
           , nextId := b.nextId
           }
-      | .Break =>
+      | .Break _ =>
           let edges :=
             match breakTarget with
             | some t => [mkEdge entry t .breakOut]

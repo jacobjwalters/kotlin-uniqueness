@@ -70,9 +70,24 @@ instance : Max Flat where
 
 instance : Min Flat where
   min := Flat.inf
+
+def Flat.height : Flat → Nat
+| .Bot => 0
+| .Val _ => 1
+| .Top => 2
+
+instance : FiniteHeight Flat where
+  height := Flat.height
+  maxHeight := 2
+  maxHeight_ub := by intro a; cases a <;> simp [Flat.height]
+  height_mono := by
+    intro a b h
+    cases a <;> cases b <;> simp [Flat.height, Flat.sup, Max.max] at *
+    grind
+
 end Flat
 
-abbrev FlatFact := fact (Domain Flat)
+abbrev FlatFact (n : Nat) := fact (Domain n Flat)
 
 private def evalBinOpConst (op : BinOp) (v₁ v₂ : Value) : Flat :=
   match op, v₁, v₂ with
@@ -91,7 +106,7 @@ private def evalUnOpConst (op : UnOp) (v : Value) : Flat :=
   | .IsZero, .Nat _ => .Val .False
   | _, _ => .Top
 
-def evalExprFlat (ρ : Domain Flat) : Lang .Expr -> Flat
+def evalExprFlat {n : Nat} (ρ : Domain n Flat) : Lang .Expr -> Flat
 | .Var x => getVar ρ x
 | .Nat n => .Val (.Nat n)
 | .True => .Val .True
@@ -116,9 +131,10 @@ def evalExprFlat (ρ : Domain Flat) : Lang .Expr -> Flat
     | _ => evalExprFlat ρ e₁ ⊔ evalExprFlat ρ e₂
 | .Scope _ res => evalExprFlat ρ res
 | .While _ _
-| .Break => .Top
+| .Break _ => .Top
 
-def refineCondConst (cond : Lang .Expr) (assumeTrue : Bool) (ρ : Domain Flat) : Domain Flat :=
+def refineCondConst {n : Nat} (cond : Lang .Expr) (assumeTrue : Bool)
+    (ρ : Domain n Flat) : Domain n Flat :=
   match cond, assumeTrue with
   | .True, true => ρ
   | .True, false => ⊥
@@ -140,17 +156,18 @@ def refineCondConst (cond : Lang .Expr) (assumeTrue : Bool) (ρ : Domain Flat) :
   | .BinOp .False (.Var x) .BoolEq, false => setVar ρ x ((getVar ρ x).exclude .False)
   | _, _ => ρ
 
-def transferConstNode (n : CFGNode) (ρ : Domain Flat) : Domain Flat :=
-  transferScopedNode evalExprFlat n ρ
+def transferConstNode {n : Nat} (node : CFGNode) (ρ : Domain n Flat) : Domain n Flat :=
+  transferScopedNode evalExprFlat node ρ
 
-def transferConstEdge (e : CFGEdge) (ρ : Domain Flat) : Domain Flat :=
+def transferConstEdge {n : Nat} (e : CFGEdge) (ρ : Domain n Flat) : Domain n Flat :=
   transferBranchEdge refineCondConst e ρ
 
-def runConstProp (g : CFG) (entryInit : Domain Flat := ⊥) : FlatFact × FlatFact :=
-  worklistForwardEdge g transferConstNode transferConstEdge
-    entryInit (fun _ => ⊥) (fun _ => ⊥) g.nodes (fun _ h => h)
+def runConstProp (n : Nat) (g : CFG) (entryInit : Domain n Flat := ⊥) : FlatFact n × FlatFact n :=
+  let bot : fact (Domain n Flat) := fun _ => ⊥
+  runDataflow g transferConstNode transferConstEdge
+    entryInit bot g.nodes (fun _ h => h)
 
-def constOverlay (inF outF : FlatFact) : AltCFGRepr.DotOverlay :=
+def constOverlay {n : Nat} (inF outF : FlatFact n) : AltCFGRepr.DotOverlay :=
   { nodeMeta := fun n =>
       [ s!"in={repr (inF n)}"
       , s!"out={repr (outF n)}"
@@ -164,10 +181,10 @@ def constOverlay (inF outF : FlatFact) : AltCFGRepr.DotOverlay :=
       | .normal => []
   }
 
-def printResult (g : CFG) (inF outF : FlatFact) : IO Unit := do
+def printResult {n : Nat} (g : CFG) (inF outF : FlatFact n) : IO Unit := do
   IO.println (AltCFGRepr.toDotWith g (constOverlay inF outF))
 
 def main (_ : List String) : IO Unit := do
   let g := stmtCFG sampleProgram
-  let (inF, outF) := runConstProp g
+  let (inF, outF) := runConstProp 10 g
   printResult g inF outF

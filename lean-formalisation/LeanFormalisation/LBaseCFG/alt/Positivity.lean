@@ -39,18 +39,22 @@ private def Sign.fromAtomFlags (hasNeg hasZero hasPos : Bool) : Sign :=
   | true, true, false   => .NonPos
   | true, true, true    => .Top
 
+@[simp]
 private def Sign.hasNeg : Sign → Bool
 | .Neg | .NonPos | .Top => true
 | _ => false
 
+@[simp]
 private def Sign.hasZero : Sign → Bool
 | .Zero | .NonNeg | .NonPos | .Top => true
 | _ => false
 
+@[simp]
 private def Sign.hasPos : Sign → Bool
 | .Pos | .NonNeg | .Top => true
 | _ => false
 
+@[simp]
 def Sign.sup : Sign → Sign → Sign
 | s₁, s₂ =>
     Sign.fromAtomFlags
@@ -58,6 +62,7 @@ def Sign.sup : Sign → Sign → Sign
       (s₁.hasZero || s₂.hasZero)
       (s₁.hasPos || s₂.hasPos)
 
+@[simp]
 def Sign.inf : Sign → Sign → Sign
 | s₁, s₂ =>
     Sign.fromAtomFlags
@@ -123,16 +128,35 @@ def Sign.sub : Sign → Sign → Sign
 
 def Sign.excludeZero : Sign → Sign
 | s => Sign.fromAtomFlags s.hasNeg false s.hasPos
+
+@[simp]
+def Sign.height : Sign → Nat
+| .Bot => 0
+| .Pos => 1
+| .Neg => 1
+| .Zero => 1
+| .NonPos => 2
+| .NonNeg => 2
+| .Top => 3
+
+instance : FiniteHeight Sign where
+  height := Sign.height
+  maxHeight := 3
+  maxHeight_ub := by intro a; cases a <;> simp
+  height_mono := by
+    intro a b h
+    cases a <;> cases b <;> simp [Sign.fromAtomFlags, Max.max] at *
+
 end Sign
 
-abbrev PosFact := fact (Domain Sign)
+abbrev PosFact (n : Nat) := fact (Domain n Sign)
 
-def signOfNat (n : Nat) : Sign :=
-  if n = 0 then .Zero else .Pos
+def signOfNat (k : Nat) : Sign :=
+  if k = 0 then .Zero else .Pos
 
-def evalExprSign (ρ : Domain Sign) : Lang .Expr -> Sign
+def evalExprSign {n : Nat} (ρ : Domain n Sign) : Lang .Expr -> Sign
 | .Var x => getVar ρ x
-| .Nat n => signOfNat n
+| .Nat k => signOfNat k
 | .BinOp e₁ e₂ op =>
     match op with
     | .Add => Sign.add (evalExprSign ρ e₁) (evalExprSign ρ e₂)
@@ -146,12 +170,13 @@ def evalExprSign (ρ : Domain Sign) : Lang .Expr -> Sign
 | .False
 | .Unit
 | .While _ _
-| .Break => .Top
+| .Break _ => .Top
 
-def transferPosNode (n : CFGNode) (ρ : Domain Sign) : Domain Sign :=
-  transferScopedNode evalExprSign n ρ
+def transferPosNode {n : Nat} (node : CFGNode) (ρ : Domain n Sign) : Domain n Sign :=
+  transferScopedNode evalExprSign node ρ
 
-def refineCond (cond : Lang .Expr) (assumeTrue : Bool) (ρ : Domain Sign) : Domain Sign :=
+def refineCond {n : Nat} (cond : Lang .Expr) (assumeTrue : Bool)
+    (ρ : Domain n Sign) : Domain n Sign :=
   match cond, assumeTrue with
   | .True, true => ρ
   | .True, false => ⊥
@@ -165,14 +190,15 @@ def refineCond (cond : Lang .Expr) (assumeTrue : Bool) (ρ : Domain Sign) : Doma
   | .BinOp (.Nat 0) (.Var x) .NatEq, false => setVar ρ x ((getVar ρ x).excludeZero)
   | _, _ => ρ
 
-def transferPosEdge (e : CFGEdge) (ρ : Domain Sign) : Domain Sign :=
+def transferPosEdge {n : Nat} (e : CFGEdge) (ρ : Domain n Sign) : Domain n Sign :=
   transferBranchEdge refineCond e ρ
 
-def runPositivity (g : CFG) (entryInit : Domain Sign := ⊥) : PosFact × PosFact :=
-  worklistForwardEdge g transferPosNode transferPosEdge
-    entryInit (fun _ => ⊥) (fun _ => ⊥) g.nodes (fun _ h => h)
+def runPositivity (n : Nat) (g : CFG) (entryInit : Domain n Sign := ⊥) : PosFact n × PosFact n :=
+  let bot : fact (Domain n Sign) := fun _ => ⊥
+  runDataflow g transferPosNode transferPosEdge
+    entryInit bot g.nodes (fun _ h => h)
 
-def positivityOverlay (inF outF : PosFact) : AltCFGRepr.DotOverlay :=
+def positivityOverlay {n : Nat} (inF outF : PosFact n) : AltCFGRepr.DotOverlay :=
   { nodeMeta := fun n =>
       [ s!"in={repr (inF n)}"
       , s!"out={repr (outF n)}"
@@ -186,10 +212,10 @@ def positivityOverlay (inF outF : PosFact) : AltCFGRepr.DotOverlay :=
       | .normal => []
   }
 
-def printResult (g : CFG) (inF outF : PosFact) : IO Unit := do
+def printResult {n : Nat} (g : CFG) (inF outF : PosFact n) : IO Unit := do
   IO.println (AltCFGRepr.toDotWith g (positivityOverlay inF outF))
 
 def main (_ : List String) : IO Unit := do
   let g := stmtCFG sampleProgram
-  let (inF, outF) := runPositivity g
+  let (inF, outF) := runPositivity 10 g
   printResult g inF outF

@@ -149,40 +149,68 @@ def runDataflow
   let finalIn := fun n => expectedIn g edgeTransfer entryInit finalOut n
   ⟨finalIn, finalOut⟩
 
-abbrev Domain (A : Type) [Max A] [Bot A] := List A
+abbrev Domain (n : Nat) (A : Type) [Bot A] := Fin n → A
 
-instance {A : Type} [Max A] [Bot A] : Bot (Domain A) where
-  bot := []
+instance {n : Nat} {A : Type} [Bot A] : Bot (Domain n A) where
+  bot := fun _ => ⊥
 
-def domainJoin {A : Type} [Max A] [Bot A] : Domain A -> Domain A -> Domain A
-| [], ys => ys
-| xs, [] => xs
-| x :: xs, y :: ys => (x ⊔ y) :: domainJoin xs ys
+def domainJoin {n : Nat} {A : Type} [Bot A] [Max A] (ρ₁ ρ₂ : Domain n A) : Domain n A :=
+  fun i => ρ₁ i ⊔ ρ₂ i
 
-instance {A : Type} [Max A] [Bot A] : Max (Domain A) where
+instance {n : Nat} {A : Type} [Bot A] [Max A] : Max (Domain n A) where
   max := domainJoin
 
-def getVar {A : Type} [Max A] [Bot A] (ρ : Domain A) (x : VarName) : A :=
-  ρ.getD x ⊥
+private def domainBEq {n : Nat} {A : Type} [Bot A] [DecidableEq A] (ρ₁ ρ₂ : Domain n A) : Bool :=
+  (List.finRange n).all (fun i => ρ₁ i = ρ₂ i)
 
-def setVar {A : Type} [Max A] [Bot A] : Domain A -> VarName -> A -> Domain A
-| [], 0, s => [s]
-| [], x + 1, s => ⊥ :: setVar [] x s
-| _ :: tl, 0, s => s :: tl
-| hd :: tl, x + 1, s => hd :: setVar tl x s
+private theorem domainBEq_iff {n : Nat} {A : Type} [Bot A] [DecidableEq A]
+    (ρ₁ ρ₂ : Domain n A) : domainBEq ρ₁ ρ₂ = true ↔ ρ₁ = ρ₂ := by
+  constructor
+  · intro h
+    funext i
+    simp [domainBEq, List.all_eq_true] at h
+    exact h i
+  · intro h
+    subst h
+    simp [domainBEq, List.all_eq_true]
 
-def pushBinding {A : Type} [Max A] [Bot A] (ρ : Domain A) (v : A) : Domain A :=
-  v :: ρ
+instance {n : Nat} {A : Type} [Bot A] [DecidableEq A] : DecidableEq (Domain n A) :=
+  fun ρ₁ ρ₂ =>
+    if h : domainBEq ρ₁ ρ₂ then
+      isTrue ((domainBEq_iff ρ₁ ρ₂).mp h)
+    else
+      isFalse (fun heq => h ((domainBEq_iff ρ₁ ρ₂).mpr heq))
 
-def popBindings {A : Type} [Max A] [Bot A] (k : Nat) (ρ : Domain A) : Domain A :=
-  ρ.drop k
+def getVar {n : Nat} {A : Type} [Bot A] (ρ : Domain n A) (x : VarName) : A :=
+  if h : x < n then ρ ⟨x, h⟩ else ⊥
 
-instance {A : Type} [Max A] [Bot A] [Repr A] : Repr (Domain A) where
+def setVar {n : Nat} {A : Type} [Bot A] (ρ : Domain n A) (x : VarName) (v : A) : Domain n A :=
+  fun i => if i.val = x then v else ρ i
+
+def pushBinding {n : Nat} {A : Type} [Bot A] (ρ : Domain n A) (v : A) : Domain n A :=
+  fun i =>
+    if i.val = 0 then v
+    else if h : i.val - 1 < n then ρ ⟨i.val - 1, h⟩
+    else ⊥
+
+def popBindings {n : Nat} {A : Type} [Bot A] (k : Nat) (ρ : Domain n A) : Domain n A :=
+  fun i =>
+    if h : i.val + k < n then ρ ⟨i.val + k, h⟩
+    else ⊥
+
+instance {n : Nat} {A : Type} [Bot A] [Repr A] : Repr (Domain n A) where
   reprPrec := fun d _ =>
-    let rec go (i : Nat) : Domain A -> List String
-      | [] => []
-      | v :: tl => s!"x{i}:{repr v}" :: go (i + 1) tl
-    s!"[{String.intercalate ", " (go 0 d)}]"
+    let entries := (List.finRange n).map (fun i => s!"x{i.val}:{repr (d i)}")
+    s!"[{String.intercalate ", " entries}]"
+
+def domainHeight {n : Nat} {A : Type} [Bot A] [Max A] [FiniteHeight A] (ρ : Domain n A) : Nat :=
+  ((List.finRange n).map (fun i => FiniteHeight.height (ρ i))).sum
+
+instance [Bot A] [Max A] [FiniteHeight A] : FiniteHeight (Domain n A) where
+  height := domainHeight
+  maxHeight := n * FiniteHeight.maxHeight A
+  maxHeight_ub ρ := by sorry
+  height_mono ρ₁ ρ₂ h := by sorry
 
 section LangSpecific
 
@@ -192,19 +220,19 @@ def stmtDeclDelta : Lang .Stmt -> Nat
 | .Seq s₁ s₂ => stmtDeclDelta s₁ + stmtDeclDelta s₂
 | .Do _ => 0
 
-abbrev LangEval (A : Type) [Max A] [Bot A] := Domain A -> Lang .Expr -> A
+abbrev LangEval (n : Nat) (A : Type) [Bot A] := Domain n A -> Lang .Expr -> A
 
-def transferScopedNode {A : Type} [Max A] [Bot A]
-    (eval : LangEval A) (n : CFGNode) (ρ : Domain A) : Domain A :=
-  match n.kind with
+def transferScopedNode {n : Nat} {A : Type} [Max A] [Bot A]
+    (eval : LangEval n A) (node : CFGNode) (ρ : Domain n A) : Domain n A :=
+  match node.kind with
   | .stmtExit (.Assign x rhs) => setVar ρ x (eval ρ rhs)
   | .stmtExit (.Decl _ init) => pushBinding ρ (eval ρ init)
   | .exprExit (.Scope s _) => popBindings (stmtDeclDelta s) ρ
   | _ => ρ
 
-def transferBranchEdge {A : Type} [Max A] [Bot A]
-    (refine : Lang .Expr -> Bool -> Domain A -> Domain A)
-    (e : CFGEdge) (ρ : Domain A) : Domain A :=
+def transferBranchEdge {n : Nat} {A : Type} [Max A] [Bot A]
+    (refine : Lang .Expr -> Bool -> Domain n A -> Domain n A)
+    (e : CFGEdge) (ρ : Domain n A) : Domain n A :=
   match e.kind, e.src.kind with
   | .trueBranch, .exprExit cond => refine cond true ρ
   | .falseBranch, .exprExit cond => refine cond false ρ
