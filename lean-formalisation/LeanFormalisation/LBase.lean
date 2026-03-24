@@ -742,7 +742,6 @@ lemma cont_type_ext (tg : Tag) (Γ₁ : ContTypeRes tg) (n : Nat) :
     { sorry }
     stop sorry -- right-extension form not needed; see jcoh_ext
 -/
-
 lemma drop_suffix_prepend {α : Type} (Γ₁ Γ₂ : List α) (n : Nat)
     (hn : n ≤ Γ₂.length) :
     List.drop (List.length (Γ₁ ++ Γ₂) - n) (Γ₁ ++ Γ₂) =
@@ -1011,3 +1010,40 @@ theorem preservation (s s' : CEK) :
       apply a_7 }
     { apply a_2 }
     grind [coh_len]
+
+-- simple program
+def some_code : Lang .Stmt :=
+  (.Decl .nat (.Nat 0));
+  (.Do
+    (.While
+      (.UnOp (.BinOp (.Nat 4) (.Var 0) .Sub) .IsZero)
+      (.Scope
+        (0::=(.BinOp (.Var 0) (.Nat 1) .Add)) (.Unit))))
+
+-- simple program is well-typed
+example : Wt (initState some_code) := by
+  unfold initState
+  unfold some_code
+  apply Wt.WtExprS (Γ₁ := [Ty.nat])
+  { apply Coh.CohEmp }
+  { apply JCoh.JCohEmp }
+  { apply Typ.Seq (Γ₂ := [Ty.nat])
+    { apply Typ.VarDecl
+      apply Typ.NatConst }
+    apply Typ.Do
+    apply Typ.WhileExpr
+    { apply Typ.UnOp
+      apply Typ.BinOp
+      { apply Typ.NatConst }
+      apply Typ.VarAccess
+      grind }
+    apply Typ.ScopeExpr
+    { apply Typ.VarAssign
+      { apply Typ.BinOp
+        { simp only [List.length_cons, List.length_nil, zero_add, BinOp.args]
+          apply Typ.VarAccess
+          grind }
+        apply Typ.NatConst }
+      grind }
+    apply Typ.UnitConst }
+  apply ContType.HaltK
