@@ -40,7 +40,7 @@ $f$, $x$, and $m$ represent infinite and non-intersecting sets of field, variabl
 
 $ell$ represents an infinite set of jump labels. For the purpose of formalisation, it may be easier to use distinct sets for $#Break$ and $#Return$. We write $#Break$ as shorthand for $#Break ell$ where $ell$ is the most recently bound loop label, and $#Return e$ as shorthand for $#Return ell thin e$ where $ell$ is the current method's label.
 
-We write $plus.o$ to range over binary operators ${+, ∸, ==}$ and unary operators ${#IsZero}$. The meta-level function $#delta$ maps an operator and its argument value(s) to the result:
+We write $plus.o$ to range over binary operators ${+, ∸, ==}$ and unary operators ${#IsZero}$. The meta-level function $#delta$ maps an operator and its argument value(s) to the reslt:
 
 $
 #delta (+, n_1, n_2) &= n_1 + n_2 \
@@ -68,22 +68,22 @@ A jump context $Delta$ is a stack tracking which non-local jump targets are lexi
 
 $
 Delta ::=& dot && "Empty" \
-  |& Delta, #Loop (ell) && "Loop boundary (labelled" ell")" \
+  |& Delta, #Loop (ell, n) && "Loop boundary (labelled" ell", context size" n")" \
   |& Delta, #Method (ell, sigma) && "Method boundary (labelled" ell", return type" sigma")"
 $
 
-$#While$ extends $Delta$ with $#Loop (ell)$ for its body. Method bodies are typed with $Delta = #Method (ell, sigma)$.
+$#While$ extends $Delta$ with $#Loop (ell, |Gamma|)$ for its body, recording the context size at loop entry. Method bodies are typed with $Delta = #Method (ell, sigma)$.
 
 Lookup $Delta(ell)$ scans $Delta$ right-to-left for the entry with label $ell$:
 
 $
-(Delta, #Loop (ell))(ell) &= #Loop (ell) \
-(Delta, #Loop (ell'))(ell) &= Delta(ell) && quad ell' != ell \
+(Delta, #Loop (ell, n))(ell) &= #Loop (ell, n) \
+(Delta, #Loop (ell', n))(ell) &= Delta(ell) && quad ell' != ell \
 (Delta, #Method (ell, sigma))(ell) &= #Method (ell, sigma) \
 (Delta, #Method (ell', sigma))(ell) &= Delta(ell) && quad ell' != ell
 $
 
-$dot (ell)$ is undefined. $#Break ell$ requires $Delta(ell) = #Loop (ell)$; $#Return ell thin e$ requires $Delta(ell) = #Method (ell, sigma)$ and recovers the return type $sigma$ from the entry.
+$dot (ell)$ is undefined. $#Break ell$ requires $Delta(ell) = #Loop (ell, n)$; $#Return ell thin e$ requires $Delta(ell) = #Method (ell, sigma)$ and recovers the return type $sigma$ from the entry.
 
 == Type System
 Herein we discuss the type system of #Lclass.
@@ -114,18 +114,18 @@ Since expressions do not modify the typing context, we use the judgement form #t
 
   proof-tree(rule(name: "IfExpr", typeExpr($Gamma$, $Delta$, $#If e #Then e_1 #Else e_2$, $tau$), typeExpr($Gamma$, $Delta$, $e$, $#Bool$), typeExpr($Gamma$, $Delta$, $e_1$, $tau$), typeExpr($Gamma$, $Delta$, $e_2$, $tau$))),
 
-  proof-tree(rule(name: "WhileExpr", typeExpr($Gamma$, $Delta$, $#While c brace.l e brace.r$, $#Unit$), typeExpr($Gamma$, $Delta$, $c$, $#Bool$), typeExpr($Gamma$, $Delta, #Loop (ell)$, $e$, $#Unit$))),
+  proof-tree(rule(name: "WhileExpr", typeExpr($Gamma$, $Delta$, $#While c brace.l e brace.r$, $#Unit$), typeExpr($Gamma$, $Delta$, $c$, $#Bool$), typeExpr($Gamma$, $Delta, #Loop (ell, |Gamma|)$, $e$, $#Unit$))),
 
-  proof-tree(rule(name: "BreakExpr", typeExpr($Gamma$, $Delta$, $#Break ell$, $tau$), $Delta(ell) = #Loop (ell)$)),
+  proof-tree(rule(name: "BreakExpr", typeExpr($Gamma$, $Delta$, $#Break ell$, $tau$), $Delta(ell) = #Loop (ell, n)$)),
 
   proof-tree(rule(name: "ScopeExpr", typeExpr($Gamma$, $Delta$, $#Scope brace.l s; e brace.r$, $tau$), typeStmt($Delta$, $Gamma$, $s$, $Gamma'$), typeExpr($Gamma'$, $Delta$, $e$, $tau$))),
 )
 
 $#New C(e_1, ..., e_n)$ checks each field initialiser $e_i$ against the declared field type $tau_i$. Method calls $m(e_1, ..., e_n)$ check each argument against the method's parameter types and have the method's return type $sigma_m$.
 
-$#Return ell thin e$ and $#Break ell$ both have type $tau$ for any $tau$ since they never produce a value. $#Return ell thin e$ requires $Delta(ell) = #Method (ell, sigma)$ and checks its sub-expression against the recovered return type $sigma$. $#Break ell$ requires $Delta(ell) = #Loop (ell)$. Both are ill-typed outside their respective scopes.
+$#Return ell thin e$ and $#Break ell$ both have type $tau$ for any $tau$ since they never produce a value. $#Return ell thin e$ requires $Delta(ell) = #Method (ell, sigma)$ and checks its sub-expression against the recovered return type $sigma$. $#Break ell$ requires $Delta(ell) = #Loop (ell, n)$. Both are ill-typed outside their respective scopes.
 
-$#If$ expressions require both branches to have the same type $tau$; the condition must be $#Bool$. $#While$ expressions have type $#Unit$; the body is typed with $Delta$ extended by $#Loop (ell)$, making $#Break ell$ available inside the loop body. The condition is typed at $Delta$ (without $#Loop (ell)$), so $#Break$ in the condition targets an outer loop. $#Scope$ expressions run statements $s$ (extending $Gamma$ to $Gamma'$), then evaluate a trailing expression $e$ in $Gamma'$. The overall type is the type of $e$; the scope's local declarations are not visible outside.
+$#If$ expressions require both branches to have the same type $tau$; the condition must be $#Bool$. $#While$ expressions have type $#Unit$; the body is typed with $Delta$ extended by $#Loop (ell, |Gamma|)$, recording the context size at loop entry and making $#Break ell$ available inside the loop body. The condition is typed at $Delta$ (without $#Loop (ell, |Gamma|)$), so $#Break$ in the condition targets an outer loop. $#Scope$ expressions run statements $s$ (extending $Gamma$ to $Gamma'$), then evaluate a trailing expression $e$ in $Gamma'$. The overall type is the type of $e$; the scope's local declarations are not visible outside.
 
 The operator signature premise $plus.o : tau_1 times tau_2 -> tau_3$ (or $plus.o : tau_1 -> tau_2$ for unary) is grounded by the operator typing rules below.
 
@@ -183,7 +183,7 @@ The body is checked with only the arguments in scope and $Delta = #Method (ell, 
 
 Note that in the statement weakening properties, $Gamma, Gamma'$ refers to $Gamma$ concatenated with another context $Gamma'$. We can't extend by a single variable as in the expression weakening rules since compound statements may extend $Gamma$ with any number of new variables.
 
-- *Expression $Delta$-Weakening (Extension):* if #typeExpr($Gamma$, $Delta$, $e$, $tau$) and $Delta$ is a suffix of $Delta'$, then #typeExpr($Gamma$, $Delta'$, $e$, $tau$). Adding jump targets to $Delta$ does not invalidate existing typing: all rules either ignore $Delta$, thread it unchanged, or require $Delta(ell)$ to be defined (which is preserved by extension). This property is needed for preservation of WhileExpr (extending $Delta$ with $#Loop (ell)$ for the body).
+- *Expression $Delta$-Weakening (Extension):* if #typeExpr($Gamma$, $Delta$, $e$, $tau$) and $Delta$ is a suffix of $Delta'$, then #typeExpr($Gamma$, $Delta'$, $e$, $tau$). Adding jump targets to $Delta$ does not invalidate existing typing: all rules either ignore $Delta$, thread it unchanged, or require $Delta(ell)$ to be defined (which is preserved by extension). This property is needed for preservation of WhileExpr (extending $Delta$ with $#Loop (ell, |Gamma|)$ for the body).
 
 - *Expression $Delta$-Weakening (Permutation):* if #typeExpr($Gamma$, $Delta$, $e$, $tau$) and for all $ell in op("dom")(Delta)$, $Delta(ell) = Delta'(ell)$, then #typeExpr($Gamma$, $Delta'$, $e$, $tau$). Typing rules access $Delta$ only via $Delta(ell)$ lookup, which is preserved by the permutation condition.
 
@@ -289,7 +289,7 @@ K ::=& #halt && "Program complete" \
   |& #binopRK (plus.o, v_1) dot.c K && "After evaluating right operand of" plus.o", apply to" v_1 \
   |& #unopK (plus.o) dot.c K && "After evaluating operand of unary" plus.o", apply" \
   |& #seqK (s) dot.c K && "After first statement completes, continue with" s \
-  |& #loopK (c, e, n) dot.c K && "While condition: body" e ", saved env size" n \
+  |& #loopK (c, e) dot.c K && "While condition: body" e \
   |& #loopContK (c, e) dot.c K && "After loop body, re-evaluate condition" \
   |& #scopeBodyK (e, n) dot.c K && "After scope statements, evaluate trailing expr" e \
   |& #scopeExitK (n) dot.c K && "After trailing expr, truncate env to size" n \
@@ -310,8 +310,8 @@ Method bodies are tracked globally when defined. We define a function $#body (m)
 - $#binopRK (plus.o, v_1)$ waits for the right operand to evaluate to $v_2$, then computes $#delta (plus.o, v_1, v_2)$.
 - $#unopK (plus.o)$ waits for the operand to evaluate to $v$, then computes $#delta (plus.o, v)$.
 - $#seqK (s)$ waits for the first statement to complete, then loads $s$ into the control.
-- $#loopK (c, e, n)$ receives the condition value: $#True$ enters the body $e$ via $#loopContK$; $#False$ truncates the environment to size $n$ and produces $#UnitVal$. The saved size $n$ records $|E|$ at while entry and is needed here because LoopFalse fires during condition evaluation, before $J$ has been pushed with this loop's entry.
-- $#loopContK (c, e)$ receives $#UnitVal$ after the body completes, then re-evaluates $c$ with $#loopK$ on the continuation.
+- $#loopK (c, e)$ receives the condition value: $#True$ pushes $#Loop (ell, |E|, K)$ onto $J$ and enters the body $e$ via $#loopContK$; $#False$ produces $#UnitVal$.
+- $#loopContK (c, e)$ receives $#UnitVal$ after the body completes, pops the loop entry from $J$, truncates the environment to the saved size $n$, then re-evaluates $c$ with $#loopK$ on the continuation.
 - $#scopeBodyK (e, n)$ waits for the scope's statements to complete ($#Skip$), then evaluates the trailing expression $e$. The saved size $n$ records $|E|$ at scope entry.
 - $#scopeExitK (n)$ waits for the trailing expression to produce a value, then truncates the environment to size $n$, dropping scope-local bindings.
 - $#exprStmtK$ waits for an expression to produce a value, discards it, and produces $#Skip$.
@@ -335,7 +335,7 @@ $
 #ceskE($s_1 ; s_2$, $E$, $J$, $S$, $K$) &~> #ceskE($s_1$, $E$, $J$, $S$, $#seqK (s_2) dot.c K$) && "Seq" \
 #ceskE($#Do e$, $E$, $J$, $S$, $K$) &~> #ceskE($e$, $E$, $J$, $S$, $#exprStmtK dot.c K$) && "ExprStmt" \
 #ceskE($#If e #Then e_1 #Else e_2$, $E$, $J$, $S$, $K$) &~> #ceskE($e$, $E$, $J$, $S$, $#ifCondK (e_1, e_2) dot.c K$) && "If" \
-#ceskE($#While c brace.l e brace.r$, $E$, $J$, $S$, $K$) &~> #ceskE($c$, $E$, $J$, $S$, $#loopK (c, e, |E|) dot.c K$) && "While" \
+#ceskE($#While c brace.l e brace.r$, $E$, $J$, $S$, $K$) &~> #ceskE($c$, $E$, $J$, $S$, $#loopK (c, e) dot.c K$) && "While" \
 #ceskE($#Break ell$, $E$, $J$, $S$, $K$) &~> #ceskC($#UnitVal$, $#truncate($E$, $n$)$, $J'$, $S$, $K'$) && "Break" \
 & quad "where" J(ell) = (n, K') \
 #ceskE($#Scope brace.l s ; e brace.r$, $E$, $J$, $S$, $K$) &~> #ceskE($s$, $E$, $J$, $S$, $#scopeBodyK (e, |E|) dot.c K$) && "Scope" \
@@ -348,7 +348,7 @@ $
 #ceskE($#New C(e_1, ..., e_n)$, $E$, $J$, $S$, $K$) &~> #ceskE($e_1$, $E$, $J$, $S$, $#newK (C, epsilon, (e_2, ..., e_n)) dot.c K$) && "New"_N \
 & quad n >= 1
 $
-Val transitions a source value expression ($#True$, $#False$, $n$, $#UnitVal$, or address $a$) into Cont mode. Var looks up the rightmost binding of $x$ in $E$. The remaining rules decompose a compound form by pushing a continuation frame. BinOp evaluates the left operand first (left-to-right evaluation order). UnOp evaluates its single operand. If evaluates the condition; the branches are expressions. While records $|E|$ in $#loopK$ for use by LoopFalse. Break looks up $J(ell)$ to find the target loop's saved environment size $n$ and exit continuation $K'$, truncates $E$ to $n$, and produces $#UnitVal$. $J'$ is $J$ with the entry for $ell$ and all entries above it removed. $"Call"_0$ pushes $#Method (ell, E, K)$ onto $J$ and $#callK (E)$ onto $K$, then enters the method body with an empty environment. Arguments are evaluated left-to-right in the caller's environment.
+Val transitions a source value expression ($#True$, $#False$, $n$, $#UnitVal$, or address $a$) into Cont mode. Var looks up the rightmost binding of $x$ in $E$. The remaining rules decompose a compound form by pushing a continuation frame. BinOp evaluates the left operand first (left-to-right evaluation order). UnOp evaluates its single operand. If evaluates the condition; the branches are expressions. While evaluates the condition with $#loopK (c, e)$ on the continuation. Break looks up $J(ell)$ to find the target loop's saved environment size $n$ and exit continuation $K'$, truncates $E$ to $n$, and produces $#UnitVal$. $J'$ is $J$ with the entry for $ell$ and all entries above it removed. $"Call"_0$ pushes $#Method (ell, E, K)$ onto $J$ and $#callK (E)$ onto $K$, then enters the method body with an empty environment. Arguments are evaluated left-to-right in the caller's environment.
 
 ==== Cont
 $
@@ -365,11 +365,9 @@ $
 #ceskC($v$, $E$, $J$, $S$, $#unopK (plus.o) dot.c K$) &~> #ceskC($#delta (plus.o, v)$, $E$, $J$, $S$, $K$) && "UnOpDone" \
 #ceskC($#Skip$, $E$, $J$, $S$, $#seqK (s_2) dot.c K$) &~> #ceskE($s_2$, $E$, $J$, $S$, $K$) && "SeqDone" \
 #ceskC($v$, $E$, $J$, $S$, $#exprStmtK dot.c K$) &~> #ceskC($#Skip$, $E$, $J$, $S$, $K$) && "ExprStmtDone" \
-#ceskC($#True$, $E$, $J$, $S$, $#loopK (c, e, n) dot.c K$) &~> #ceskE($e$, $E$, $J'$, $S$, $#loopContK (c, e) dot.c K$) && "LoopTrue" \
-& quad "where" J' = J, #Loop (ell, n, K) \
-#ceskC($#False$, $E$, $J$, $S$, $#loopK (c, e, n) dot.c K$) &~> #ceskC($#UnitVal$, $#truncate($E$, $n$)$, $J$, $S$, $K$) && "LoopFalse" \
-#ceskC($#UnitVal$, $E$, $J_0$, $S$, $#loopContK (c, e) dot.c K'$) &~> #ceskE($c$, $E$, $J$, $S$, $#loopK (c, e, n) dot.c K'$) && "LoopCont" \
-& quad "where" J_0 = J, #Loop (ell, n, K') \
+#ceskC($#True$, $E$, $J$, $S$, $#loopK (c, e) dot.c K$) &~> #ceskE($e$, $E$, $J, #Loop (ell, |E|, K)$, $S$, $#loopContK (c, e) dot.c K$) && "LoopTrue" \
+#ceskC($#False$, $E$, $J$, $S$, $#loopK (c, e) dot.c K$) &~> #ceskC($#UnitVal$, $E$, $J$, $S$, $K$) && "LoopFalse" \
+#ceskC($#UnitVal$, $E$, $J, #Loop (ell, n, K')$, $S$, $#loopContK (c, e) dot.c K'$) &~> #ceskE($c$, $#truncate($E$, $n$)$, $J$, $S$, $#loopK (c, e) dot.c K'$) && "LoopCont" \
 #ceskC($#Skip$, $E$, $J$, $S$, $#scopeBodyK (e, n) dot.c K$) &~> #ceskE($e$, $E$, $J$, $S$, $#scopeExitK (n) dot.c K$) && "ScopeBody" \
 #ceskC($v$, $E$, $J$, $S$, $#scopeExitK (n) dot.c K$) &~> #ceskC($v$, $#truncate($E$, $n$)$, $J$, $S$, $K$) && "ScopeExit" \
 #ceskC($v$, $E$, $J$, $S$, $#argK (m, overline(v), (e, overline(e))) dot.c K$) &~> #ceskE($e$, $E$, $J$, $S$, $#argK (m, overline(v) dot.c v, overline(e)) dot.c K$) && "ArgNext" \
@@ -387,7 +385,7 @@ $
 $
 $E[x |-> v]$ updates the rightmost binding of $x$ in $E$. BinOpL/BinOpR implement left-to-right evaluation of binary operators. IfTrue/IfFalse dispatch directly to the branch expression.
 
-LoopTrue enters the body and pushes $#Loop (ell, n, K)$ onto $J$. LoopFalse truncates $E$ to the saved size $n$ and produces $#UnitVal$; $J$ is unchanged since it was never pushed for this iteration. LoopCont pops the loop entry from $J$ and re-evaluates the condition.
+LoopTrue pushes $#Loop (ell, |E|, K)$ onto $J$, recording the environment size at loop entry, then enters the body. LoopFalse produces $#UnitVal$; $J$ is unchanged since it was never pushed for this iteration. LoopCont pops the loop entry from $J$, truncates $E$ to the saved size $n$ (dropping any bindings the body introduced), and re-evaluates the condition.
 
 Return evaluates its expression via $#returnK (ell)$, then ReturnDone uses $J(ell)$ to find the method boundary directly, restoring the caller's environment $E'$ and producing the return value $v$ to the caller's continuation $K'$. $J'$ is $J$ with the method entry and everything above it removed. ImplicitReturn handles the case where a method body completes normally with $#Skip$: it pops the method entry from $J$, restores the caller's environment, and produces $#UnitVal$.
 
@@ -424,8 +422,8 @@ Expression continuations (#typeContE($Gamma$, $Delta$, $K$, $tau$)) _consume_ a 
   proof-tree(rule(name: "ArgK", typeContE($Gamma$, $Delta$, $#argK (m, overline(v), overline(e)) dot.c K$, $tau_i$), $m : (tau_1, ..., tau_n) : sigma_m$, $tack.r overline(v)_j : tau_j "for" j < i$, typeExpr($Gamma$, $Delta$, $overline(e)_k$, $tau_(i+k)$), typeContE($Gamma$, $Delta$, $K$, $sigma_m$))),
   proof-tree(rule(name: "NewK", typeContE($Gamma$, $Delta$, $#newK (C, overline(v), overline(e)) dot.c K$, $tau_i$), $#fields (C) = (f_1 : tau_1, ..., f_n : tau_n)$, $tack.r overline(v)_j : tau_j "for" j < i$, typeExpr($Gamma$, $Delta$, $overline(e)_k$, $tau_(i+k)$), typeContE($Gamma$, $Delta$, $K$, $C$))),
 
-  proof-tree(rule(name: $#LoopK$, typeContE($Gamma$, $Delta$, $#loopK (c, e, n) dot.c K$, $#Bool$), typeExpr($Gamma$, $Delta$, $c$, $#Bool$), typeExpr($Gamma$, $Delta, #Loop (ell)$, $e$, $#Unit$), typeContE($#truncate($Gamma$, $n$)$, $Delta$, $K$, $#Unit$))),
-  proof-tree(rule(name: $#LoopContK$, typeContE($Gamma$, $Delta, #Loop (ell)$, $#loopContK (c, e) dot.c K$, $#Unit$), typeExpr($Gamma$, $Delta$, $c$, $#Bool$), typeExpr($Gamma$, $Delta, #Loop (ell)$, $e$, $#Unit$), typeContE($#truncate($Gamma$, $n$)$, $Delta$, $K$, $#Unit$))),
+  proof-tree(rule(name: $#LoopK$, typeContE($Gamma$, $Delta$, $#loopK (c, e) dot.c K$, $#Bool$), typeExpr($Gamma$, $Delta$, $c$, $#Bool$), typeExpr($Gamma$, $Delta, #Loop (ell, |Gamma|)$, $e$, $#Unit$), typeContE($Gamma$, $Delta$, $K$, $#Unit$))),
+  proof-tree(rule(name: $#LoopContK$, typeContE($Gamma$, $Delta, #Loop (ell, n)$, $#loopContK (c, e) dot.c K$, $#Unit$), typeExpr($#truncate($Gamma$, $n$)$, $Delta$, $c$, $#Bool$), typeExpr($#truncate($Gamma$, $n$)$, $Delta, #Loop (ell, n)$, $e$, $#Unit$), typeContE($#truncate($Gamma$, $n$)$, $Delta$, $K$, $#Unit$))),
 
   proof-tree(rule(name: $#ScopeExitK$, typeContE($Gamma$, $Delta$, $#scopeExitK (n) dot.c K$, $tau$), typeContE($#truncate($Gamma$, $n$)$, $Delta$, $K$, $tau$))),
   proof-tree(rule(name: $#ExprStmtK$, typeContE($Gamma$, $Delta$, $#exprStmtK dot.c K$, $tau$), typeContC($Gamma$, $Delta$, $K$))),
@@ -441,7 +439,7 @@ ReturnK accepts $sigma$ and requires $Delta(ell) = #Method (ell, sigma)$. It has
 
 ArgK accepts the type $tau_i$ of the current argument being evaluated and carries: the method signature, value typing for accumulated arguments, expression typing for remaining arguments, and an expression continuation for the tail accepting $sigma_m$ (the method's return type). The tail is an expression continuation because the method call is an expression producing $sigma_m$; ArgDone needs this to establish both JCohMethod and CallK. NewK is analogous for field initialisers.
 
-$#LoopK$ is typed at $Delta$ (the condition's jump context, without the current loop). $#LoopContK$ is typed at $Delta, #Loop (ell)$ (the body's jump context). Both type the condition at $Delta$ and the body at $Delta, #Loop (ell)$. The tail $K$ is typed at $Delta$.
+$#LoopK$ is typed at $Delta$ (the condition's jump context, without the current loop). $#LoopContK$ is typed at $Delta, #Loop (ell, n)$ (the body's jump context). $#LoopK$ types the condition, body, and tail at $Gamma$ directly. $#LoopContK$ truncates $Gamma$ to $n$ (from $Delta$) for all premises, recovering the pre-loop context after the body may have extended it.
 
 $#ScopeExitK$ accepts any type $tau$ and requires the tail at the truncated context. $#ExprStmtK$ accepts any value type and requires a statement continuation at $Gamma$.
 
@@ -473,11 +471,11 @@ We define _jump stack coherence_ between a jump stack and a jump context, writte
 
 #mathpar(
   proof-tree(rule(name: "JCohEmp", $#jcoh($dot$, $Gamma$, $dot$)$)),
-  proof-tree(rule(name: "JCohLoop", $#jcoh($J, #Loop (ell, n, K)$, $Gamma$, $Delta, #Loop (ell)$)$, $#jcoh($J$, $#truncate($Gamma$, $n$)$, $Delta$)$, typeContE($#truncate($Gamma$, $n$)$, $Delta$, $K$, $#Unit$))),
+  proof-tree(rule(name: "JCohLoop", $#jcoh($J, #Loop (ell, n, K)$, $Gamma$, $Delta, #Loop (ell, n)$)$, $#jcoh($J$, $#truncate($Gamma$, $n$)$, $Delta$)$, typeContE($#truncate($Gamma$, $n$)$, $Delta$, $K$, $#Unit$))),
   proof-tree(rule(name: "JCohMethod", $#jcoh($J, #Method (ell, E', K')$, $Gamma$, $Delta, #Method (ell, sigma)$)$, $#jcoh($J$, $Gamma_"caller"$, $Delta_"caller"$)$, $#coh($E'$, $Gamma_"caller"$)$, typeContE($Gamma_"caller"$, $Delta_"caller"$, $K'$, $sigma$))),
 )
 
-Each loop entry in $J$ records a label, saved environment size, and exit continuation. The exit continuation is well-typed at the context and jump context from _after_ the loop exits. Each method entry records a label, the caller's saved environment, and the return continuation. The return continuation is well-typed at the caller's context and jump context with the method's return type $sigma$. This is what makes Break's and Return's preservation proofs direct: the target is already known to be well-typed.
+Each loop entry in $J$ records a label, saved environment size, and exit continuation. The exit continuation is well-typed at the context and jump context from _after_ the loop exits; the $n$ in the $J$ entry matches the $n$ in the corresponding $Delta$ entry. Each method entry records a label, the caller's saved environment, and the return continuation. The return continuation is well-typed at the caller's context and jump context with the method's return type $sigma$. This is what makes Break's and Return's preservation proofs direct: the target is already known to be well-typed.
 
 ==== Well Typed States
 
