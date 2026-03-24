@@ -395,7 +395,7 @@ ScopeBody loads the trailing expression after the scope's statements complete. S
 
 $
 "Initial:" && #ceskE($#body ("main")$, $dot$, $#Method (ell_"main", dot, #halt)$, $dot$, $#callK (dot) dot.c #halt$) \
-"Terminal:" && #ceskC($#Skip$, $E$, $J$, $S$, $#halt$)
+"Terminal:" && #ceskC($#Skip$, $E$, $dot$, $S$, $#halt$)
 $
 
 The initial state pushes $#Method (ell_"main", dot, #halt)$ onto $J$ and wraps main's body in a $#callK (dot)$ frame so that both $#Return$ (via $J$) and ImplicitReturn (via $#callK$) are well-defined.

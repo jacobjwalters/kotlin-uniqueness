@@ -313,7 +313,7 @@ ScopeBody loads the trailing expression after the scope's statements complete. S
 
 $
 "Initial:" && #cekE($s$, $dot$, $dot$, $#halt$) && "where" s "is the program" \
-"Terminal:" && #cekC($#Skip$, $E$, $J$, $#halt$)
+"Terminal:" && #cekC($#Skip$, $E$, $dot$, $#halt$)
 $
 
 === Continuation Typing
