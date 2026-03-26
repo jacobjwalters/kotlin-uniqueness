@@ -119,7 +119,7 @@ mutual
         , nextId := f.nextId
         }
     | .While cond body =>
-        let c := buildExpr (exit :: breakTargets) nextId cond
+        let c := buildExpr breakTargets nextId cond
         let b := buildExpr (exit :: breakTargets) c.nextId body
         { entry := entry
         , exit := exit
