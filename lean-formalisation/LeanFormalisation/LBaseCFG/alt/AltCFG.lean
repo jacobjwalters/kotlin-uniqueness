@@ -68,167 +68,147 @@ mutual
 end
 
 mutual
-  def buildExpr (breakTargets : List CFGNode) (nextId fuel : Nat)
+  def buildExpr (breakTargets : List CFGNode) (nextId : Nat)
       (e : Lang .Expr) : BuildResult :=
-    match fuel with
-    | 0 =>
-      let entry : CFGNode := { id := nextId, kind := .exprEntry e }
-      let exit : CFGNode := { id := nextId + 1, kind := .exprExit e }
-      { entry := entry
-      , exit := exit
-      , edges := []
-      , nextId := nextId + 2
-      }
-    | fuel + 1 =>
-      let entry : CFGNode := { id := nextId, kind := .exprEntry e }
-      let exit : CFGNode := { id := nextId + 1, kind := .exprExit e }
-      let nextId := nextId + 2
-      match e with
-      | .Var _
-      | .True
-      | .False
-      | .Nat _
-      | .Unit =>
-          { entry := entry
-          , exit := exit
-          , edges := [mkEdge entry exit]
-          , nextId := nextId
-          }
-      | .BinOp e₁ e₂ _ =>
-          let r₁ := buildExpr breakTargets nextId fuel e₁
-          let r₂ := buildExpr breakTargets r₁.nextId fuel e₂
-          { entry := entry
-          , exit := exit
-          , edges :=
-                [ mkEdge entry r₁.entry
-                , mkEdge r₁.exit r₂.entry
-                , mkEdge r₂.exit exit
-                ] ++ r₁.edges ++ r₂.edges
-          , nextId := r₂.nextId
-          }
-      | .UnOp arg _ =>
-          let r := buildExpr breakTargets nextId fuel arg
-          { entry := entry
-          , exit := exit
-          , edges := [mkEdge entry r.entry, mkEdge r.exit exit] ++ r.edges
-          , nextId := r.nextId
-          }
-      | .If cond e₁ e₂ =>
-          let c := buildExpr breakTargets nextId fuel cond
-          let t := buildExpr breakTargets c.nextId fuel e₁
-          let f := buildExpr breakTargets t.nextId fuel e₂
-          { entry := entry
-          , exit := exit
-          , edges :=
-              [ mkEdge entry c.entry
-              , mkEdge c.exit t.entry .trueBranch
-              , mkEdge c.exit f.entry .falseBranch
-              , mkEdge t.exit exit
-              , mkEdge f.exit exit
-              ] ++ c.edges ++ t.edges ++ f.edges
-          , nextId := f.nextId
-          }
-      | .While cond body =>
-          let c := buildExpr (exit :: breakTargets) nextId fuel cond
-          let b := buildExpr (exit :: breakTargets) c.nextId fuel body
-          { entry := entry
-          , exit := exit
-          , edges :=
-              [ mkEdge entry c.entry
-              , mkEdge c.exit b.entry .trueBranch
-              , mkEdge c.exit exit .falseBranch
-              , mkEdge b.exit c.entry .back
-              ] ++ c.edges ++ b.edges
-          , nextId := b.nextId
-          }
-      | .Break l =>
-          let edges :=
-            if h : l < breakTargets.length
-            then [mkEdge entry (breakTargets[l]) .breakOut]
-            else []
-          { entry := entry
-          , exit := exit
-          , edges := edges
-          , nextId := nextId
-          }
-      | .Scope s res =>
-          let sRes := buildStmt breakTargets nextId fuel s
-          let rRes := buildExpr breakTargets sRes.nextId fuel res
-          { entry := entry
-          , exit := exit
-          , edges :=
-                [ mkEdge entry sRes.entry
-                , mkEdge sRes.exit rRes.entry
-                , mkEdge rRes.exit exit
-                ] ++ sRes.edges ++ rRes.edges
-          , nextId := rRes.nextId
-          }
+    let entry : CFGNode := { id := nextId, kind := .exprEntry e }
+    let exit : CFGNode := { id := nextId + 1, kind := .exprExit e }
+    let nextId := nextId + 2
+    match e with
+    | .Var _
+    | .True
+    | .False
+    | .Nat _
+    | .Unit =>
+        { entry := entry
+        , exit := exit
+        , edges := [mkEdge entry exit]
+        , nextId := nextId
+        }
+    | .BinOp e₁ e₂ _ =>
+        let r₁ := buildExpr breakTargets nextId e₁
+        let r₂ := buildExpr breakTargets r₁.nextId e₂
+        { entry := entry
+        , exit := exit
+        , edges :=
+              [ mkEdge entry r₁.entry
+              , mkEdge r₁.exit r₂.entry
+              , mkEdge r₂.exit exit
+              ] ++ r₁.edges ++ r₂.edges
+        , nextId := r₂.nextId
+        }
+    | .UnOp arg _ =>
+        let r := buildExpr breakTargets nextId arg
+        { entry := entry
+        , exit := exit
+        , edges := [mkEdge entry r.entry, mkEdge r.exit exit] ++ r.edges
+        , nextId := r.nextId
+        }
+    | .If cond e₁ e₂ =>
+        let c := buildExpr breakTargets nextId cond
+        let t := buildExpr breakTargets c.nextId e₁
+        let f := buildExpr breakTargets t.nextId e₂
+        { entry := entry
+        , exit := exit
+        , edges :=
+            [ mkEdge entry c.entry
+            , mkEdge c.exit t.entry .trueBranch
+            , mkEdge c.exit f.entry .falseBranch
+            , mkEdge t.exit exit
+            , mkEdge f.exit exit
+            ] ++ c.edges ++ t.edges ++ f.edges
+        , nextId := f.nextId
+        }
+    | .While cond body =>
+        let c := buildExpr (exit :: breakTargets) nextId cond
+        let b := buildExpr (exit :: breakTargets) c.nextId body
+        { entry := entry
+        , exit := exit
+        , edges :=
+            [ mkEdge entry c.entry
+            , mkEdge c.exit b.entry .trueBranch
+            , mkEdge c.exit exit .falseBranch
+            , mkEdge b.exit c.entry .back
+            ] ++ c.edges ++ b.edges
+        , nextId := b.nextId
+        }
+    | .Break l =>
+        let edges :=
+          if h : l < breakTargets.length
+          then [mkEdge entry (breakTargets[l]) .breakOut]
+          else []
+        { entry := entry
+        , exit := exit
+        , edges := edges
+        , nextId := nextId
+        }
+    | .Scope s res =>
+        let sRes := buildStmt breakTargets nextId s
+        let rRes := buildExpr breakTargets sRes.nextId res
+        { entry := entry
+        , exit := exit
+        , edges :=
+              [ mkEdge entry sRes.entry
+              , mkEdge sRes.exit rRes.entry
+              , mkEdge rRes.exit exit
+              ] ++ sRes.edges ++ rRes.edges
+        , nextId := rRes.nextId
+        }
 
-  def buildStmt (breakTargets : List CFGNode) (nextId fuel : Nat)
+  def buildStmt (breakTargets : List CFGNode) (nextId : Nat)
       (s : Lang .Stmt) : BuildResult :=
-    match fuel with
-    | 0 =>
-      let entry : CFGNode := { id := nextId, kind := .stmtEntry s }
-      let exit : CFGNode := { id := nextId + 1, kind := .stmtExit s }
-      { entry := entry
-      , exit := exit
-      , edges := []
-      , nextId := nextId + 2
-      }
-    | fuel + 1 =>
-      let entry : CFGNode := { id := nextId, kind := .stmtEntry s }
-      let exit : CFGNode := { id := nextId + 1, kind := .stmtExit s }
-      let nextId := nextId + 2
-      match s with
-      | .Decl _ init =>
-          let r := buildExpr breakTargets nextId fuel init
-          { entry := entry
-          , exit := exit
-          , edges := [mkEdge entry r.entry, mkEdge r.exit exit] ++ r.edges
-          , nextId := r.nextId
-          }
-      | .Assign _ rhs =>
-          let r := buildExpr breakTargets nextId fuel rhs
-          { entry := entry
-          , exit := exit
-          , edges := [mkEdge entry r.entry, mkEdge r.exit exit] ++ r.edges
-          , nextId := r.nextId
-          }
-      | .Seq s₁ s₂ =>
-          let r₁ := buildStmt breakTargets nextId fuel s₁
-          let r₂ := buildStmt breakTargets r₁.nextId fuel s₂
-          { entry := entry
-          , exit := exit
-          , edges :=
-                [ mkEdge entry r₁.entry
-                , mkEdge r₁.exit r₂.entry
-                , mkEdge r₂.exit exit
-                ] ++ r₁.edges ++ r₂.edges
-          , nextId := r₂.nextId
-          }
-      | .Do e =>
-          let r := buildExpr breakTargets nextId fuel e
-          { entry := entry
-          , exit := exit
-          , edges := [mkEdge entry r.entry, mkEdge r.exit exit] ++ r.edges
-          , nextId := r.nextId
-          }
+    let entry : CFGNode := { id := nextId, kind := .stmtEntry s }
+    let exit : CFGNode := { id := nextId + 1, kind := .stmtExit s }
+    let nextId := nextId + 2
+    match s with
+    | .Decl _ init =>
+        let r := buildExpr breakTargets nextId init
+        { entry := entry
+        , exit := exit
+        , edges := [mkEdge entry r.entry, mkEdge r.exit exit] ++ r.edges
+        , nextId := r.nextId
+        }
+    | .Assign _ rhs =>
+        let r := buildExpr breakTargets nextId rhs
+        { entry := entry
+        , exit := exit
+        , edges := [mkEdge entry r.entry, mkEdge r.exit exit] ++ r.edges
+        , nextId := r.nextId
+        }
+    | .Seq s₁ s₂ =>
+        let r₁ := buildStmt breakTargets nextId s₁
+        let r₂ := buildStmt breakTargets r₁.nextId s₂
+        { entry := entry
+        , exit := exit
+        , edges :=
+              [ mkEdge entry r₁.entry
+              , mkEdge r₁.exit r₂.entry
+              , mkEdge r₂.exit exit
+              ] ++ r₁.edges ++ r₂.edges
+        , nextId := r₂.nextId
+        }
+    | .Do e =>
+        let r := buildExpr breakTargets nextId e
+        { entry := entry
+        , exit := exit
+        , edges := [mkEdge entry r.entry, mkEdge r.exit exit] ++ r.edges
+        , nextId := r.nextId
+        }
 end
 
 end Internal
 
 def exprEdges (breakTargets : List CFGNode) (e : Lang .Expr) : List CFGEdge :=
-  (Internal.buildExpr breakTargets 0 (Internal.exprSize e) e).edges
+  (Internal.buildExpr breakTargets 0 e).edges
 
 def stmtEdges (breakTargets : List CFGNode) (s : Lang .Stmt) : List CFGEdge :=
-  (Internal.buildStmt breakTargets 0 (Internal.stmtSize s) s).edges
+  (Internal.buildStmt breakTargets 0 s).edges
 
 def exprCFG (e : Lang .Expr) : CFG :=
-  let r := Internal.buildExpr [] 0 (Internal.exprSize e) e
+  let r := Internal.buildExpr [] 0 e
   CFG.mk r.entry r.exit r.edges
 
 def stmtCFG (s : Lang .Stmt) : CFG :=
-  let r := Internal.buildStmt [] 0 (Internal.stmtSize s) s
+  let r := Internal.buildStmt [] 0 s
   CFG.mk r.entry r.exit r.edges
 
 def CFG.outEdges (g : CFG) (n : CFGNode) : List CFGEdge :=
