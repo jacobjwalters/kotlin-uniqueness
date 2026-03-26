@@ -2,10 +2,7 @@
   need to formulate theorems on the CFG representation, relating back to the
   cek semantics.
 
-  the main goals are
-
-  1. correctness of the cfg translation in `altcfg` (both directions), and
-  2. correctness of the forward worklist solver in `analysis` (both directions).
+  the main goal is showing the correctness of the cfg translation from AltCFG
 
   the strategy is to define a concrete CEK-to-CFG relation (kind compatibility
   plus synchronized reachability from entry), prove one-step soundness and
@@ -14,7 +11,6 @@
 -/
 
 import LeanFormalisation.LBaseCFG.alt.Correspondence
-
 
 open LeanFormalisation
 open LeanFormalisation.AltCFG
@@ -1698,10 +1694,6 @@ noncomputable def cfgcekRelReq (s : Lang .Stmt) :
     obtain ⟨e, he, hen, hem⟩ := h
     simp only [exists_and_left]
     sorry
-
-
-
-
 
 end TranslationTests
 

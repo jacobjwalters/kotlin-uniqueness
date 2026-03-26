@@ -6,8 +6,7 @@
   definitions without depending on the proof obligations in `AltCFGProofs`.
 -/
 
-import LeanFormalisation.LBaseCFG.alt.NewCFG
--- import LeanFormalisation.LBaseCFG.alt.Analysis
+import LeanFormalisation.LBaseCFG.alt.AltCFG
 
 open LeanFormalisation
 open LeanFormalisation.AltCFG
