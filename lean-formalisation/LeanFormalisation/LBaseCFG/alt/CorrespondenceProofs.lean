@@ -13,7 +13,8 @@
   to whole-path correspondence via reflexive-transitive induction.
 -/
 
-import LeanFormalisation.LBaseCFG.alt.AltCFGDefs
+import LeanFormalisation.LBaseCFG.alt.Correspondence
+
 
 open LeanFormalisation
 open LeanFormalisation.AltCFG
@@ -855,6 +856,459 @@ section TranslationTests
 set_option relaxedAutoImplicit true
 
 /-!
+## Entry-edge invariants
+
+`ExprEntryEdgeInv g e n ex` stores all CFG edges emanating from the entry
+node `n` of expression `e`, together with the kinds and membership of
+intermediate child nodes.  One constructor per expression form.
+
+`StmtEntryEdgeInv g st n ex` is the analogous invariant for statements.
+-/
+mutual
+inductive ExprEntryEdgeInv (g : CFG) : List CFGNode -> Lang .Expr ->
+    CFGNode -> CFGNode -> Prop where
+  /-- Literal True: single edge entry -> exit. -/
+  | litTrue (breakTargets : List CFGNode) (n ex : CFGNode) :
+      CFGStep g n ex ->
+      ExprEntryEdgeInv g breakTargets .True n ex
+  /-- Literal False: single edge entry -> exit. -/
+  | litFalse (breakTargets : List CFGNode) (n ex : CFGNode) :
+      CFGStep g n ex ->
+      ExprEntryEdgeInv g breakTargets .False n ex
+  /-- Literal Nat: single edge entry -> exit. -/
+  | litNat (breakTargets : List CFGNode) (v : Nat) (n ex : CFGNode) :
+      CFGStep g n ex ->
+      ExprEntryEdgeInv g breakTargets (.Nat v) n ex
+  /-- Literal Unit: single edge entry -> exit. -/
+  | litUnit (breakTargets : List CFGNode) (n ex : CFGNode) :
+      CFGStep g n ex ->
+      ExprEntryEdgeInv g breakTargets .Unit n ex
+  /-- Variable: single edge entry -> exit. -/
+  | var (breakTargets : List CFGNode) (x : VarName) (n ex : CFGNode) :
+      CFGStep g n ex ->
+      ExprEntryEdgeInv g breakTargets (.Var x) n ex
+  /-- BinOp: entry -> e₁.entry; also stores e₁.exit -> e₂.entry, e₂.exit -> exit,
+      plus child node kinds and membership for building ContCFGInv. -/
+  | binop (breakTargets : List CFGNode) (op : BinOp) (e₁ e₂ : Lang .Expr)
+      (n ex e₁en e₁ex e₂en e₂ex : CFGNode) :
+      CFGStep g n e₁en ->
+      e₁en.kind = .exprEntry e₁ -> e₁ex.kind = .exprExit e₁ ->
+      e₂en.kind = .exprEntry e₂ -> e₂ex.kind = .exprExit e₂ ->
+      CFGStep g e₁ex e₂en -> CFGStep g e₂ex ex ->
+      e₁en ∈ g.nodes -> e₁ex ∈ g.nodes ->
+      e₂en ∈ g.nodes -> e₂ex ∈ g.nodes ->
+      ExprEntryEdgeInv g breakTargets e₁ e₁en e₁ex ->
+      ExprEntryEdgeInv g breakTargets e₂ e₂en e₂ex ->
+      ExprEntryEdgeInv g breakTargets (.BinOp e₁ e₂ op) n ex
+  /-- UnOp: entry -> arg.entry; also stores arg.exit -> exit. -/
+  | unop (breakTargets : List CFGNode) (op : UnOp) (arg : Lang .Expr) (n ex aen aex : CFGNode) :
+      CFGStep g n aen ->
+      aen.kind = .exprEntry arg -> aex.kind = .exprExit arg ->
+      CFGStep g aex ex ->
+      aen ∈ g.nodes -> aex ∈ g.nodes ->
+      ExprEntryEdgeInv g breakTargets arg aen aex ->
+      ExprEntryEdgeInv g breakTargets (.UnOp arg op) n ex
+  /-- If: entry -> cond.entry; stores cond.exit -> t/f entries, t/f exits -> exit. -/
+  | ife (breakTargets : List CFGNode) (cond e₁ e₂ : Lang .Expr)
+      (n ex cen cex e₁en e₁ex e₂en e₂ex : CFGNode) :
+      CFGStep g n cen ->
+      cen.kind = .exprEntry cond -> cex.kind = .exprExit cond ->
+      e₁en.kind = .exprEntry e₁ -> e₁ex.kind = .exprExit e₁ ->
+      e₂en.kind = .exprEntry e₂ -> e₂ex.kind = .exprExit e₂ ->
+      CFGStep g cex e₁en -> CFGStep g cex e₂en ->
+      CFGStep g e₁ex ex -> CFGStep g e₂ex ex ->
+      cen ∈ g.nodes -> cex ∈ g.nodes ->
+      e₁en ∈ g.nodes -> e₁ex ∈ g.nodes ->
+      e₂en ∈ g.nodes -> e₂ex ∈ g.nodes ->
+      ExprEntryEdgeInv g breakTargets cond cen cex ->
+      ExprEntryEdgeInv g breakTargets e₁ e₁en e₁ex ->
+      ExprEntryEdgeInv g breakTargets e₂ e₂en e₂ex ->
+      ExprEntryEdgeInv g breakTargets (.If cond e₁ e₂) n ex
+  /-- While: entry -> cond.entry; stores cond.exit -> body/exit, body.exit -> cond.entry. -/
+  | whil (breakTargets : List CFGNode) (cond body : Lang .Expr) (n ex cen cex ben bex : CFGNode) :
+      CFGStep g n cen ->
+      cen.kind = .exprEntry cond -> cex.kind = .exprExit cond ->
+      ben.kind = .exprEntry body -> bex.kind = .exprExit body ->
+      CFGStep g cex ben -> CFGStep g cex ex ->
+      CFGStep g bex cen ->
+      cen ∈ g.nodes -> cex ∈ g.nodes ->
+      ben ∈ g.nodes -> bex ∈ g.nodes ->
+      ExprEntryEdgeInv g breakTargets cond cen cex ->
+      ExprEntryEdgeInv g (ex :: breakTargets) body ben bex ->
+      ExprEntryEdgeInv g breakTargets (.While cond body) n ex
+  /-- Break l: entry -> breakTargets[l] (breakOut edge). -/
+  | brk (breakTargets : List CFGNode) (l : Nat) (n ex target : CFGNode)
+      (hl : l < breakTargets.length) (htarget : target = breakTargets[l])
+      (hkind : ∃ loopExpr, target.kind = .exprExit loopExpr)
+      (hmem : target ∈ g.nodes) :
+      CFGStep g n target ->
+      ExprEntryEdgeInv g breakTargets (.Break l) n ex
+  /-- Scope: entry -> s.entry; stores s.exit -> res.entry, res.exit -> exit. -/
+  | scope (breakTargets : List CFGNode) (st : Lang .Stmt) (res : Lang .Expr)
+      (n ex sen sex ren rex : CFGNode) :
+      CFGStep g n sen ->
+      sen.kind = .stmtEntry st -> sex.kind = .stmtExit st ->
+      ren.kind = .exprEntry res -> rex.kind = .exprExit res ->
+      CFGStep g sex ren -> CFGStep g rex ex ->
+      sen ∈ g.nodes -> sex ∈ g.nodes ->
+      ren ∈ g.nodes -> rex ∈ g.nodes ->
+      StmtEntryEdgeInv g breakTargets st sen sex ->
+      ExprEntryEdgeInv g breakTargets res ren rex ->
+      ExprEntryEdgeInv g breakTargets (.Scope st res) n ex
+
+inductive StmtEntryEdgeInv (g : CFG) :
+    List CFGNode -> Lang .Stmt -> CFGNode -> CFGNode -> Prop where
+  /-- Decl: entry -> init.entry; stores init.exit -> exit. -/
+  | decl (breakTargets : List CFGNode) (ty : Ty) (init : Lang .Expr) (n ex ien iex : CFGNode) :
+      CFGStep g n ien ->
+      ien.kind = .exprEntry init -> iex.kind = .exprExit init ->
+      CFGStep g iex ex ->
+      ien ∈ g.nodes -> iex ∈ g.nodes ->
+      ExprEntryEdgeInv g breakTargets init ien iex ->
+      StmtEntryEdgeInv g breakTargets (.Decl ty init) n ex
+  /-- Assign: entry -> rhs.entry; stores rhs.exit -> exit. -/
+  | assign (breakTargets : List CFGNode) (v : VarName) (rhs : Lang .Expr) (n ex ren rex : CFGNode) :
+      CFGStep g n ren ->
+      ren.kind = .exprEntry rhs -> rex.kind = .exprExit rhs ->
+      CFGStep g rex ex ->
+      ren ∈ g.nodes -> rex ∈ g.nodes ->
+      ExprEntryEdgeInv g breakTargets rhs ren rex ->
+      StmtEntryEdgeInv g breakTargets (.Assign v rhs) n ex
+  /-- Seq: entry -> s₁.entry; stores s₁.exit -> s₂.entry, s₂.exit -> exit. -/
+  | seq (breakTargets : List CFGNode) (s₁ s₂ : Lang .Stmt) (n ex s₁en s₁ex s₂en s₂ex : CFGNode) :
+      CFGStep g n s₁en ->
+      s₁en.kind = .stmtEntry s₁ -> s₁ex.kind = .stmtExit s₁ ->
+      s₂en.kind = .stmtEntry s₂ -> s₂ex.kind = .stmtExit s₂ ->
+      CFGStep g s₁ex s₂en -> CFGStep g s₂ex ex ->
+      s₁en ∈ g.nodes -> s₁ex ∈ g.nodes ->
+      s₂en ∈ g.nodes -> s₂ex ∈ g.nodes ->
+      StmtEntryEdgeInv g breakTargets s₁ s₁en s₁ex ->
+      StmtEntryEdgeInv g breakTargets s₂ s₂en s₂ex ->
+      StmtEntryEdgeInv g breakTargets (.Seq s₁ s₂) n ex
+  /-- Do: entry -> e.entry; stores e.exit -> exit. -/
+  | do_ (breakTargets : List CFGNode) (e : Lang .Expr) (n ex een eex : CFGNode) :
+      CFGStep g n een ->
+      een.kind = .exprEntry e -> eex.kind = .exprExit e ->
+      CFGStep g eex ex ->
+      een ∈ g.nodes -> eex ∈ g.nodes ->
+      ExprEntryEdgeInv g breakTargets e een eex ->
+      StmtEntryEdgeInv g breakTargets (.Do e) n ex
+end
+
+lemma CFG_subgraph_step {g₁ g₂ n₁ n₂} (hstep : CFGStep g₁ n₁ n₂)
+  (hsub : ∀ ed, ed ∈ g₁.edges -> ed ∈ g₂.edges) : CFGStep g₂ n₁ n₂ := by grind [CFGStep]
+
+theorem CFGStep_mono {g₁ n m g₂} (h : CFGStep g₁ n m) (hsub : ∀ ed ∈ g₁.edges, ed ∈ g₂.edges) :
+    CFGStep g₂ n m := by grind [CFGStep]
+
+@[grind ->, grind .]
+theorem CFGStep_dst_mem_nodes {g : CFG} {n m : CFGNode}
+    (hstep : CFGStep g n m) : m ∈ g.nodes := by
+  obtain ⟨e, he_mem, he_src, he_dst⟩ := hstep
+  subst he_src; subst he_dst
+  unfold CFG.nodes
+  rw [<- List.mem_eraseDups]
+  generalize g.edges = edges at he_mem ⊢
+  induction edges with
+  | nil => simp at he_mem
+  | cons hd tl ih =>
+    simp only [List.foldr_cons, List.mem_cons]
+    cases he_mem
+    case head => grind
+    case tail h =>
+      right; right
+      apply ih h
+
+@[grind ->, grind .]
+theorem CFGStep_src_mem_nodes {g : CFG} {n m : CFGNode}
+    (hstep : CFGStep g n m) : n ∈ g.nodes := by
+  obtain ⟨e, he_mem, he_src, he_dst⟩ := hstep
+  subst he_src; subst he_dst
+  unfold CFG.nodes
+  rw [← List.mem_eraseDups]
+  generalize g.edges = edges at he_mem ⊢
+  induction edges with
+  | nil => simp at he_mem
+  | cons hd tl ih =>
+    simp only [List.foldr_cons, List.mem_cons]
+    cases he_mem
+    case head => grind
+    case tail h =>
+      right; right
+      apply ih h
+
+local macro "lift_cfg" : tactic => `(tactic| all_goals first
+  | exact CFG_subgraph_step ‹_› ‹_›
+  | exact CFGStep_dst_mem_nodes (CFG_subgraph_step ‹_› ‹_›)
+  | exact CFGStep_src_mem_nodes (CFG_subgraph_step ‹_› ‹_›))
+
+mutual
+theorem ExprEntryEdgeInv.mono {g₁ bts e n ex g₂}
+    (h : ExprEntryEdgeInv g₁ bts e n ex)
+    (hsub : ∀ ed, ed ∈ g₁.edges -> ed ∈ g₂.edges) :
+    ExprEntryEdgeInv g₂ bts e n ex := by
+  cases h with
+  | litTrue | litFalse | litNat | litUnit | var =>
+    constructor; exact CFG_subgraph_step (by assumption) hsub
+  | binop _ o e1 e2 _ _ e1en e1ex e2en e2ex _ hk1 hk2 hk3 hk4 _ _ _ _ _ _ he1 he2 =>
+    refine .binop _ o e1 e2 _ _ e1en e1ex e2en e2ex
+      ?_ hk1 hk2 hk3 hk4 ?_ ?_ ?_ ?_ ?_ ?_ (he1.mono hsub) (he2.mono hsub) <;> lift_cfg
+  | unop _ o e _ _ aen aex _ hk1 hk2 _ _ _ he =>
+    refine .unop _ o e _ _ aen aex ?_ hk1 hk2 ?_ ?_ ?_ (he.mono hsub) <;> lift_cfg
+  | ife _ c e₁ e₂ _ _ cen cex e₁en e₁ex e₂en e₂ex _ hk1 hk2 hk3 hk4 hk5 hk6
+      _ _ _ _ _ _ _ _ _ _ hc he1 he2 =>
+    refine .ife _ c e₁ e₂ _ _ cen cex e₁en e₁ex e₂en e₂ex
+      ?_ hk1 hk2 hk3 hk4 hk5 hk6 ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_
+      (hc.mono hsub) (he1.mono hsub) (he2.mono hsub) <;> lift_cfg
+  | whil _ c b _ _ cen cex ben bex _ hk1 hk2 hk3 hk4 _ _ _ _ _ _ _ hc hb =>
+    refine .whil _ c b _ _ cen cex ben bex
+      ?_ hk1 hk2 hk3 hk4 ?_ ?_ ?_ ?_ ?_ ?_ ?_ (hc.mono hsub) (hb.mono hsub) <;> lift_cfg
+  | brk _ l _ _ target hl ht hk _ hs =>
+    exact .brk _ l _ _ target hl ht hk
+      (CFGStep_dst_mem_nodes (CFG_subgraph_step hs hsub)) (CFG_subgraph_step hs hsub)
+  | scope _ st res _ _ sen sex ren rex _ hk1 hk2 hk3 hk4 _ _ _ _ _ _ hs hr =>
+    refine .scope _ st res _ _ sen sex ren rex
+      ?_ hk1 hk2 hk3 hk4 ?_ ?_ ?_ ?_ ?_ ?_ (hs.mono hsub) (hr.mono hsub) <;> lift_cfg
+
+theorem StmtEntryEdgeInv.mono {g1 bts st n ex g₂}
+    (h : StmtEntryEdgeInv g1 bts st n ex)
+    (hsub : forall ed, ed ∈ g1.edges -> ed ∈ g₂.edges) :
+    StmtEntryEdgeInv g₂ bts st n ex := by
+  cases h with
+  | decl _ ty init _ _ ien iex _ hk1 hk2 _ _ _ he =>
+    refine .decl _ ty init _ _ ien iex ?_ hk1 hk2 ?_ ?_ ?_ (he.mono hsub) <;> lift_cfg
+  | assign _ v rhs _ _ ren rex _ hk1 hk2 _ _ _ he =>
+    refine .assign _ v rhs _ _ ren rex ?_ hk1 hk2 ?_ ?_ ?_ (he.mono hsub) <;> lift_cfg
+  | seq _ s₁ s₂ _ _ s₁en s₁ex s₂en s₂ex _ hk1 hk2 hk3 hk4 _ _ _ _ _ _ he1 he2 =>
+    refine .seq _ s₁ s₂ _ _ s₁en s₁ex s₂en s₂ex
+      ?_ hk1 hk2 hk3 hk4 ?_ ?_ ?_ ?_ ?_ ?_ (he1.mono hsub) (he2.mono hsub) <;> lift_cfg
+  | do_ _ e _ _ een eex _ hk1 hk2 _ _ _ he =>
+    refine .do_ _ e _ _ een eex ?_ hk1 hk2 ?_ ?_ ?_ (he.mono hsub) <;> lift_cfg
+end
+
+mutual
+theorem buildExpr_entry_edge_inv
+    (breakTargets : List CFGNode) (nextId fuel : Nat) (e : Lang .Expr)
+    (hfuel : fuel >= exprSize e) :
+    let r := buildExpr breakTargets nextId fuel e
+    let g := CFG.mk r.entry r.exit r.edges
+    ExprEntryEdgeInv g breakTargets e r.entry r.exit := by
+  intros r g
+  cases e with
+  | Var
+  | True
+  | False
+  | Nat
+  | Unit =>
+    constructor
+    set e : CFGEdge := mkEdge r.entry r.exit
+    exists e
+    split_ands <;> try (unfold e; grind [mkEdge])
+    cases fuel
+    · simp [exprSize] at hfuel
+    simp [g, r, buildExpr, e]
+  | BinOp a₁ a₂ o =>
+    cases fuel
+    case zero => simp [exprSize] at hfuel
+    case succ fuel =>
+    simp only [exprSize] at hfuel
+    set r₁ := buildExpr breakTargets (nextId + 2) fuel a₁
+    set r₂ := buildExpr breakTargets r₁.nextId fuel a₂
+    have hs1 : CFGStep g r.entry r₁.entry := by
+      exists mkEdge r.entry r₁.entry
+      grind [buildExpr, mkEdge]
+    have hs2 : CFGStep g r₁.exit r₂.entry := by
+      exists mkEdge r₁.exit r₂.entry
+      grind [buildExpr, mkEdge]
+    have hs3 : CFGStep g r₂.exit r.exit := by
+      exists mkEdge r₂.exit r.exit
+      grind [buildExpr, mkEdge]
+    have he₁ := (buildExpr_entry_edge_inv breakTargets (nextId + 2) fuel a₁ (by omega)).mono
+                  (g₂ := g) (by grind [buildExpr])
+    have he₂ := (buildExpr_entry_edge_inv breakTargets r₁.nextId fuel a₂ (by omega)).mono
+                  (g₂ := g) (by grind [buildExpr])
+    refine .binop breakTargets o a₁ a₂ _ _ r₁.entry r₁.exit r₂.entry r₂.exit
+      hs1
+      ?_ ?_ ?_ ?_
+      hs2 hs3
+      (CFGStep_dst_mem_nodes hs1) (CFGStep_src_mem_nodes hs2)
+      (CFGStep_dst_mem_nodes hs2) (CFGStep_src_mem_nodes hs3)
+      he₁ he₂
+    all_goals sorry
+  | UnOp a o =>
+    cases fuel
+    case zero => simp [exprSize] at hfuel
+    case succ fuel =>
+    simp only [exprSize] at hfuel
+    set r' := buildExpr breakTargets (nextId + 2) fuel a
+    have hs1 : CFGStep g r.entry r'.entry := by
+      exists mkEdge r.entry r'.entry
+      grind [buildExpr, mkEdge]
+    have hs2 : CFGStep g r'.exit r.exit := by
+      exists mkEdge r'.exit r.exit
+      grind [buildExpr, mkEdge]
+    have he₁ := (buildExpr_entry_edge_inv breakTargets (nextId + 2) fuel a (by omega)).mono
+                  (g₂ := g) (by grind [buildExpr])
+    refine .unop breakTargets o a _ _ r'.entry r'.exit
+      hs1
+      ?_ ?_
+      hs2
+      (CFGStep_dst_mem_nodes hs1) (CFGStep_src_mem_nodes hs2)
+      he₁
+    all_goals sorry
+  | If c e₁ e₂ =>
+    cases fuel
+    case zero => simp [exprSize] at hfuel
+    case succ fuel =>
+    simp only [exprSize] at hfuel
+    sorry
+  | While cond body =>
+    cases fuel
+    case zero => simp [exprSize] at hfuel
+    case succ fuel =>
+    simp only [exprSize] at hfuel
+    set rc := buildExpr (r.exit :: breakTargets) (nextId + 2) fuel cond
+    set rb := buildExpr (r.exit :: breakTargets) rc.nextId fuel body
+    have hs1 : CFGStep g r.entry rc.entry := by
+      exists mkEdge r.entry rc.entry
+      grind [buildExpr, mkEdge]
+    have hs2 : CFGStep g rc.exit rb.entry := by
+      exists mkEdge rc.exit rb.entry .trueBranch
+      grind [buildExpr, mkEdge]
+    have hs3 : CFGStep g rc.exit r.exit := by
+      exists mkEdge rc.exit r.exit .falseBranch
+      grind [buildExpr, mkEdge]
+    have hec := (buildExpr_entry_edge_inv (r.exit :: breakTargets) (nextId + 2) fuel cond
+                  (by omega)).mono (g₂ := g) (by grind [buildExpr])
+    have heb := (buildExpr_entry_edge_inv (r.exit :: breakTargets) rc.nextId fuel body
+                  (by omega)).mono (g₂ := g) (by grind [buildExpr])
+    sorry
+  | Break l =>
+    sorry -- out-of-bounds case has no edges; needs BreakTargetsWellFormed precondition
+  | Scope s res =>
+    cases fuel
+    case zero => simp [exprSize] at hfuel
+    case succ fuel =>
+    simp only [exprSize] at hfuel
+    set sr := buildStmt breakTargets (nextId + 2) fuel s
+    set rr := buildExpr breakTargets sr.nextId fuel res
+    have hs1 : CFGStep g r.entry sr.entry := by
+      exists mkEdge r.entry sr.entry
+      grind [buildExpr, mkEdge]
+    have hs2 : CFGStep g sr.exit rr.entry := by
+      exists mkEdge sr.exit rr.entry
+      grind [buildExpr, mkEdge]
+    have hs3 : CFGStep g rr.exit r.exit := by
+      exists mkEdge rr.exit r.exit
+      grind [buildExpr, mkEdge]
+    have hes := (buildStmt_entry_edge_inv breakTargets (nextId + 2) fuel s (by omega)).mono
+                  (g₂ := g) (by grind [buildExpr])
+    have her := (buildExpr_entry_edge_inv breakTargets sr.nextId fuel res (by omega)).mono
+                  (g₂ := g) (by grind [buildExpr])
+    sorry
+
+theorem buildStmt_entry_edge_inv
+    (breakTargets : List CFGNode) (nextId fuel : Nat) (s : Lang .Stmt)
+    (hfuel : fuel >= stmtSize s) :
+    let r := buildStmt breakTargets nextId fuel s
+    let g := CFG.mk r.entry r.exit r.edges
+    StmtEntryEdgeInv g breakTargets s r.entry r.exit := by
+  intros r g
+  cases s with
+  | Decl ty init =>
+    cases fuel
+    case zero => simp [stmtSize] at hfuel
+    case succ fuel =>
+    simp only [stmtSize] at hfuel
+    set ri := buildExpr breakTargets (nextId + 2) fuel init
+    have hs1 : CFGStep g r.entry ri.entry := by
+      exists mkEdge r.entry ri.entry
+      grind [buildStmt, mkEdge]
+    have hs2 : CFGStep g ri.exit r.exit := by
+      exists mkEdge ri.exit r.exit
+      grind [buildStmt, mkEdge]
+    have hei := (buildExpr_entry_edge_inv breakTargets (nextId + 2) fuel init (by omega)).mono
+                  (g₂ := g) (by grind [buildStmt])
+    refine .decl breakTargets ty init _ _ ri.entry ri.exit
+      hs1
+      ?_ ?_
+      hs2
+      (CFGStep_dst_mem_nodes hs1) (CFGStep_src_mem_nodes hs2)
+      hei
+    all_goals sorry
+  | Assign v rhs =>
+    cases fuel
+    case zero => simp [stmtSize] at hfuel
+    case succ fuel =>
+    simp only [stmtSize] at hfuel
+    set ri := buildExpr breakTargets (nextId + 2) fuel rhs
+    have hs1 : CFGStep g r.entry ri.entry := by
+      exists mkEdge r.entry ri.entry
+      grind [buildStmt, mkEdge]
+    have hs2 : CFGStep g ri.exit r.exit := by
+      exists mkEdge ri.exit r.exit
+      grind [buildStmt, mkEdge]
+    have hei := (buildExpr_entry_edge_inv breakTargets (nextId + 2) fuel rhs (by omega)).mono
+                  (g₂ := g) (by grind [buildStmt])
+    refine .assign breakTargets v rhs _ _ ri.entry ri.exit
+      hs1
+      ?_ ?_
+      hs2
+      (CFGStep_dst_mem_nodes hs1) (CFGStep_src_mem_nodes hs2)
+      hei
+    all_goals sorry
+  | Seq s₁ s₂ =>
+    cases fuel
+    case zero => simp [stmtSize] at hfuel
+    case succ fuel =>
+    simp only [stmtSize] at hfuel
+    set r₁ := buildStmt breakTargets (nextId + 2) fuel s₁
+    set r₂ := buildStmt breakTargets r₁.nextId fuel s₂
+    have hs1 : CFGStep g r.entry r₁.entry := by
+      exists mkEdge r.entry r₁.entry
+      grind [buildStmt, mkEdge]
+    have hs2 : CFGStep g r₁.exit r₂.entry := by
+      exists mkEdge r₁.exit r₂.entry
+      grind [buildStmt, mkEdge]
+    have hs3 : CFGStep g r₂.exit r.exit := by
+      exists mkEdge r₂.exit r.exit
+      grind [buildStmt, mkEdge]
+    have he₁ := (buildStmt_entry_edge_inv breakTargets (nextId + 2) fuel s₁ (by omega)).mono
+                  (g₂ := g) (by grind [buildStmt])
+    have he₂ := (buildStmt_entry_edge_inv breakTargets r₁.nextId fuel s₂ (by omega)).mono
+                  (g₂ := g) (by grind [buildStmt])
+    refine .seq breakTargets s₁ s₂ _ _ r₁.entry r₁.exit r₂.entry r₂.exit
+      hs1
+      ?_ ?_ ?_ ?_
+      hs2 hs3
+      (CFGStep_dst_mem_nodes hs1) (CFGStep_src_mem_nodes hs2)
+      (CFGStep_dst_mem_nodes hs2) (CFGStep_src_mem_nodes hs3)
+      he₁ he₂
+    all_goals sorry
+  | Do e =>
+    cases fuel
+    case zero => simp [stmtSize] at hfuel
+    case succ fuel =>
+    simp only [stmtSize] at hfuel
+    set re := buildExpr breakTargets (nextId + 2) fuel e
+    have hs1 : CFGStep g r.entry re.entry := by
+      exists mkEdge r.entry re.entry
+      grind [buildStmt, mkEdge]
+    have hs2 : CFGStep g re.exit r.exit := by
+      exists mkEdge re.exit r.exit
+      grind [buildStmt, mkEdge]
+    have hei := (buildExpr_entry_edge_inv breakTargets (nextId + 2) fuel e (by omega)).mono
+                  (g₂ := g) (by grind [buildStmt])
+    refine .do_ breakTargets e _ _ re.entry re.exit
+      hs1
+      ?_ ?_
+      hs2
+      (CFGStep_dst_mem_nodes hs1) (CFGStep_src_mem_nodes hs2)
+      hei
+    all_goals sorry
+end
+
+/-!
 ## Continuation-CFG invariant
 
 `ContCFGInv g K x` asserts that when the current sub-computation finishes at
@@ -866,12 +1320,16 @@ inductive ContCFGInv (g : CFG) : List Cont -> CFGNode -> Prop where
   /-- Empty stack: the current exit IS the top-level exit. -/
   | halt : x = g.exit -> ContCFGInv g [] x
   /-- Left operand of BinOp done -> edge to right operand entry,
-      then right exit -> parent exit. -/
+      then right exit -> parent exit.
+      Also stores `ExprEntryEdgeInv` for `e₂` so that the successor
+      `exprEntry` state can be constructed without a global lookup lemma. -/
   | binopLK (op : BinOp) (e₂ : Lang .Expr)
       (e₂en e₂ex pex : CFGNode) :
       e₂en.kind = .exprEntry e₂ ->
       e₂ex.kind = .exprExit e₂ ->
       CFGStep g x e₂en -> CFGStep g e₂ex pex ->
+      e₂en ∈ g.nodes -> e₂ex ∈ g.nodes ->
+      ExprEntryEdgeInv g breakTargets e₂ e₂en e₂ex ->
       ContCFGInv g K pex ->
       ContCFGInv g (.binopLK op e₂ :: K) x
   /-- Right operand of BinOp done -> edge to parent exit. -/
@@ -883,7 +1341,8 @@ inductive ContCFGInv (g : CFG) : List Cont -> CFGNode -> Prop where
       CFGStep g x pex -> ContCFGInv g K pex ->
       ContCFGInv g (.unopK op :: K) x
   /-- Condition of If done -> trueBranch/falseBranch edges to branch
-      entries, both branch exits -> parent exit. -/
+      entries, both branch exits -> parent exit.
+      Stores `ExprEntryEdgeInv` for both branches. -/
   | ifCondK (e₁ e₂ : Lang .Expr)
       (e₁en e₁ex e₂en e₂ex pex : CFGNode) :
       e₁en.kind = .exprEntry e₁ ->
@@ -892,6 +1351,10 @@ inductive ContCFGInv (g : CFG) : List Cont -> CFGNode -> Prop where
       e₂ex.kind = .exprExit e₂ ->
       CFGStep g x e₁en -> CFGStep g x e₂en ->
       CFGStep g e₁ex pex -> CFGStep g e₂ex pex ->
+      e₁en ∈ g.nodes -> e₁ex ∈ g.nodes ->
+      e₂en ∈ g.nodes -> e₂ex ∈ g.nodes ->
+      ExprEntryEdgeInv g breakTargets e₁ e₁en e₁ex ->
+      ExprEntryEdgeInv g breakTargets e₂ e₂en e₂ex ->
       ContCFGInv g K pex ->
       ContCFGInv g (.ifCondK e₁ e₂ :: K) x
   /-- Init expr of Decl done -> edge to stmt exit. -/
@@ -903,11 +1366,14 @@ inductive ContCFGInv (g : CFG) : List Cont -> CFGNode -> Prop where
       CFGStep g x sex -> ContCFGInv g K sex ->
       ContCFGInv g (.assignK v :: K) x
   /-- First statement of Seq done -> edge to s₂ entry,
-      then s₂ exit -> parent exit. -/
+      then s₂ exit -> parent exit.
+      Stores `StmtEntryEdgeInv` for `s₂`. -/
   | seqK (s₂ : Lang .Stmt) (s₂en s₂ex pex : CFGNode) :
       s₂en.kind = .stmtEntry s₂ ->
       s₂ex.kind = .stmtExit s₂ ->
       CFGStep g x s₂en -> CFGStep g s₂ex pex ->
+      s₂en ∈ g.nodes -> s₂ex ∈ g.nodes ->
+      StmtEntryEdgeInv g breakTargets s₂ s₂en s₂ex ->
       ContCFGInv g K pex ->
       ContCFGInv g (.seqK s₂ :: K) x
   /-- Expr of Do stmt done -> edge to stmt exit. -/
@@ -916,7 +1382,8 @@ inductive ContCFGInv (g : CFG) : List Cont -> CFGNode -> Prop where
       ContCFGInv g (.exprStmtK :: K) x
   /-- Condition of While done (x = condExit).
       trueBranch -> bodyEntry, falseBranch -> whileExit,
-      bodyExit -> condEntry (back edge). -/
+      bodyExit -> condEntry (back edge).
+      Stores `ExprEntryEdgeInv` for `body`. -/
   | loopK (c body : Lang .Expr) (n : Nat)
       (ben bex cen pex : CFGNode) :
       ben.kind = .exprEntry body ->
@@ -924,10 +1391,13 @@ inductive ContCFGInv (g : CFG) : List Cont -> CFGNode -> Prop where
       cen.kind = .exprEntry c ->
       CFGStep g x ben -> CFGStep g x pex ->
       CFGStep g bex cen ->
+      ben ∈ g.nodes -> bex ∈ g.nodes ->
+      ExprEntryEdgeInv g (pex :: breakTargets) body ben bex ->
       ContCFGInv g K pex ->
       ContCFGInv g (.loopK c body n :: K) x
   /-- Body of While done (x = bodyExit).
-      back edge -> condEntry, then full loop structure from condExit. -/
+      back edge -> condEntry, then full loop structure from condExit.
+      Stores `ExprEntryEdgeInv` for `c`. -/
   | loopContK (c body : Lang .Expr) (n : Nat)
       (cen cex ben bex pex : CFGNode) :
       cen.kind = .exprEntry c ->
@@ -937,15 +1407,20 @@ inductive ContCFGInv (g : CFG) : List Cont -> CFGNode -> Prop where
       CFGStep g x cen ->
       CFGStep g cex ben -> CFGStep g cex pex ->
       CFGStep g bex cen ->
+      cen ∈ g.nodes -> cex ∈ g.nodes ->
+      ExprEntryEdgeInv g (pex :: breakTargets) c cen cex ->
       ContCFGInv g K pex ->
       ContCFGInv g (.loopContK c body n :: K) x
   /-- Statement part of Scope done -> edge to result expr entry,
-      then result exit -> parent exit. -/
+      then result exit -> parent exit.
+      Stores `ExprEntryEdgeInv` for the result expression. -/
   | scopeBodyK (e : Lang .Expr) (n : Nat)
       (een eex pex : CFGNode) :
       een.kind = .exprEntry e ->
       eex.kind = .exprExit e ->
       CFGStep g x een -> CFGStep g eex pex ->
+      een ∈ g.nodes -> eex ∈ g.nodes ->
+      ExprEntryEdgeInv g breakTargets e een eex ->
       ContCFGInv g K pex ->
       ContCFGInv g (.scopeBodyK e n :: K) x
   /-- Result expr of Scope done -> edge to parent exit. -/
@@ -996,156 +1471,23 @@ theorem JCFGInv.drop (h : JCFGInv g J bts) :
   | loop _ _ _ _ _ _ hcont _ ih =>
     intros l hl; cases l <;> grind
 
-
 /-!
-## Entry-edge invariants
-
-`ExprEntryEdgeInv g e n ex` stores all CFG edges emanating from the entry
-node `n` of expression `e`, together with the kinds and membership of
-intermediate child nodes.  One constructor per expression form.
-
-`StmtEntryEdgeInv g st n ex` is the analogous invariant for statements.
--/
-mutual
-inductive ExprEntryEdgeInv (g : CFG) : List CFGNode -> Lang .Expr -> CFGNode -> CFGNode -> Prop where
-  /-- Literal True: single edge entry -> exit. -/
-  | litTrue (breakTargets : List CFGNode) (n ex : CFGNode) :
-      CFGStep g n ex ->
-      ExprEntryEdgeInv g breakTargets .True n ex
-  /-- Literal False: single edge entry -> exit. -/
-  | litFalse (breakTargets : List CFGNode) (n ex : CFGNode) :
-      CFGStep g n ex ->
-      ExprEntryEdgeInv g breakTargets .False n ex
-  /-- Literal Nat: single edge entry -> exit. -/
-  | litNat (breakTargets : List CFGNode) (v : Nat) (n ex : CFGNode) :
-      CFGStep g n ex ->
-      ExprEntryEdgeInv g breakTargets (.Nat v) n ex
-  /-- Literal Unit: single edge entry -> exit. -/
-  | litUnit (breakTargets : List CFGNode) (n ex : CFGNode) :
-      CFGStep g n ex ->
-      ExprEntryEdgeInv g breakTargets .Unit n ex
-  /-- Variable: single edge entry -> exit. -/
-  | var (breakTargets : List CFGNode) (x : VarName) (n ex : CFGNode) :
-      CFGStep g n ex ->
-      ExprEntryEdgeInv g breakTargets (.Var x) n ex
-  /-- BinOp: entry -> e₁.entry; also stores e₁.exit -> e₂.entry, e₂.exit -> exit,
-      plus child node kinds and membership for building ContCFGInv. -/
-  | binop (breakTargets : List CFGNode) (op : BinOp) (e₁ e₂ : Lang .Expr) (n ex e₁en e₁ex e₂en e₂ex : CFGNode) :
-      CFGStep g n e₁en ->
-      e₁en.kind = .exprEntry e₁ -> e₁ex.kind = .exprExit e₁ ->
-      e₂en.kind = .exprEntry e₂ -> e₂ex.kind = .exprExit e₂ ->
-      CFGStep g e₁ex e₂en -> CFGStep g e₂ex ex ->
-      e₁en ∈ g.nodes -> e₁ex ∈ g.nodes ->
-      e₂en ∈ g.nodes -> e₂ex ∈ g.nodes ->
-      ExprEntryEdgeInv g breakTargets e₁ e₁en e₁ex ->
-      ExprEntryEdgeInv g breakTargets e₂ e₂en e₂ex ->
-      ExprEntryEdgeInv g breakTargets (.BinOp e₁ e₂ op) n ex
-  /-- UnOp: entry -> arg.entry; also stores arg.exit -> exit. -/
-  | unop (breakTargets : List CFGNode) (op : UnOp) (arg : Lang .Expr) (n ex aen aex : CFGNode) :
-      CFGStep g n aen ->
-      aen.kind = .exprEntry arg -> aex.kind = .exprExit arg ->
-      CFGStep g aex ex ->
-      aen ∈ g.nodes -> aex ∈ g.nodes ->
-      ExprEntryEdgeInv g breakTargets arg aen aex ->
-      ExprEntryEdgeInv g breakTargets (.UnOp arg op) n ex
-  /-- If: entry -> cond.entry; stores cond.exit -> t/f entries, t/f exits -> exit. -/
-  | ife (breakTargets : List CFGNode) (cond e₁ e₂ : Lang .Expr) (n ex cen cex e₁en e₁ex e₂en e₂ex : CFGNode) :
-      CFGStep g n cen ->
-      cen.kind = .exprEntry cond -> cex.kind = .exprExit cond ->
-      e₁en.kind = .exprEntry e₁ -> e₁ex.kind = .exprExit e₁ ->
-      e₂en.kind = .exprEntry e₂ -> e₂ex.kind = .exprExit e₂ ->
-      CFGStep g cex e₁en -> CFGStep g cex e₂en ->
-      CFGStep g e₁ex ex -> CFGStep g e₂ex ex ->
-      cen ∈ g.nodes -> cex ∈ g.nodes ->
-      e₁en ∈ g.nodes -> e₁ex ∈ g.nodes ->
-      e₂en ∈ g.nodes -> e₂ex ∈ g.nodes ->
-      ExprEntryEdgeInv g breakTargets cond cen cex ->
-      ExprEntryEdgeInv g breakTargets e₁ e₁en e₁ex ->
-      ExprEntryEdgeInv g breakTargets e₂ e₂en e₂ex ->
-      ExprEntryEdgeInv g breakTargets (.If cond e₁ e₂) n ex
-  /-- While: entry -> cond.entry; stores cond.exit -> body/exit, body.exit -> cond.entry. -/
-  | whil (breakTargets : List CFGNode) (cond body : Lang .Expr) (n ex cen cex ben bex : CFGNode) :
-      CFGStep g n cen ->
-      cen.kind = .exprEntry cond -> cex.kind = .exprExit cond ->
-      ben.kind = .exprEntry body -> bex.kind = .exprExit body ->
-      CFGStep g cex ben -> CFGStep g cex ex ->
-      CFGStep g bex cen ->
-      cen ∈ g.nodes -> cex ∈ g.nodes ->
-      ben ∈ g.nodes -> bex ∈ g.nodes ->
-      ExprEntryEdgeInv g (breakTargets) cond cen cex ->
-      ExprEntryEdgeInv g (ex :: breakTargets) body ben bex ->
-      ExprEntryEdgeInv g breakTargets (.While cond body) n ex
-  /-- Break l: entry -> breakTargets[l] (breakOut edge). -/
-  | brk (breakTargets : List CFGNode) (l : Nat) (n ex target : CFGNode)
-      (hl : l < breakTargets.length) (htarget : target = breakTargets[l])
-      (hkind : ∃ loopExpr, target.kind = .exprExit loopExpr)
-      (hmem : target ∈ g.nodes) :
-      CFGStep g n target ->
-      ExprEntryEdgeInv g breakTargets (.Break l) n ex
-  /-- Scope: entry -> s.entry; stores s.exit -> res.entry, res.exit -> exit. -/
-  | scope (breakTargets : List CFGNode) (st : Lang .Stmt) (res : Lang .Expr) (n ex sen sex ren rex : CFGNode) :
-      CFGStep g n sen ->
-      sen.kind = .stmtEntry st -> sex.kind = .stmtExit st ->
-      ren.kind = .exprEntry res -> rex.kind = .exprExit res ->
-      CFGStep g sex ren -> CFGStep g rex ex ->
-      sen ∈ g.nodes -> sex ∈ g.nodes ->
-      ren ∈ g.nodes -> rex ∈ g.nodes ->
-      StmtEntryEdgeInv g breakTargets st sen sex ->
-      ExprEntryEdgeInv g breakTargets res ren rex ->
-      ExprEntryEdgeInv g breakTargets (.Scope st res) n ex
-
-inductive StmtEntryEdgeInv (g : CFG) : List CFGNode -> Lang .Stmt -> CFGNode -> CFGNode -> Prop where
-  /-- Decl: entry -> init.entry; stores init.exit -> exit. -/
-  | decl (breakTargets : List CFGNode) (ty : Ty) (init : Lang .Expr) (n ex ien iex : CFGNode) :
-      CFGStep g n ien ->
-      ien.kind = .exprEntry init -> iex.kind = .exprExit init ->
-      CFGStep g iex ex ->
-      ien ∈ g.nodes -> iex ∈ g.nodes ->
-      ExprEntryEdgeInv g breakTargets init ien iex ->
-      StmtEntryEdgeInv g breakTargets (.Decl ty init) n ex
-  /-- Assign: entry -> rhs.entry; stores rhs.exit -> exit. -/
-  | assign (breakTargets : List CFGNode) (v : VarName) (rhs : Lang .Expr) (n ex ren rex : CFGNode) :
-      CFGStep g n ren ->
-      ren.kind = .exprEntry rhs -> rex.kind = .exprExit rhs ->
-      CFGStep g rex ex ->
-      ren ∈ g.nodes -> rex ∈ g.nodes ->
-      ExprEntryEdgeInv g breakTargets rhs ren rex ->
-      StmtEntryEdgeInv g breakTargets (.Assign v rhs) n ex
-  /-- Seq: entry -> s₁.entry; stores s₁.exit -> s₂.entry, s₂.exit -> exit. -/
-  | seq (breakTargets : List CFGNode) (s₁ s₂ : Lang .Stmt) (n ex s₁en s₁ex s₂en s₂ex : CFGNode) :
-      CFGStep g n s₁en ->
-      s₁en.kind = .stmtEntry s₁ -> s₁ex.kind = .stmtExit s₁ ->
-      s₂en.kind = .stmtEntry s₂ -> s₂ex.kind = .stmtExit s₂ ->
-      CFGStep g s₁ex s₂en -> CFGStep g s₂ex ex ->
-      s₁en ∈ g.nodes -> s₁ex ∈ g.nodes ->
-      s₂en ∈ g.nodes -> s₂ex ∈ g.nodes ->
-      StmtEntryEdgeInv g breakTargets s₁ s₁en s₁ex ->
-      StmtEntryEdgeInv g breakTargets s₂ s₂en s₂ex ->
-      StmtEntryEdgeInv g breakTargets (.Seq s₁ s₂) n ex
-  /-- Do: entry -> e.entry; stores e.exit -> exit. -/
-  | do_ (breakTargets : List CFGNode) (e : Lang .Expr) (n ex een eex : CFGNode) :
-      CFGStep g n een ->
-      een.kind = .exprEntry e -> eex.kind = .exprExit e ->
-      CFGStep g eex ex ->
-      een ∈ g.nodes -> eex ∈ g.nodes ->
-      ExprEntryEdgeInv g breakTargets e een eex ->
-      StmtEntryEdgeInv g breakTargets (.Do e) n ex
-end
-
-/-!
-## CEK-to-CFG correspondence relation (strengthened)
+## CEK-to-CFG correspondence relation
 
 `cfgcekRel s` relates a CEK state `σ` to a CFG node `n` when:
   1. `n` belongs to the CFG built for `s`,
   2. the CEK control component matches the node kind,
-  3. the continuation stack satisfies `ContCFGInv` at the corresponding
-     exit node,
-  4. the jump context satisfies `JCFGInv` against the current break targets, and
-  5. the entry node carries an `EntryEdgeInv` storing all outgoing edges.
+  3. the continuation stack satisfies `ContCFGInv` at the current node
+     (for exit nodes) or at the corresponding exit node (for entry nodes),
+  4. the jump context satisfies `JCFGInv` against the current break targets.
+
+`ExprEntryEdgeInv`/`StmtEntryEdgeInv` are NOT stored in the relation.
+Instead, they are carried inside `ContCFGInv` constructors that point to
+entry nodes (e.g., `binopLK`, `ifCondK`, `seqK`, `loopK`, etc.), so that
+the edge structure is available when transitioning from exit → entry states.
 
 For entry nodes, the constructor stores the corresponding exit node `ex`
-so that `ContCFGInv` can be anchored there.  For exit nodes, the invariant
-is directly on the current node.
+so that `ContCFGInv` can be anchored there.
 -/
 inductive cfgcekRel (s : Lang .Stmt) : StateRel where
   | exprEntry (e : Lang .Expr) (E : Environment) (J : JStackCtx) (K : List Cont)
@@ -1184,26 +1526,6 @@ inductive cfgcekRel (s : Lang .Stmt) : StateRel where
       JCFGInv (stmtCFG s) J breakTargets ->
       cfgcekRel s ⟨.skip, E, J, K⟩ n
 
-/-!
-### Proof strategy for `step_sound` and `edge_complete`
-
-Both proofs proceed by case-splitting on the `Eval` rule (for `step_sound`)
-or the CFG edge (for `edge_complete`) and the `cfgcekRel` constructor.
-
-**`step_sound`:** Given `cfgcekRel s σ n` and `Eval σ σ'`, produce `n'` with
-`cfgcekRel s σ' n'` and `CFGStep g n n'`.  The `ContCFGInv` invariant provides
-the exact CFG edge for continuation-driven transitions (e.g., `BinOpL` uses
-the `binopLK` constructor's stored edge `x -> e₂en`), while the node kind
-determines the edge for control-driven transitions (e.g., `BinOp` entry has
-edge to `r₁.entry`).  Requires structural lemmas about `buildExpr`/`buildStmt`
-producing specific edges from entry nodes.
-
-**`edge_complete`:** Given `CFGStep g n m` and `cfgcekRel s σ n`, produce
-`σ'` with `Eval σ σ'` and `cfgcekRel s σ' m`.  The node kind plus `ContCFGInv`
-determines the CEK control and top continuation frame.  The `CEKReach`
-precondition provides well-typedness for operator totality (BinOpR/UnOpDone).
--/
-
 noncomputable def cfgcekRelReq (s : Lang .Stmt) :
     TranslationReq s (cfgcekRel s) where
   init_related := by
@@ -1213,8 +1535,7 @@ noncomputable def cfgcekRelReq (s : Lang .Stmt) :
       (buildStmt_exit_kind [] 0 (stmtSize s) s)
       (cfg_entry_in_nodes _)
       (cfg_exit_in_nodes _)
-      -- this one will take some time
-      (sorry : StmtEntryEdgeInv (stmtCFG s) [] s (stmtCFG s).entry (stmtCFG s).exit)
+      (by grind [stmtCFG, buildStmt_entry_edge_inv])
       (ContCFGInv.halt rfl)
       JCFGInv.empty
   terminal_related := by
@@ -1226,74 +1547,214 @@ noncomputable def cfgcekRelReq (s : Lang .Stmt) :
       (ContCFGInv.halt rfl)
       JCFGInv.empty
 
-
   step_sound := by
     intros σ σ' n hrel heval
     cases hrel with
-    | exprEntry e E J K bts n ex hkind hekind hmemn hmemex hedge hcont hjinv =>
+    | exprEntry e E J K bts n ex hkind hekind hmemn hmemex heeei hcont hjinv =>
       cases heval
       case Val v =>
-        cases v <;> simp only [liftValue] at hkind hekind ⊢ <;> cases hedge <;>
-          exact ⟨ex, cfgcekRel.exprExit _ _ _ _ _ _ _ hekind hmemex hcont hjinv, by assumption⟩
+        exists ex
+        cases v <;> simp only [liftValue] at * <;> cases heeei <;> refine ⟨?_, by assumption⟩
+        all_goals
+          constructor <;> assumption
       case Var v x =>
-        cases hedge
-        case var =>
-          exact ⟨ex, cfgcekRel.exprExit _ _ _ _ _ _ _ hekind hmemex hcont hjinv, by assumption⟩
-      case BinOp e₁ e₂ op =>
-        cases hedge with
-        | binop _ _ _ _ _ _ e₁en e₁ex e₂en e₂ex hstep =>
-          refine ⟨e₁en, ?_, hstep⟩
-          apply cfgcekRel.exprEntry e₁ E J <;> try assumption
+        exists ex
+        cases heeei
+        refine ⟨?_, by assumption⟩
+        constructor <;> assumption
+      case BinOp e₁ e₂ o =>
+        cases heeei
+        case binop e₁en e₁ex e₂en e₂ex _ _ _ _ _ _ _ _ _ _ _ _ _ =>
+          exists e₁en
+          refine ⟨?_, by assumption⟩
+          constructor <;> try assumption
           constructor <;> assumption
-      case UnOp arg op =>
-        -- e = .UnOp arg op, successor = ⟨.sourceExpr arg, E, J, .unopK op :: K⟩
-        cases hedge with
-        | unop _ _ _ _ _ aen aex hstep =>
-          refine ⟨aen, ?_, hstep⟩
-          apply cfgcekRel.exprEntry arg E J <;> try assumption
+      case UnOp e o =>
+        cases heeei
+        case unop aen aex _ _ _ _ _ _ _ =>
+          exists aen
+          refine ⟨?_, by assumption⟩
+          constructor <;> try assumption
           constructor <;> assumption
-      case If cond e₁ e₂ =>
-        -- e = .If cond e₁ e₂, successor = ⟨.sourceExpr cond, E, J, .ifCondK e₁ e₂ :: K⟩
-        cases hedge with
-        | ife _ _ _ _ _ _ cen cex e₁en e₁ex e₂en e₂ex hstep =>
-          refine ⟨cen, ?_, hstep⟩
-          apply cfgcekRel.exprEntry cond E J <;> try assumption
-          econstructor <;> assumption
+      case If cond thn els =>
+        cases heeei
+        case ife cen cex thnn thnx elsn elsx _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ =>
+          exists cen
+          refine ⟨?_, by assumption⟩
+          constructor <;> try assumption
+          constructor <;> assumption
       case While cond body =>
-        -- e = .While cond body, successor =
-        --   ⟨.sourceExpr cond, E, J, .loopK cond body E.length :: K⟩
-        cases hedge with
-        | whil _ _ _ _ _ cen cex ben bex hstep =>
-          refine ⟨cen, ?_, hstep⟩
-          econstructor <;> try assumption
-          econstructor <;> try assumption
+        cases heeei
+        case whil cen cex ben bex _ _ _ _ _ _ _ _ _ _ _ _ _ _ =>
+          exists cen
+          refine ⟨?_, by assumption⟩
+          constructor <;> try assumption
+          constructor <;> assumption
       case Break K' l =>
-        -- e = .Break l, successor = ⟨.value .Unit, E.drop ..., J.drop (l+1), J[l]!.2⟩
-        cases hedge with
-        | brk _ _ _ _ target hl htarget hex hnodes hstep =>
-          obtain ⟨loopExpr, htkind⟩ := htarget
-          have hlJ : l < J.length := by simpa [hjinv.length_eq] using hl
-          have hcontL := hjinv.getIdx l hlJ
-          have hjdrop := hjinv.drop l hlJ
-          obtain ⟨le, hle⟩ := hex
-          refine ⟨bts[l], ?_, hstep⟩
-          econstructor <;> try assumption
-          grind
-      case Scope st res =>
-        -- e = .Scope st res, successor = ⟨.sourceStmt st, E, J, .scopeBodyK res E.length :: K⟩
-        cases hedge with
-        | scope _ _ _ _ _ sen sex ren rex hstep =>
-          refine ⟨sen, ?_, hstep⟩
-          apply cfgcekRel.stmtEntry st E J <;> try assumption
-          econstructor <;> assumption
+        cases heeei
+        case brk trg hkind hmem hl htrg _ =>
+          obtain ⟨le, hkind⟩ := hkind
+          exists trg
+          refine ⟨?_, by assumption⟩
+          have hl' : l < J.length := hjinv.length_eq ▸ hl
+          exact cfgcekRel.exprExit le (Value.Unit) (E.drop (E.length - J[l]!.1))
+            (J.drop (l + 1)) (J[l]!.2) (bts.drop (l + 1)) trg
+            hkind (by assumption)
+            (by rw [htrg, show (J[l]! = J[l]) from by grind]; exact hjinv.getIdx l hl')
+            (hjinv.drop l hl')
+      case Scope st e =>
+        cases heeei
+        case scope sn sx rn rx _ _ _ _ _ _ _ _ _ _ _ _ _ =>
+          exists sn
+          refine ⟨?_, by assumption⟩
+          exact cfgcekRel.stmtEntry st E J (.scopeBodyK e E.length :: K) bts sn sx
+            (by assumption) (by assumption) (by assumption) (by assumption)
+            (by assumption)
+            (ContCFGInv.scopeBodyK e E.length rn rx ex
+              (by assumption) (by assumption) (by assumption) (by assumption)
+              (by assumption) (by assumption) (by assumption) hcont)
+            hjinv
     | exprExit e v E J K bts n' hkind' hnodes hContInv hJInv =>
-      sorry
-    | stmtEntry s' E J K bts n ex hkind hekind hmem hmemex hedge hcont hjinv =>
-      sorry
-    | stmtExit s' E J K bts n ex hmem hcont hjinv =>
-      sorry
+      cases heval
+      case IfTrue K' s₁ s₂ =>
+        cases hContInv
+        case ifCondK bts' e₁en e₁ex e₂en e₂ex pex h₁step h₂step
+          h₁nnode h₁xnode h₂nnode h₂xnode _ _ heeei₁ _ _ _ _ _ _ =>
+        refine ⟨e₁en, ?_, by assumption⟩
+        constructor <;> try assumption
+        -- ⊢ ContCFGInv (stmtCFG s) K' e₁ex
+        -- reasonaly sure this can't be proven
+        · -- HERE
+          sorry
+        · sorry
+      case IfFalse K' s₁ s₂ =>
+        cases hContInv
+        case ifCondK bts' e₁en e₁ex e₂en e₂ex pex h₁step h₂step
+          h₁nnode h₁xnode h₂nnode h₂xnode _ _ _ _ _ _ _ _ _ =>
+        refine ⟨e₂en, ?_, by assumption⟩
+        constructor <;> try assumption
+        -- ⊢ ContCFGInv (stmtCFG s) K' e₁ex
+        -- reasonaly sure this can't be proven
+        · sorry
+        · sorry
+      case VarDeclDone K' τ =>
+        cases hContInv
+        case declK sx hcont hstep =>
+        refine ⟨sx, ?_, hstep⟩
+        constructor <;> try assumption
+        · sorry
+        · refine CFGStep_dst_mem_nodes hstep
+      case AssignDone K' x =>
+        cases hContInv
+        case assignK sx hcont hstep =>
+        refine ⟨sx, ?_, hstep⟩
+        constructor <;> try assumption
+        · sorry
+        · refine CFGStep_dst_mem_nodes hstep
+      case BinOpL K' o rhs =>
+        cases hContInv
+        case binopLK bts' e₂en' _ _ _ _ _ _ _ _ _ _ =>
+        refine ⟨e₂en', ?_, by assumption⟩
+        constructor <;> try assumption
+        constructor <;> try assumption
+        sorry
+      case BinOpR K' o v₁ v₂ hstep =>
+        cases hContInv
+        case binopRK pex hcont hstep =>
+        refine ⟨pex, ?_, by assumption⟩
+        constructor <;> try assumption
+        · sorry
+        · refine CFGStep_dst_mem_nodes hstep
+      case UnOpDone K' o v hstep =>
+        cases hContInv
+        case unopK o pex hcont hstep =>
+        refine ⟨pex, ?_, by assumption⟩
+        constructor <;> try assumption
+        · sorry
+        · refine CFGStep_dst_mem_nodes hstep
+      case LoopTrue K' b c m =>
+        cases hContInv
+        case loopK bts' ben bex cen pex _ _ _ _ _ _ heeei _ _ hstep =>
+        exists pex
+        refine ⟨?_, hstep⟩
+        · constructor <;> try assumption
+          · sorry
+          · refine CFGStep_dst_mem_nodes (by assumption)
+          · sorry
+          · constructor <;> try assumption
+            · sorry
+            · refine CFGStep_dst_mem_nodes (by assumption)
+            · sorry
+          · sorry
+      case LoopFalse K' b c m =>
+        cases hContInv
+        case loopK bts' ben bex cen pex _ _ _ _ _ _ heeei _ _ _ =>
+        refine ⟨pex, ?_, by assumption⟩
+        constructor <;> try assumption
+        -- almost reasonable goals
+        · sorry
+        exact CFGStep_dst_mem_nodes (by assumption)
+      case LoopCont K' J' b c m =>
+        cases hContInv
+        case loopContK bts' cen cex ben bex pex _ _ _ _ _ _ _ _ _ _ _ _ =>
+        refine ⟨cen, ?_, by assumption⟩
+        constructor <;> try assumption
+        constructor <;> try assumption
+        · -- almost reasonable
+          exact CFGStep_dst_mem_nodes (by assumption)
+        · -- similarly almost reasonable
+          sorry
+        · -- idfk
+          sorry
+        · -- idfk either
+          sorry
+      case ScopeExit K' b m =>
+        cases hContInv
+        case scopeExitK pex hcont hstep =>
+        refine ⟨pex, ?_, by assumption⟩
+        constructor <;> try assumption
+        · sorry
+        · -- almost reasonable
+          exact CFGStep_dst_mem_nodes (by assumption)
+      case ExprStmtDone K' =>
+        cases hContInv
+        case exprStmtK sx hcont hstep =>
+        refine ⟨sx, ?_, by assumption⟩
+        constructor <;> try assumption
+        · sorry
+        exact CFGStep_dst_mem_nodes (by assumption)
 
-  edge_complete := sorry
+    | stmtEntry s' E J K bts n ex hkind hekind hmem hmemex hseei hcont hjinv =>
+      sorry
+    | stmtExit s' E J K bts n hkind hmem hcont hjinv =>
+      -- At a statement exit node. The successor edge comes from ContCFGInv.
+      cases heval
+      case SeqDone K' s₂ =>
+        cases hcont
+        case seqK bts s₂en s₂ex pex hstep hnnode hxnode hnkind hxkind hedgeinv hcontinv hfinstep =>
+        refine ⟨s₂en, ?_, hfinstep⟩
+        constructor <;> try assumption
+        -- ⊢ ContCFGInv (stmtCFG s) K' s₂ex
+        -- reasonably sure this can't be proven
+        · sorry
+        · sorry
+      case ScopeBody K' body m =>
+        cases hcont
+        case scopeBodyK bts' een eex _ _ _ _ _ _ _ _ hfinstep =>
+        refine ⟨een, ?_, hfinstep⟩
+        constructor <;> try assumption
+        constructor <;> try assumption
+        sorry
+
+  edge_complete := by
+    intros n m h
+    obtain ⟨e, he, hen, hem⟩ := h
+    simp only [exists_and_left]
+    sorry
+
+
+
+
 
 end TranslationTests
 

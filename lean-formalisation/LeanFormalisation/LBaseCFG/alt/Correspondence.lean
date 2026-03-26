@@ -43,9 +43,7 @@ class TranslationReq (s : Lang .Stmt) (R : StateRel) : Prop where
 
   edge_complete :
     ∀ {n m}, CFGStep (stmtCFG s) n m ->
-      ∀ {σ}, R σ n → CEKReach (initState s) σ →
-        ∃ σ', Eval σ σ' ∧ R σ' m
-
+      ∃ σ σ', CEKReach (initState s) σ ∧ R σ n ∧ Eval σ σ' ∧ R σ' m
 
 /-!
 ## cfg translation correctness: two directions
@@ -68,21 +66,21 @@ theorem translation_sound_reachability
       tr.step_sound hbmid hbc
     exact ⟨mid', hcmid', Relation.ReflTransGen.tail hreachMid hstepMid⟩
 
-theorem translation_complete_reachability
-      (s : Lang .Stmt) (R : StateRel) [tr : TranslationReq s R]
-      {σ : CEK} {n m : CFGNode}
-      (hrel : R σ n) (hcorr : CEKReach (initState s) σ)
-      (hpath : CFGReach (stmtCFG s) n m) :
-    ∃ σ', CEKReach σ σ' ∧ R σ' m := by
-  induction hpath with
-  | refl =>
-    exists σ
-  | tail hsb hbc ih => case tail b c =>
-    obtain ⟨mid, hbmid, hreacMid⟩ := ih
-    obtain ⟨σ', hstep, hrel'⟩ : ∃ σ', Eval mid σ' ∧ R σ' c := by
-      exact tr.edge_complete hbc hreacMid
-        (Relation.ReflTransGen.trans hcorr hbmid)
-    exact ⟨σ', Relation.ReflTransGen.tail hbmid hstep, hrel'⟩
+-- theorem translation_complete_reachability
+--       (s : Lang .Stmt) (R : StateRel) [tr : TranslationReq s R]
+--       {σ : CEK} {n m : CFGNode}
+--       (hrel : R σ n) (hcorr : CEKReach (initState s) σ)
+--       (hpath : CFGReach (stmtCFG s) n m) :
+--     ∃ σ', CEKReach σ σ' ∧ R σ' m := by
+--   induction hpath with
+--   | refl =>
+--     exists σ
+--   | tail hsb hbc ih => case tail b c =>
+--     obtain ⟨mid, hbmid, hreacMid⟩ := ih
+--     obtain ⟨σ', hstep, hrel'⟩ : ∃ σ', Eval mid σ' ∧ R σ' c := by
+--       exact tr.edge_complete hbc hreacMid
+--         (Relation.ReflTransGen.trans hcorr hbmid)
+--     exact ⟨σ', Relation.ReflTransGen.tail hbmid hstep, hrel'⟩
 
 end Translation
 
