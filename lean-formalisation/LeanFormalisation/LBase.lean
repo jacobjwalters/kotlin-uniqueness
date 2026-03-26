@@ -370,7 +370,7 @@ inductive Eval : CEK → CEK → Prop
   Eval
     ⟨.sourceExpr (liftValue v), E, J, K⟩
     ⟨.value v, E, J, K⟩
-| Var (v : Value) (x : VarName) :
+| Var (x : VarName) :
   Eval
     ⟨.sourceExpr (.Var x), E, J, K⟩
     ⟨.value (E[x]!), E, J, K⟩
@@ -436,6 +436,10 @@ inductive Eval : CEK → CEK → Prop
   Eval
     ⟨.skip, E, J, .seqK s₂ :: K⟩
     ⟨.sourceStmt s₂, E, J, K⟩
+| ExprStmtDone (v : Value) :
+  Eval
+    ⟨.value v, E, J, .exprStmtK :: K⟩
+    ⟨.skip, E, J, K⟩
 | BinOpL (op : BinOp) (v₁ : Value) (e₂ : Lang .Expr) :
   Eval
     ⟨.value v₁, E, J, .binopLK op e₂ :: K⟩
@@ -458,9 +462,9 @@ inductive Eval : CEK → CEK → Prop
   Eval
     ⟨.value .False, E, J, .loopK c body n :: K⟩
     ⟨.value .Unit, E.drop (E.length - n), J, K⟩
-| LoopCont (body : Lang .Expr) (c : Lang .Expr) (n : Nat) :
+| LoopCont (body : Lang .Expr) (c : Lang .Expr) (n : Nat) (K' : List Cont) :
   Eval
-    ⟨.value .Unit, E, ⟨n, K⟩ :: J, .loopContK c body n :: K⟩
+    ⟨.value .Unit, E, ⟨n, K⟩ :: J, .loopContK c body n :: K'⟩
     ⟨.sourceExpr c, E, J, .loopK c body n :: K⟩
 | ScopeBody (body : Lang .Expr) (n : Nat) :
   Eval
@@ -474,7 +478,7 @@ inductive Eval : CEK → CEK → Prop
 
 def initState (s : Lang .Stmt) : CEK := ⟨.sourceStmt s, [], [], []⟩
 
-def terminalState (E : Environment) : CEK := ⟨.skip, E, [], []⟩
+def terminalState (E : Environment) (J : JStackCtx) : CEK := ⟨.skip, E, J, []⟩
 
 inductive ContTypeRes : Tag → Type
 | Expr (type : Ty) : ContTypeRes .Expr
@@ -515,11 +519,11 @@ inductive ContType : (tg : Tag) → JCtx → Ctx → List Cont → ContTypeRes t
   Typ .Expr (Γ₁.length :: Δ₁) Γ₁ e (.Expr .unit) →
   ContType .Expr Δ₁ Γ₁ K (.Expr .unit) →
   ContType .Expr Δ₁ Γ₁ (.loopK c e Γ₁.length :: K) (.Expr .bool)
-| LoopContK (Γ₁ : Ctx) (e : Lang .Expr) (c : Lang .Expr) (n : Nat) :
+| LoopContK (Γ₁ : Ctx) (e : Lang .Expr) (c : Lang .Expr) :
   Typ .Expr Δ₁ Γ₁ c (.Expr .bool) →
   Typ .Expr (Γ₁.length :: Δ₁) Γ₁ e (.Expr .unit) →
-  ContType .Expr Δ₁ (Γ₁.drop (Γ₁.length - n)) K (.Expr .unit) →
-  ContType .Expr (Γ₁.length :: Δ₁) Γ₁ (.loopContK c e n :: K) (.Expr .unit)
+  ContType .Expr Δ₁ Γ₁ K (.Expr .unit) →
+  ContType .Expr (Γ₁.length :: Δ₁) Γ₁ (.loopContK c e Γ₁.length :: K) (.Expr .unit)
 | ScopeExitK (Γ₁ : Ctx) (n : Nat) (type : Ty) :
   ctx_limit n Δ₁ →
   ContType .Expr Δ₁ (Γ₁.drop (Γ₁.length - n)) K (.Expr type) →
@@ -585,10 +589,10 @@ inductive Wt : CEK → Prop
 -- do casing on Continuation
 theorem progress (s : CEK) :
   Wt s →
-  (∃ E, terminalState E = s) ∨ ∃ s', Eval s s' := by
+  (∃ E J, terminalState E J = s) ∨ ∃ s', Eval s s' := by
     intro hwt
     unhygienic induction s
-    by_cases ht : ∃ E1, terminalState E1 = ⟨C, E, J, K⟩
+    by_cases ht : ∃ E1 J1, terminalState E1 J1 = ⟨C, E, J, K⟩
     { grind }
     simp [terminalState] at ht
     right
@@ -837,6 +841,8 @@ theorem preservation (s s' : CEK) :
         grind }
       { apply a_1 }
       apply a_5 }
+    { cases a_3
+      apply Wt.WtContS <;> solve_by_elim }
     -- BinOpR: step produces result
     { cases a_4
       apply Wt.WtContV (type := op.args.out)
