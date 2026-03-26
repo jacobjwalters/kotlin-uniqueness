@@ -1,6 +1,6 @@
 // Custom definitions and commands
 
-#import "@preview/curryst:0.3.0": rule, proof-tree
+#import "@preview/curryst:0.3.0": proof-tree, rule
 
 // Language names
 #let Lbase = $cal(L)_sans("Base")$
@@ -25,8 +25,8 @@
 // Judgement forms (shared by Lbase and Lclass via jump context Δ)
 // Expression typing: Γ | Δ ⊢ e : τ
 #let typeExpr(gin, delta, e, t) = $#gin | #delta tack.r #e : #t$
-// Statement typing: Γ | Δ ⊢ s ⊣ Γ' | Δ'
-#let typeStmt(gin, din, s, gout, dout) = $#gin | #din tack.r #s tack.l #gout | #dout$
+// Statement typing: Δ | Γ ⊢ s ⊣ Γ'
+#let typeStmt(delta, gin, s, gout) = $#delta | #gin tack.r #s tack.l #gout$
 // Continuation typing: Γ | Δ ⊢ K : τ̄ and Γ | Δ ⊢ K
 #let typeContE(gin, delta, k, t) = $#gin | #delta tack.r #k : overline(#t)$
 #let typeContC(gin, delta, k) = $#gin | #delta tack.r #k$
