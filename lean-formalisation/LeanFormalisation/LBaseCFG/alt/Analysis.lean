@@ -168,7 +168,8 @@ private theorem domainBEq_iff {n : Nat} {A : Type} [Bot A] [DecidableEq A]
   constructor
   · intro h
     funext i
-    simp [domainBEq, List.all_eq_true] at h
+    simp only [domainBEq, List.all_eq_true, List.mem_finRange,
+      decide_eq_true_eq, forall_const] at h
     exact h i
   · intro h
     subst h
@@ -206,11 +207,57 @@ instance {n : Nat} {A : Type} [Bot A] [Repr A] : Repr (Domain n A) where
 def domainHeight {n : Nat} {A : Type} [Bot A] [Max A] [FiniteHeight A] (ρ : Domain n A) : Nat :=
   ((List.finRange n).map (fun i => FiniteHeight.height (ρ i))).sum
 
-instance [Bot A] [Max A] [FiniteHeight A] : FiniteHeight (Domain n A) where
+private lemma height_le_of_join {A : Type} [Max A] [FiniteHeight A] (a b : A) :
+    FiniteHeight.height a ≤ FiniteHeight.height (a ⊔ b) := by
+  by_cases h : a ⊔ b = a
+  · rw [h]
+  · exact Nat.le_of_lt (FiniteHeight.height_mono a b h)
+
+instance {A n} [Bot A] [Max A] [fh : FiniteHeight A] : FiniteHeight (Domain n A) where
   height := domainHeight
   maxHeight := n * FiniteHeight.maxHeight A
-  maxHeight_ub ρ := by sorry
-  height_mono ρ₁ ρ₂ h := by sorry
+  maxHeight_ub ρ := by
+    unfold domainHeight
+    induction n with
+    | zero => simp
+    | succ n ih =>
+      have := FiniteHeight.maxHeight_ub (ρ 0)
+      simp only [List.finRange_succ, List.map_cons, List.map_map, List.sum_cons,
+        Nat.add_one_mul, add_comm, ge_iff_le]
+      exact Nat.add_le_add this (ih fun i ↦ ρ i.succ)
+  height_mono ρ₁ ρ₂ h := by
+    unfold domainHeight
+    have ⟨i, hi₁, hi₂⟩ : ∃ i, i ∈ List.finRange n ∧ ρ₁ i ⊔ ρ₂ i ≠ ρ₁ i := by
+      by_contra hall; push_neg at hall; apply h
+      funext i; apply hall
+      grind
+    suffices hsuf : ∀ (l : List (Fin n)), i ∈ l →
+        (l.map (fun j => FiniteHeight.height (ρ₁ j))).sum <
+        (l.map (fun j => FiniteHeight.height ((ρ₁ ⊔ ρ₂) j))).sum from
+      hsuf _ hi₁
+    intro l hmem
+    induction l with
+    | nil => cases hmem
+    | cons hd tl ih =>
+      simp only [List.map_cons, List.sum_cons]
+      have hsum_le : ∀ (l : List (Fin n)),
+         (l.map (fun j => FiniteHeight.height (ρ₁ j))).sum ≤
+         (l.map (fun j => FiniteHeight.height ((ρ₁ ⊔ ρ₂) j))).sum := by
+       intro l; induction l with
+       | nil => simp
+       | cons hd tl ih =>
+         simp only [List.map_cons, List.sum_cons]
+         refine Nat.add_le_add ?_ ih
+         exact height_le_of_join _ _
+      cases List.mem_cons.mp hmem
+      case inl heq =>
+        subst heq
+        apply Nat.add_lt_add_of_lt_of_le
+        · exact FiniteHeight.height_mono _ _ hi₂
+        · exact hsum_le _
+      case inr htl =>
+        refine Nat.add_lt_add_of_le_of_lt ?_ (ih htl)
+        exact height_le_of_join _ _
 
 section LangSpecific
 
