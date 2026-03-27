@@ -597,7 +597,93 @@ theorem progress (s : CEK) :
     simp [terminalState] at ht
     right
     unhygienic cases hwt
-    stop sorry
+    { cases e
+      all_goals try
+      { eapply Exists.intro
+        solve_by_elim }
+      all_goals try
+      { eapply Exists.intro
+        rw [←liftValue]
+        solve_by_elim } }
+    { cases s
+      all_goals try
+      { eapply Exists.intro
+        solve_by_elim } }
+    { unhygienic cases K
+      { cases a_3 }
+      unhygienic cases head
+      all_goals try
+      { eapply Exists.intro
+        solve_by_elim }
+      all_goals try
+      { cases a_3 }
+      { cases v <;> cases a_3
+        all_goals try grind [value_type]
+        all_goals
+        { apply Exists.intro
+          solve_by_elim } }
+      { cases a_3
+        cases op
+        all_goals try
+        { rw [BinOp.args] at *
+          cases v <;> try grind [value_type]
+          cases v_1 <;> try grind [value_type]
+          eapply Exists.intro
+          apply Eval.BinOpR
+          solve_by_elim }
+        { rw [BinOp.args] at *
+          cases v <;> try grind [value_type]
+          cases v_1 <;> try grind [value_type]
+          rename_i m2 m1 _
+          by_cases hm : m2 = m1 <;>
+          { eapply Exists.intro
+            apply Eval.BinOpR
+            try rw [hm]
+            solve_by_elim } }
+        rw [BinOp.args] at *
+        cases v <;> try grind [value_type]
+        all_goals
+        { cases v_1 <;> try grind [value_type]
+          all_goals try
+          { eapply Exists.intro
+            apply Eval.BinOpR
+            solve_by_elim } } }
+      { cases a_3
+        cases op
+        rename_i op1 hc
+        cases op1
+        rw [UnOp.args] at a_2
+        cases v <;> try grind [value_type]
+        rename_i n
+        cases n
+        { eapply Exists.intro
+          apply Eval.UnOpDone
+          apply UnOp.step.isZeroTrue }
+        eapply Exists.intro
+        apply Eval.UnOpDone
+        apply UnOp.step.isZeroFalse
+        grind }
+      { cases a_3
+        cases v <;> try grind [value_type]
+        all_goals
+        { eapply Exists.intro
+          solve_by_elim } }
+      cases a_3
+      cases v <;> try grind [value_type]
+      cases a_1
+      rename_i K1 _ _ _
+      eapply Exists.intro
+      apply Eval.LoopCont }
+    unhygienic cases K
+    { cases a_2
+      grind }
+    unhygienic cases head
+    all_goals try
+    { cases a_2 }
+    all_goals try
+    { cases a_2
+      eapply Exists.intro
+      solve_by_elim }
 
 lemma lift_value_type (v : Value) (type : Ty) :
   Typ .Expr Γ Δ (liftValue v) (.Expr type) → value_type v type := by
@@ -928,3 +1014,40 @@ theorem preservation (s s' : CEK) :
       apply a_7 }
     { apply a_2 }
     grind [coh_len]
+
+-- simple program
+def some_code : Lang .Stmt :=
+  (.Decl .nat (.Nat 0));
+  (.Do
+    (.While
+      (.UnOp (.BinOp (.Nat 4) (.Var 0) .Sub) .IsZero)
+      (.Scope
+        (0::=(.BinOp (.Var 0) (.Nat 1) .Add)) (.Unit))))
+
+-- simple program is well-typed
+example : Wt (initState some_code) := by
+  unfold initState
+  unfold some_code
+  apply Wt.WtExprS (Γ₁ := [Ty.nat])
+  { apply Coh.CohEmp }
+  { apply JCoh.JCohEmp }
+  { apply Typ.Seq (Γ₂ := [Ty.nat])
+    { apply Typ.VarDecl
+      apply Typ.NatConst }
+    apply Typ.Do
+    apply Typ.WhileExpr
+    { apply Typ.UnOp
+      apply Typ.BinOp
+      { apply Typ.NatConst }
+      apply Typ.VarAccess
+      grind }
+    apply Typ.ScopeExpr
+    { apply Typ.VarAssign
+      { apply Typ.BinOp
+        { simp only [List.length_cons, List.length_nil, zero_add, BinOp.args]
+          apply Typ.VarAccess
+          grind }
+        apply Typ.NatConst }
+      grind }
+    apply Typ.UnitConst }
+  apply ContType.HaltK
