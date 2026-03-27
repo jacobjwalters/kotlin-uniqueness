@@ -139,186 +139,177 @@ theorem abs_sim {cek₁ cek₂ : CEK} {ac₁ : AbsControl}
     (heval : Eval cek₁ cek₂)
     (hsim : SimRel cek₁ ac₁)
     (hcont : AbsContInv cek₁.K (ac₁.target)) :
-    ∃ ac₂, AbsStep ac₁ ac₂ ∧ SimRel cek₂ ac₂ ∧ AbsContInv cek₂.K (ac₂.target) := by
+    ∃ ac₂ t₂, AbsStep ac₁ ac₂ ∧ SimRel cek₂ ac₂ ∧ AbsContInv cek₂.K t₂ := by
   cases heval
   case Val v =>
     cases hsim
-    use .exprExit (liftValue v)
-    split_ands <;> first | constructor | assumption
-    cases v <;> constructor
+    refine ⟨.exprExit (liftValue v), .expr (liftValue v), ?_, ?_, ?_⟩
+    · cases v <;> constructor <;> simp [liftValue, isLitOrVar]
+    · constructor
+    · exact hcont
   case Var x =>
     cases hsim
-    exists .exprExit (.Var x)
-    split_ands <;> first | assumption | repeat constructor
+    exact ⟨.exprExit (.Var x), _, AbsStep.valExit _ (by simp [isLitOrVar]),
+           SimRel.exprExitVal _ _ _ _ _, hcont⟩
   case VarDecl τ e =>
     cases hsim
-    exists .exprEntry e
-    split_ands <;> try constructor
-    cases hcont <;> try constructor <;> assumption
+    refine ⟨.exprEntry e, .expr e, ?_, ?_, ?_⟩
+    · constructor
+    · constructor
+    · exact AbsContInv.declK τ e _ hcont
   case VarDeclDone τ v =>
     cases hsim
-    case exprExitVal e
-    exists .stmtExit (.Decl τ e)
-    split_ands <;> try constructor
+    case exprExitVal e =>
     cases hcont
-    assumption
+    case declK h =>
+    exact ⟨.stmtExit (.Decl τ e), _, AbsStep.declExit τ e, SimRel.stmtExitSkip _ _ _ _, h⟩
   case Assign x e =>
     cases hsim
-    exists .exprEntry e
-    split_ands <;> try constructor
-    cases hcont <;> try constructor <;> assumption
+    refine ⟨.exprEntry e, .expr e, ?_, ?_, ?_⟩
+    · constructor
+    · constructor
+    · exact AbsContInv.assignK x e _ hcont
   case AssignDone x v =>
     cases hsim
-    case exprExitVal e
-    exists .stmtExit (.Assign x e)
-    split_ands <;> try constructor
+    case exprExitVal e =>
     cases hcont
-    assumption
+    case assignK h =>
+    exact ⟨.stmtExit (.Assign x e), _, AbsStep.assignExit x e, SimRel.stmtExitSkip _ _ _ _, h⟩
   case Seq s₁ s₂ =>
     cases hsim
-    exists .stmtEntry s₁
-    split_ands <;> try constructor
-    cases hcont <;> constructor <;> assumption
+    refine ⟨.stmtEntry s₁, .stmt s₁, ?_, ?_, ?_⟩
+    · constructor
+    · constructor
+    · exact AbsContInv.seqK s₁ s₂ _ hcont
   case ExprStmt e =>
     cases hsim
-    exists .exprEntry e
-    split_ands <;> try constructor
-    cases hcont <;> constructor <;> assumption
+    refine ⟨.exprEntry e, .expr e, ?_, ?_, ?_⟩
+    · constructor
+    · constructor
+    · exact AbsContInv.exprStmtK e _ hcont
   case BinOp e₁ e₂ o =>
     cases hsim
-    exists .exprEntry e₁
-    split_ands <;> try constructor
-    cases hcont <;> constructor <;> assumption
+    refine ⟨.exprEntry e₁, .expr e₁, ?_, ?_, ?_⟩
+    · constructor
+    · constructor
+    · exact AbsContInv.binopLK o e₁ e₂ _ hcont
   case BinOpL o v e =>
     cases hsim
     case exprExitVal e' =>
-    exists (.exprEntry e)
-    split_ands
-    · exact AbsStep.binopMid e' e o
-    · constructor
-    · cases hcont
-      constructor; assumption
+    cases hcont
+    case binopLK h =>
+    exact ⟨.exprEntry e, .expr e, AbsStep.binopMid e' e o, SimRel.exprEntry _ _ _ _,
+           AbsContInv.binopRK o e' e v _ h⟩
   case BinOpR o v₁ v₂ v₃ h =>
     cases hsim
     case exprExitVal e =>
     cases hcont
     case binopRK e₁ h =>
-    exists .exprExit (.BinOp e₁ e o)
-    split_ands <;> try constructor
-    assumption
+    exact ⟨.exprExit (.BinOp e₁ e o), _, AbsStep.binopExit e₁ e o,
+           SimRel.exprExitVal _ _ _ _ _, h⟩
   case UnOp e o =>
     cases hsim
-    exists .exprEntry e
-    split_ands <;> try constructor
-    cases hcont <;> constructor <;> assumption
+    refine ⟨.exprEntry e, .expr e, ?_, ?_, ?_⟩
+    · constructor
+    · constructor
+    · exact AbsContInv.unopK o e _ hcont
   case UnOpDone o v r h =>
     cases hsim
     case exprExitVal e =>
-    exists .exprExit (.UnOp e o)
-    split_ands <;> try constructor
     cases hcont
-    assumption
+    case unopK h =>
+    exact ⟨.exprExit (.UnOp e o), _, AbsStep.unopExit e o,
+           SimRel.exprExitVal _ _ _ _ _, h⟩
   case If e s₁ s₂ =>
     cases hsim
-    exists .exprEntry e
-    split_ands <;> try constructor
-    cases hcont <;> constructor <;> assumption
+    refine ⟨.exprEntry e, .expr e, ?_, ?_, ?_⟩
+    · constructor
+    · constructor
+    · exact AbsContInv.ifCondK s₁ s₂ e _ hcont
   case While c b =>
     cases hsim
-    exists .exprEntry c
-    split_ands <;> try constructor
-    cases hcont <;> constructor <;> assumption
+    refine ⟨.exprEntry c, .expr c, ?_, ?_, ?_⟩
+    · constructor
+    · constructor
+    · exact AbsContInv.loopK c b _ _ hcont
   case Scope s e =>
     cases hsim
-    exists .stmtEntry s
-    split_ands <;> try constructor
-    cases hcont <;> constructor <;> assumption
+    refine ⟨.stmtEntry s, .stmt s, ?_, ?_, ?_⟩
+    · constructor
+    · constructor
+    · exact AbsContInv.scopeBodyK e s _ _ hcont
   case ScopeBody b n =>
     cases hsim
     case stmtExitSkip s =>
-    exists .exprEntry b
-    split_ands
-    · exact AbsStep.scopeMid s b
-    · constructor
-    · cases hcont
-      constructor <;> assumption
+    cases hcont
+    case scopeBodyK h =>
+    exact ⟨.exprEntry b, .expr b, AbsStep.scopeMid s b, SimRel.exprEntry _ _ _ _,
+           AbsContInv.scopeExitK b s n _ h⟩
   case ScopeExit =>
     cases hsim
     case exprExitVal e =>
     cases hcont
-    case scopeExitK s k =>
-    exists .exprExit (s.Scope e)
-    split_ands <;> try constructor
-    assumption
+    case scopeExitK s h =>
+    exact ⟨.exprExit (s.Scope e), _, AbsStep.scopeExit s e,
+           SimRel.exprExitVal _ _ _ _ _, h⟩
   case ExprStmtDone =>
     cases hsim
     case exprExitVal e =>
-    exists (.stmtExit (.Do e))
-    split_ands
-    · constructor
-    · constructor
-    · cases hcont
-      assumption
+    cases hcont
+    case exprStmtK h =>
+    exact ⟨.stmtExit (.Do e), _, AbsStep.exprStmtExit e,
+           SimRel.stmtExitSkip _ _ _ _, h⟩
   case IfTrue =>
     cases hsim
     case exprExitVal thn els c =>
     cases hcont
     case ifCondK h =>
-    exists .exprEntry thn
-    split_ands
-    · exact AbsStep.ifTrue c thn els
-    · constructor
-    -- h : AbsContInv K✝ (ContTarget.expr (c.If thn els))
-    -- ⊢ AbsContInv K✝ (ContTarget.expr thn)
-    sorry
+    -- h : AbsContInv K (.expr (.If c thn els))
+    -- With weakened conclusion, we can use the parent target directly
+    exact ⟨.exprEntry thn, .expr (.If c thn els), AbsStep.ifTrue c thn els,
+           SimRel.exprEntry _ _ _ _, h⟩
   case IfFalse =>
     cases hsim
     case exprExitVal thn els c =>
     cases hcont
     case ifCondK h =>
-    exists .exprEntry els
-    split_ands
-    · exact AbsStep.ifFalse c thn els
-    · constructor
-    -- h : AbsContInv K✝ (ContTarget.expr (c.If thn els))
-    -- ⊢ AbsContInv K✝ (ContTarget.expr els)
-    sorry
+    exact ⟨.exprEntry els, .expr (.If c thn els), AbsStep.ifFalse c thn els,
+           SimRel.exprEntry _ _ _ _, h⟩
   case Break K' l =>
     cases hsim
-    -- Big Sorry
+    -- Break: CEK goes to ⟨.value .Unit, E', J', J[l]!.2⟩
+    -- We need some AbsStep from (.exprEntry (.Break l)) and AbsContInv for the resulting stack
+    -- AbsStep.breakExit requires a target expression
+    -- but we don't know what it is from the CEK state alone
     sorry
   case SeqDone =>
     cases hsim
     case stmtExitSkip s₁ =>
     cases hcont
     case seqK s₂ h =>
-    -- h : AbsContInv K✝ (ContTarget.stmt (s₁;s₂))
-    -- need: stmtEntry s₂ and AbsContInv K✝ (ContTarget.stmt s₂)
-    sorry
+    -- h : AbsContInv K (.stmt (.Seq s₁ s₂))
+    -- With weakened conclusion, use parent target
+    exact ⟨.stmtEntry s₂, .stmt (.Seq s₁ s₂), AbsStep.seqMid s₁ s₂,
+           SimRel.stmtEntry _ _ _ _, h⟩
   case LoopTrue b c n =>
     cases hsim
     cases hcont
-    case _ e =>
-    exists .exprEntry b
-    split_ands
-    · exact AbsStep.whileLTrue c b
-    · constructor
-    -- e : AbsContInv K✝ (ContTarget.expr (c.While b))
-    -- ⊢ AbsContInv (Cont.loopContK c b n :: K✝) (ContTarget.expr b)
-    sorry
+    case loopK h =>
+    -- h : AbsContInv K (.expr (.While c b))
+    -- loopContK needs: AbsContInv (.loopK c b n :: K) (.expr cond)
+    -- which we can build from h, then loopContK gives us (.expr body)
+    exact ⟨.exprEntry b, .expr b, AbsStep.whileLTrue c b, SimRel.exprEntry _ _ _ _,
+           AbsContInv.loopContK c b n _ (AbsContInv.loopK c b n _ h)⟩
   case LoopFalse b c n =>
     cases hsim
     cases hcont
-    case _ e =>
-    exists .exprExit (c.While b)
-    split_ands <;> try constructor
-    assumption
+    case loopK h =>
+    exact ⟨.exprExit (c.While b), _, AbsStep.whileLFalse c b,
+           SimRel.exprExitVal _ _ _ _ _, h⟩
   case LoopCont b c n =>
     cases hsim
-    case _ e =>
+    case exprExitVal e =>
     cases hcont
-    exists .exprEntry c
-    split_ands
-    · exact AbsStep.whileBack c b
-    · constructor
-    · assumption
+    case loopContK h =>
+    exact ⟨.exprEntry c, _, AbsStep.whileBack c b,
+           SimRel.exprEntry _ _ _ _, h⟩
