@@ -1937,7 +1937,49 @@ noncomputable def cfgcekRelReq (s : Lang .Stmt) :
         | _ => simp at hL
 
     | stmtEntry s' E J K bts n ex hkind hekind hmem hmemex hseei hcont hjinv =>
-      sorry
+      cases heval
+      case VarDecl ty e =>
+        cases hseei
+        case decl ien iex _ _ _ _ _ _ _ =>
+          exists ien
+          refine ⟨?_, .single (by assumption)⟩
+          exact cfgcekRel.exprEntry e E J (.declK ty :: K) bts ien iex
+            (by assumption) (by assumption) (by assumption) (by assumption)
+            (by assumption)
+            (ContCFGInv.declK ty (.Decl ty e) ex hekind (by assumption) hcont)
+            hjinv
+      case Assign x e =>
+        cases hseei
+        case assign ren rex _ _ _ _ _ _ _ =>
+          exists ren
+          refine ⟨?_, .single (by assumption)⟩
+          exact cfgcekRel.exprEntry e E J (.assignK x :: K) bts ren rex
+            (by assumption) (by assumption) (by assumption) (by assumption)
+            (by assumption)
+            (ContCFGInv.assignK x (.Assign x e) ex hekind (by assumption) hcont)
+            hjinv
+      case Seq s₁ s₂ =>
+        cases hseei
+        case seq s₁en s₁ex s₂en s₂ex _ _ _ _ _ _ _ _ _ _ _ _ _ =>
+          exists s₁en
+          refine ⟨?_, .single (by assumption)⟩
+          exact cfgcekRel.stmtEntry s₁ E J (.seqK s₂ :: K) bts s₁en s₁ex
+            (by assumption) (by assumption) (by assumption) (by assumption)
+            (by assumption)
+            (ContCFGInv.seqK s₂ s₂en s₂ex ex
+              (by assumption) (by assumption) (by assumption) (by assumption)
+              (by assumption) (by assumption) (by assumption) hcont)
+            hjinv
+      case ExprStmt e =>
+        cases hseei
+        case do_ een eex _ _ _ _ _ _ _ =>
+          exists een
+          refine ⟨?_, .single (by assumption)⟩
+          exact cfgcekRel.exprEntry e E J (.exprStmtK :: K) bts een eex
+            (by assumption) (by assumption) (by assumption) (by assumption)
+            (by assumption)
+            (ContCFGInv.exprStmtK (.Do e) ex hekind (by assumption) hcont)
+            hjinv
     | stmtExit s' E J K bts n hkind hmem hcont hjinv =>
       cases heval
       case SeqDone K' s₂ =>
