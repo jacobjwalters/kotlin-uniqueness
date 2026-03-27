@@ -321,14 +321,15 @@ theorem step_sound_via_abs
     (hkind : n.kind = toNodeKind ac₁)
     (heval : Eval σ σ')
     (hcont : AbsContInv σ.K ac₁.target)
+    (hjinv : AbsJInv σ.J)
     (hbridge : ∀ ac₁ ac₂, AbsStep ac₁ ac₂ →
       ∀ n₁, n₁.kind = toNodeKind ac₁ →
         ∃ n₂, n₂.kind = toNodeKind ac₂ ∧ CFGStep (stmtCFG s) n₁ n₂) :
     ∃ ac₂ n' t₂, SimRel σ' ac₂ ∧ n'.kind = toNodeKind ac₂ ∧
-      AbsContInv σ'.K t₂ ∧ CFGStep (stmtCFG s) n n' := by
-  obtain ⟨ac₂, t₂, hstep, hsim₂, hcont₂⟩ := abs_sim heval hsim hcont
+      AbsContInv σ'.K t₂ ∧ AbsJInv σ'.J ∧ CFGStep (stmtCFG s) n n' := by
+  obtain ⟨ac₂, t₂, hstep, hsim₂, hcont₂, hjinv₂⟩ := abs_sim heval hsim hcont hjinv
   obtain ⟨n₂, hkind₂, hedge⟩ := hbridge ac₁ ac₂ hstep n hkind
-  exact ⟨ac₂, n₂, t₂, hsim₂, hkind₂, hcont₂, hedge⟩
+  exact ⟨ac₂, n₂, t₂, hsim₂, hkind₂, hcont₂, hjinv₂, hedge⟩
 
 /-- Reachability soundness: if the CEK machine reaches σ' from σ,
     and σ is related to CFG node n, then there exists a CFG node n'
