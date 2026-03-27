@@ -1332,25 +1332,35 @@ records the CFG nodes and edges that the frame implies.
 inductive ContCFGInv (g : CFG) : List Cont -> CFGNode -> Prop where
   /-- Empty stack: the current exit IS the top-level exit. -/
   | halt : x = g.exit -> ContCFGInv g [] x
+  /-- Absorb one CFG edge, shifting the anchor from `y` to `x`.
+      Use: when popping a frame enters a sub-computation whose exit
+      is one edge before the frame's recorded anchor. -/
+  | step (y : CFGNode) :
+      CFGStep g x y ->
+      ContCFGInv g K y ->
+      ContCFGInv g K x
   /-- Left operand of BinOp done -> edge to right operand entry,
       then right exit -> parent exit.
       Also stores `ExprEntryEdgeInv` for `e₂` so that the successor
       `exprEntry` state can be constructed without a global lookup lemma. -/
-  | binopLK (op : BinOp) (e₂ : Lang .Expr)
+  | binopLK (op : BinOp) (e₂ : Lang .Expr) (parent : Lang .Expr)
       (e₂en e₂ex pex : CFGNode) :
       e₂en.kind = .exprEntry e₂ ->
       e₂ex.kind = .exprExit e₂ ->
+      pex.kind = .exprExit parent ->
       CFGStep g x e₂en -> CFGStep g e₂ex pex ->
       e₂en ∈ g.nodes -> e₂ex ∈ g.nodes ->
       ExprEntryEdgeInv g breakTargets e₂ e₂en e₂ex ->
       ContCFGInv g K pex ->
       ContCFGInv g (.binopLK op e₂ :: K) x
   /-- Right operand of BinOp done -> edge to parent exit. -/
-  | binopRK (op : BinOp) (v₁ : Value) (pex : CFGNode) :
+  | binopRK (op : BinOp) (v₁ : Value) (parent : Lang .Expr) (pex : CFGNode) :
+      pex.kind = .exprExit parent ->
       CFGStep g x pex -> ContCFGInv g K pex ->
       ContCFGInv g (.binopRK op v₁ :: K) x
   /-- Operand of UnOp done -> edge to parent exit. -/
-  | unopK (op : UnOp) (pex : CFGNode) :
+  | unopK (op : UnOp) (parent : Lang .Expr) (pex : CFGNode) :
+      pex.kind = .exprExit parent ->
       CFGStep g x pex -> ContCFGInv g K pex ->
       ContCFGInv g (.unopK op :: K) x
   /-- Condition of If done -> trueBranch/falseBranch edges to branch
@@ -1371,11 +1381,13 @@ inductive ContCFGInv (g : CFG) : List Cont -> CFGNode -> Prop where
       ContCFGInv g K pex ->
       ContCFGInv g (.ifCondK e₁ e₂ :: K) x
   /-- Init expr of Decl done -> edge to stmt exit. -/
-  | declK (ty : Ty) (sex : CFGNode) :
+  | declK (ty : Ty) (parent : Lang .Stmt) (sex : CFGNode) :
+      sex.kind = .stmtExit parent ->
       CFGStep g x sex -> ContCFGInv g K sex ->
       ContCFGInv g (.declK ty :: K) x
   /-- RHS of Assign done -> edge to stmt exit. -/
-  | assignK (v : VarName) (sex : CFGNode) :
+  | assignK (v : VarName) (parent : Lang .Stmt) (sex : CFGNode) :
+      sex.kind = .stmtExit parent ->
       CFGStep g x sex -> ContCFGInv g K sex ->
       ContCFGInv g (.assignK v :: K) x
   /-- First statement of Seq done -> edge to s₂ entry,
@@ -1390,7 +1402,8 @@ inductive ContCFGInv (g : CFG) : List Cont -> CFGNode -> Prop where
       ContCFGInv g K pex ->
       ContCFGInv g (.seqK s₂ :: K) x
   /-- Expr of Do stmt done -> edge to stmt exit. -/
-  | exprStmtK (sex : CFGNode) :
+  | exprStmtK (parent : Lang .Stmt) (sex : CFGNode) :
+      sex.kind = .stmtExit parent ->
       CFGStep g x sex -> ContCFGInv g K sex ->
       ContCFGInv g (.exprStmtK :: K) x
   /-- Condition of While done (x = condExit).
@@ -1402,6 +1415,7 @@ inductive ContCFGInv (g : CFG) : List Cont -> CFGNode -> Prop where
       ben.kind = .exprEntry body ->
       bex.kind = .exprExit body ->
       cen.kind = .exprEntry c ->
+      pex.kind = .exprExit (.While c body) ->
       CFGStep g x ben -> CFGStep g x pex ->
       CFGStep g bex cen ->
       ben ∈ g.nodes -> bex ∈ g.nodes ->
@@ -1417,6 +1431,7 @@ inductive ContCFGInv (g : CFG) : List Cont -> CFGNode -> Prop where
       cex.kind = .exprExit c ->
       ben.kind = .exprEntry body ->
       bex.kind = .exprExit body ->
+      pex.kind = .exprExit (.While c body) ->
       CFGStep g x cen ->
       CFGStep g cex ben -> CFGStep g cex pex ->
       CFGStep g bex cen ->
@@ -1427,17 +1442,19 @@ inductive ContCFGInv (g : CFG) : List Cont -> CFGNode -> Prop where
   /-- Statement part of Scope done -> edge to result expr entry,
       then result exit -> parent exit.
       Stores `ExprEntryEdgeInv` for the result expression. -/
-  | scopeBodyK (e : Lang .Expr) (n : Nat)
+  | scopeBodyK (e : Lang .Expr) (n : Nat) (parent : Lang .Expr)
       (een eex pex : CFGNode) :
       een.kind = .exprEntry e ->
       eex.kind = .exprExit e ->
+      pex.kind = .exprExit parent ->
       CFGStep g x een -> CFGStep g eex pex ->
       een ∈ g.nodes -> eex ∈ g.nodes ->
       ExprEntryEdgeInv g breakTargets e een eex ->
       ContCFGInv g K pex ->
       ContCFGInv g (.scopeBodyK e n :: K) x
   /-- Result expr of Scope done -> edge to parent exit. -/
-  | scopeExitK (n : Nat) (pex : CFGNode) :
+  | scopeExitK (n : Nat) (parent : Lang .Expr) (pex : CFGNode) :
+      pex.kind = .exprExit parent ->
       CFGStep g x pex -> ContCFGInv g K pex ->
       ContCFGInv g (.scopeExitK n :: K) x
 
@@ -1567,48 +1584,73 @@ noncomputable def cfgcekRelReq (s : Lang .Stmt) :
       cases heval
       case Val v =>
         exists ex
-        cases v <;> simp only [liftValue] at * <;> cases heeei <;> refine ⟨?_, by assumption⟩
+        cases v <;> simp only [liftValue] at * <;> cases heeei <;>
+          refine ⟨?_, .single (by assumption)⟩
         all_goals
           constructor <;> assumption
       case Var v x =>
         exists ex
         cases heeei
-        refine ⟨?_, by assumption⟩
+        refine ⟨?_, .single (by assumption)⟩
         constructor <;> assumption
       case BinOp e₁ e₂ o =>
         cases heeei
         case binop e₁en e₁ex e₂en e₂ex _ _ _ _ _ _ _ _ _ _ _ _ _ =>
           exists e₁en
-          refine ⟨?_, by assumption⟩
-          constructor <;> try assumption
-          constructor <;> assumption
+          refine ⟨?_, .single (by assumption)⟩
+          exact cfgcekRel.exprEntry e₁ E J (.binopLK o e₂ :: K) bts e₁en e₁ex
+            (by assumption) (by assumption) (by assumption) (by assumption)
+            (by assumption)
+            (ContCFGInv.binopLK o e₂ (.BinOp e₁ e₂ o) e₂en e₂ex ex
+              (by assumption) (by assumption) hekind
+              (by assumption) (by assumption)
+              (by assumption) (by assumption) (by assumption) hcont)
+            hjinv
       case UnOp e o =>
         cases heeei
         case unop aen aex _ _ _ _ _ _ _ =>
           exists aen
-          refine ⟨?_, by assumption⟩
-          constructor <;> try assumption
-          constructor <;> assumption
+          refine ⟨?_, .single (by assumption)⟩
+          exact cfgcekRel.exprEntry e E J (.unopK o :: K) bts aen aex
+            (by assumption) (by assumption) (by assumption) (by assumption)
+            (by assumption)
+            (ContCFGInv.unopK o (.UnOp e o) ex hekind (by assumption) hcont)
+            hjinv
       case If cond thn els =>
         cases heeei
         case ife cen cex thnn thnx elsn elsx _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ =>
           exists cen
-          refine ⟨?_, by assumption⟩
-          constructor <;> try assumption
-          constructor <;> assumption
+          refine ⟨?_, .single (by assumption)⟩
+          exact cfgcekRel.exprEntry cond E J (.ifCondK thn els :: K) bts cen cex
+            (by assumption) (by assumption) (by assumption) (by assumption)
+            (by assumption)
+            (ContCFGInv.ifCondK thn els thnn thnx elsn elsx ex
+              (by assumption) (by assumption) (by assumption) (by assumption)
+              (by assumption) (by assumption)
+              (by assumption) (by assumption)
+              (by assumption) (by assumption) (by assumption) (by assumption)
+              (by assumption) (by assumption) hcont)
+            hjinv
       case While cond body =>
         cases heeei
         case whil cen cex ben bex _ _ _ _ _ _ _ _ _ _ _ _ _ _ =>
           exists cen
-          refine ⟨?_, by assumption⟩
-          constructor <;> try assumption
-          constructor <;> assumption
+          refine ⟨?_, .single (by assumption)⟩
+          exact cfgcekRel.exprEntry cond E J (.loopK cond body E.length :: K) bts cen cex
+            (by assumption) (by assumption) (by assumption) (by assumption)
+            (by assumption)
+            (ContCFGInv.loopK cond body E.length ben bex cen ex
+              (by assumption) (by assumption) (by assumption) hekind
+              (by assumption) (by assumption) (by assumption)
+              (by assumption) (by assumption) (by assumption)
+              hcont)
+            hjinv
       case Break K' l =>
         cases heeei
         case brk trg hkind hmem hl htrg _ =>
           obtain ⟨le, hkind⟩ := hkind
           exists trg
-          refine ⟨?_, by assumption⟩
+          refine ⟨?_, .single (by assumption)⟩
           have hl' : l < J.length := hjinv.length_eq ▸ hl
           exact cfgcekRel.exprExit le (Value.Unit) (E.drop (E.length - J[l]!.1))
             (J.drop (l + 1)) (J[l]!.2) (bts.drop (l + 1)) trg
@@ -1620,145 +1662,289 @@ noncomputable def cfgcekRelReq (s : Lang .Stmt) :
         cases heeei
         case scope sn sx rn rx _ _ _ _ _ _ _ _ _ _ _ _ _ =>
           exists sn
-          refine ⟨?_, by assumption⟩
+          refine ⟨?_, .single (by assumption)⟩
           exact cfgcekRel.stmtEntry st E J (.scopeBodyK e E.length :: K) bts sn sx
             (by assumption) (by assumption) (by assumption) (by assumption)
             (by assumption)
-            (ContCFGInv.scopeBodyK e E.length rn rx ex
-              (by assumption) (by assumption) (by assumption) (by assumption)
+            (ContCFGInv.scopeBodyK e E.length (.Scope st e) rn rx ex
+              (by assumption) (by assumption) hekind (by assumption) (by assumption)
               (by assumption) (by assumption) (by assumption) hcont)
             hjinv
     | exprExit e v E J K bts n' hkind' hnodes hContInv hJInv =>
       cases heval
       case IfTrue K' s₁ s₂ =>
-        cases hContInv
-        case ifCondK bts' e₁en e₁ex e₂en e₂ex pex h₁step h₂step
-          h₁nnode h₁xnode h₂nnode h₂xnode _ _ heeei₁ _ _ _ _ _ _ =>
-        refine ⟨e₁en, ?_, by assumption⟩
-        constructor <;> try assumption
-        -- ⊢ ContCFGInv (stmtCFG s) K' e₁ex
-        -- reasonaly sure this can't be proven
-        · -- HERE
-          sorry
-        · sorry
+        suffices ∀ m, ContCFGInv (stmtCFG s) (.ifCondK s₁ s₂ :: K') m →
+          m ∈ (stmtCFG s).nodes →
+          ∃ n₂, cfgcekRel s ⟨.sourceExpr s₁, E, J, K'⟩ n₂ ∧
+                 CFGReach (stmtCFG s) m n₂ from this _ hContInv hnodes
+        intro m hc hm
+        generalize hL : (Cont.ifCondK s₁ s₂ :: K') = L at hc
+        induction hc with
+        | step y hs _ ih =>
+          obtain ⟨n₂, hr, hreach⟩ := ih (CFGStep_dst_mem_nodes hs) hL
+          exact ⟨n₂, hr, .head hs hreach⟩
+        | ifCondK e₁ e₂ e₁en e₁ex e₂en e₂ex pex
+            hk1 hk2 hk3 hk4 hs1 hs2 hs3 hs4
+            hm1 hm2 hm3 hm4 heeei₁ heeei₂ hcontpex =>
+          cases hL
+          refine ⟨e₁en, ?_, .single hs1⟩
+          exact cfgcekRel.exprEntry s₁ E J K' _ e₁en e₁ex
+            hk1 hk2 hm1 hm2 heeei₁
+            (ContCFGInv.step pex hs3 hcontpex)
+            sorry -- breakTargets mismatch: need JCFGInv for inner breakTargets
+        | _ => simp at hL
       case IfFalse K' s₁ s₂ =>
-        cases hContInv
-        case ifCondK bts' e₁en e₁ex e₂en e₂ex pex h₁step h₂step
-          h₁nnode h₁xnode h₂nnode h₂xnode _ _ _ _ _ _ _ _ _ =>
-        refine ⟨e₂en, ?_, by assumption⟩
-        constructor <;> try assumption
-        -- ⊢ ContCFGInv (stmtCFG s) K' e₁ex
-        -- reasonaly sure this can't be proven
-        · sorry
-        · sorry
+        suffices ∀ m, ContCFGInv (stmtCFG s) (.ifCondK s₁ s₂ :: K') m →
+          m ∈ (stmtCFG s).nodes →
+          ∃ n₂, cfgcekRel s ⟨.sourceExpr s₂, E, J, K'⟩ n₂ ∧
+                 CFGReach (stmtCFG s) m n₂ from this _ hContInv hnodes
+        intro m hc hm
+        generalize hL : (Cont.ifCondK s₁ s₂ :: K') = L at hc
+        induction hc with
+        | step y hs _ ih =>
+          obtain ⟨n₂, hr, hreach⟩ := ih (CFGStep_dst_mem_nodes hs) hL
+          exact ⟨n₂, hr, .head hs hreach⟩
+        | ifCondK e₁ e₂ e₁en e₁ex e₂en e₂ex pex
+            hk1 hk2 hk3 hk4 hs1 hs2 hs3 hs4
+            hm1 hm2 hm3 hm4 heeei₁ heeei₂ hcontpex =>
+          cases hL
+          refine ⟨e₂en, ?_, .single hs2⟩
+          exact cfgcekRel.exprEntry s₂ E J K' _ e₂en e₂ex
+            hk3 hk4 hm3 hm4 heeei₂
+            (ContCFGInv.step pex hs4 hcontpex)
+            sorry -- breakTargets mismatch: need JCFGInv for inner breakTargets
+        | _ => simp at hL
       case VarDeclDone K' τ =>
-        cases hContInv
-        case declK sx hcont hstep =>
-        refine ⟨sx, ?_, hstep⟩
-        constructor <;> try assumption
-        · sorry
-        · refine CFGStep_dst_mem_nodes hstep
+        suffices ∀ m, ContCFGInv (stmtCFG s) (.declK τ :: K') m →
+          m ∈ (stmtCFG s).nodes →
+          ∃ n₂, cfgcekRel s ⟨.skip, v :: E, J, K'⟩ n₂ ∧
+                 CFGReach (stmtCFG s) m n₂ from this _ hContInv hnodes
+        intro m hc hm
+        generalize hL : (Cont.declK τ :: K') = L at hc
+        induction hc with
+        | step y hs _ ih =>
+          obtain ⟨n₂, hr, hreach⟩ := ih (CFGStep_dst_mem_nodes hs) hL
+          exact ⟨n₂, hr, .head hs hreach⟩
+        | declK ty parent sex hkind_sex hstep hcont =>
+          cases hL
+          refine ⟨sex, ?_, .single hstep⟩
+          exact cfgcekRel.stmtExit parent (v :: E) J K' bts sex
+            hkind_sex (CFGStep_dst_mem_nodes hstep) hcont hJInv
+        | _ => simp at hL
       case AssignDone K' x =>
-        cases hContInv
-        case assignK sx hcont hstep =>
-        refine ⟨sx, ?_, hstep⟩
-        constructor <;> try assumption
-        · sorry
-        · refine CFGStep_dst_mem_nodes hstep
+        suffices ∀ m, ContCFGInv (stmtCFG s) (.assignK x :: K') m →
+          m ∈ (stmtCFG s).nodes →
+          ∃ n₂, cfgcekRel s ⟨.skip, E.set x v, J, K'⟩ n₂ ∧
+                 CFGReach (stmtCFG s) m n₂ from this _ hContInv hnodes
+        intro m hc hm
+        generalize hL : (Cont.assignK x :: K') = L at hc
+        induction hc with
+        | step y hs _ ih =>
+          obtain ⟨n₂, hr, hreach⟩ := ih (CFGStep_dst_mem_nodes hs) hL
+          exact ⟨n₂, hr, .head hs hreach⟩
+        | assignK v' parent sex hkind_sex hstep hcont =>
+          cases hL
+          refine ⟨sex, ?_, .single hstep⟩
+          exact cfgcekRel.stmtExit parent (E.set x v) J K' bts sex
+            hkind_sex (CFGStep_dst_mem_nodes hstep) hcont hJInv
+        | _ => simp at hL
       case BinOpL K' o rhs =>
-        cases hContInv
-        case binopLK bts' e₂en' _ _ _ _ _ _ _ _ _ _ =>
-        refine ⟨e₂en', ?_, by assumption⟩
-        constructor <;> try assumption
-        constructor <;> try assumption
-        sorry
-      case BinOpR K' o v₁ v₂ hstep =>
-        cases hContInv
-        case binopRK pex hcont hstep =>
-        refine ⟨pex, ?_, by assumption⟩
-        constructor <;> try assumption
-        · sorry
-        · refine CFGStep_dst_mem_nodes hstep
-      case UnOpDone K' o v hstep =>
-        cases hContInv
-        case unopK o pex hcont hstep =>
-        refine ⟨pex, ?_, by assumption⟩
-        constructor <;> try assumption
-        · sorry
-        · refine CFGStep_dst_mem_nodes hstep
+        suffices ∀ m, ContCFGInv (stmtCFG s) (.binopLK o rhs :: K') m →
+          m ∈ (stmtCFG s).nodes →
+          ∃ n₂, cfgcekRel s ⟨.sourceExpr rhs, E, J, .binopRK o v :: K'⟩ n₂ ∧
+                 CFGReach (stmtCFG s) m n₂ from this _ hContInv hnodes
+        intro m hc hm
+        generalize hL : (Cont.binopLK o rhs :: K') = L at hc
+        induction hc with
+        | step y hs _ ih =>
+          obtain ⟨n₂, hr, hreach⟩ := ih (CFGStep_dst_mem_nodes hs) hL
+          exact ⟨n₂, hr, .head hs hreach⟩
+        | binopLK _ _ par e₂en e₂ex pex
+            hk1 hk2 hkpex hstep1 hstep2 hm1 hm2 heeei₂ hcontpex =>
+          cases hL
+          refine ⟨e₂en, ?_, .single hstep1⟩
+          refine cfgcekRel.exprEntry rhs E J (.binopRK o v :: K') _ e₂en e₂ex
+            hk1 hk2 hm1 hm2 heeei₂ ?_ ?_
+          · exact ContCFGInv.binopRK o v par pex hkpex hstep2 hcontpex
+          · sorry -- breakTargets mismatch
+        | _ => simp at hL
+      case BinOpR K' o v₁ result hstep_eval =>
+        suffices ∀ m, ContCFGInv (stmtCFG s) (.binopRK o v₁ :: K') m →
+          m ∈ (stmtCFG s).nodes →
+          ∃ n₂, cfgcekRel s ⟨.value result, E, J, K'⟩ n₂ ∧
+                 CFGReach (stmtCFG s) m n₂ from this _ hContInv hnodes
+        intro m hc hm
+        generalize hL : (Cont.binopRK o v₁ :: K') = L at hc
+        induction hc with
+        | step y hs _ ih =>
+          obtain ⟨n₂, hr, hreach⟩ := ih (CFGStep_dst_mem_nodes hs) hL
+          exact ⟨n₂, hr, .head hs hreach⟩
+        | binopRK op v₁' parent pex hkind_pex hstep' hcont =>
+          cases hL
+          refine ⟨pex, ?_, .single hstep'⟩
+          exact cfgcekRel.exprExit parent result E J K' bts pex
+            hkind_pex (CFGStep_dst_mem_nodes hstep') hcont hJInv
+        | _ => simp at hL
+      case UnOpDone K' o result hstep_eval =>
+        suffices ∀ m, ContCFGInv (stmtCFG s) (.unopK o :: K') m →
+          m ∈ (stmtCFG s).nodes →
+          ∃ n₂, cfgcekRel s ⟨.value result, E, J, K'⟩ n₂ ∧
+                 CFGReach (stmtCFG s) m n₂ from this _ hContInv hnodes
+        intro m hc hm
+        generalize hL : (Cont.unopK o :: K') = L at hc
+        induction hc with
+        | step y hs _ ih =>
+          obtain ⟨n₂, hr, hreach⟩ := ih (CFGStep_dst_mem_nodes hs) hL
+          exact ⟨n₂, hr, .head hs hreach⟩
+        | unopK op parent pex hkind_pex hstep' hcont =>
+          cases hL
+          refine ⟨pex, ?_, .single hstep'⟩
+          exact cfgcekRel.exprExit parent result E J K' bts pex
+            hkind_pex (CFGStep_dst_mem_nodes hstep') hcont hJInv
+        | _ => simp at hL
       case LoopTrue K' b c m =>
-        cases hContInv
-        case loopK bts' ben bex cen pex _ _ _ _ _ _ heeei _ _ hstep =>
-        exists pex
-        refine ⟨?_, hstep⟩
-        · constructor <;> try assumption
-          · sorry
-          · refine CFGStep_dst_mem_nodes (by assumption)
-          · sorry
-          · constructor <;> try assumption
-            · sorry
-            · refine CFGStep_dst_mem_nodes (by assumption)
-            · sorry
-          · sorry
+        suffices ∀ mn, ContCFGInv (stmtCFG s) (.loopK c b m :: K') mn →
+          mn ∈ (stmtCFG s).nodes →
+          ∃ n₂, cfgcekRel s ⟨.sourceExpr b, E, ⟨m, K'⟩ :: J, .loopContK c b m :: K'⟩ n₂ ∧
+                 CFGReach (stmtCFG s) mn n₂ from this _ hContInv hnodes
+        intro mn hc hmn
+        generalize hL : (Cont.loopK c b m :: K') = L at hc
+        induction hc with
+        | step y hs _ ih =>
+          obtain ⟨n₂, hr, hreach⟩ := ih (CFGStep_dst_mem_nodes hs) hL
+          exact ⟨n₂, hr, .head hs hreach⟩
+        | loopK _ _ _ ben bex cen pex
+            hkben hkbex hkcen hkpex hstep_ben hstep_pex hstep_back
+            hmben hmbex heeei_body hcont_pex =>
+          cases hL
+          exists ben
+          refine ⟨?_, .single hstep_ben⟩
+          refine cfgcekRel.exprEntry b E
+            (⟨m, K'⟩ :: J) (.loopContK c b m :: K') _ ben bex
+            hkben hkbex hmben hmbex heeei_body
+            ?_ ?_
+          · -- ContCFGInv for loopContK
+            sorry -- need to build loopContK continuation
+          · sorry -- breakTargets mismatch + JCFGInv.loop construction
+        | _ => simp at hL
       case LoopFalse K' b c m =>
-        cases hContInv
-        case loopK bts' ben bex cen pex _ _ _ _ _ _ heeei _ _ _ =>
-        refine ⟨pex, ?_, by assumption⟩
-        constructor <;> try assumption
-        -- almost reasonable goals
-        · sorry
-        exact CFGStep_dst_mem_nodes (by assumption)
+        suffices ∀ mn, ContCFGInv (stmtCFG s) (.loopK c b m :: K') mn →
+          mn ∈ (stmtCFG s).nodes →
+          ∃ n₂, cfgcekRel s ⟨.value Value.Unit, E.drop (E.length - m), J, K'⟩ n₂ ∧
+                 CFGReach (stmtCFG s) mn n₂ from this _ hContInv hnodes
+        intro mn hc hmn
+        generalize hL : (Cont.loopK c b m :: K') = L at hc
+        induction hc with
+        | step y hs _ ih =>
+          obtain ⟨n₂, hr, hreach⟩ := ih (CFGStep_dst_mem_nodes hs) hL
+          exact ⟨n₂, hr, .head hs hreach⟩
+        | loopK _ _ _ ben bex cen pex
+            hkben hkbex hkcen hkpex hstep_ben hstep_pex hstep_back
+            hmben hmbex heeei_body hcont_pex =>
+          cases hL
+          refine ⟨pex, ?_, .single hstep_pex⟩
+          exact cfgcekRel.exprExit (.While c b) Value.Unit (E.drop (E.length - m)) J K' bts pex
+            hkpex (CFGStep_dst_mem_nodes hstep_pex) hcont_pex hJInv
+        | _ => simp at hL
       case LoopCont K' J' b c m =>
-        cases hContInv
-        case loopContK bts' cen cex ben bex pex _ _ _ _ _ _ _ _ _ _ _ _ =>
-        refine ⟨cen, ?_, by assumption⟩
-        constructor <;> try assumption
-        constructor <;> try assumption
-        · -- almost reasonable
-          exact CFGStep_dst_mem_nodes (by assumption)
-        · -- similarly almost reasonable
-          sorry
-        · -- idfk
-          sorry
-        · -- idfk either
-          sorry
+        suffices ∀ mn, ContCFGInv (stmtCFG s) (.loopContK c b m :: K') mn →
+          mn ∈ (stmtCFG s).nodes →
+          ∃ n₂, cfgcekRel s ⟨.sourceExpr c, E, J', .loopK c b m :: K'⟩ n₂ ∧
+                 CFGReach (stmtCFG s) mn n₂ from this _ hContInv hnodes
+        intro mn hc hmn
+        generalize hL : (Cont.loopContK c b m :: K') = L at hc
+        induction hc with
+        | step y hs _ ih =>
+          obtain ⟨n₂, hr, hreach⟩ := ih (CFGStep_dst_mem_nodes hs) hL
+          exact ⟨n₂, hr, .head hs hreach⟩
+        | loopContK _ _ _ cen cex ben bex pex
+            hkcen hkcex hkben hkbex hkpex
+            hstep_cen hstep_ben hstep_pex hstep_back
+            hmcen hmcex heeei_c hcont_pex =>
+          cases hL
+          refine ⟨cen, ?_, .single hstep_cen⟩
+          sorry -- LoopCont: needs to reconstruct loopK + JCFGInv for dropped J
+        | _ => simp at hL
       case ScopeExit K' b m =>
-        cases hContInv
-        case scopeExitK pex hcont hstep =>
-        refine ⟨pex, ?_, by assumption⟩
-        constructor <;> try assumption
-        · sorry
-        · -- almost reasonable
-          exact CFGStep_dst_mem_nodes (by assumption)
+        suffices ∀ mn, ContCFGInv (stmtCFG s) (.scopeExitK m :: K') mn →
+          mn ∈ (stmtCFG s).nodes →
+          ∃ n₂, cfgcekRel s ⟨.value v, E.drop (E.length - m), J, K'⟩ n₂ ∧
+                 CFGReach (stmtCFG s) mn n₂ from this _ hContInv hnodes
+        intro mn hc hmn
+        generalize hL : (Cont.scopeExitK m :: K') = L at hc
+        induction hc with
+        | step y hs _ ih =>
+          obtain ⟨n₂, hr, hreach⟩ := ih (CFGStep_dst_mem_nodes hs) hL
+          exact ⟨n₂, hr, .head hs hreach⟩
+        | scopeExitK _ parent pex hkind_pex hstep hcont =>
+          cases hL
+          refine ⟨pex, ?_, .single hstep⟩
+          exact cfgcekRel.exprExit parent v (E.drop (E.length - m)) J K' bts pex
+            hkind_pex (CFGStep_dst_mem_nodes hstep) hcont hJInv
+        | _ => simp at hL
       case ExprStmtDone K' =>
-        cases hContInv
-        case exprStmtK sx hcont hstep =>
-        refine ⟨sx, ?_, by assumption⟩
-        constructor <;> try assumption
-        · sorry
-        exact CFGStep_dst_mem_nodes (by assumption)
+        suffices ∀ mn, ContCFGInv (stmtCFG s) (.exprStmtK :: K') mn →
+          mn ∈ (stmtCFG s).nodes →
+          ∃ n₂, cfgcekRel s ⟨.skip, E, J, K'⟩ n₂ ∧
+                 CFGReach (stmtCFG s) mn n₂ from this _ hContInv hnodes
+        intro mn hc hmn
+        generalize hL : (Cont.exprStmtK :: K') = L at hc
+        induction hc with
+        | step y hs _ ih =>
+          obtain ⟨n₂, hr, hreach⟩ := ih (CFGStep_dst_mem_nodes hs) hL
+          exact ⟨n₂, hr, .head hs hreach⟩
+        | exprStmtK parent sex hkind_sex hstep hcont =>
+          cases hL
+          refine ⟨sex, ?_, .single hstep⟩
+          exact cfgcekRel.stmtExit parent E J K' bts sex
+            hkind_sex (CFGStep_dst_mem_nodes hstep) hcont hJInv
+        | _ => simp at hL
 
     | stmtEntry s' E J K bts n ex hkind hekind hmem hmemex hseei hcont hjinv =>
       sorry
     | stmtExit s' E J K bts n hkind hmem hcont hjinv =>
-      -- At a statement exit node. The successor edge comes from ContCFGInv.
       cases heval
       case SeqDone K' s₂ =>
-        cases hcont
-        case seqK bts s₂en s₂ex pex hstep hnnode hxnode hnkind hxkind hedgeinv hcontinv hfinstep =>
-        refine ⟨s₂en, ?_, hfinstep⟩
-        constructor <;> try assumption
-        -- ⊢ ContCFGInv (stmtCFG s) K' s₂ex
-        -- reasonably sure this can't be proven
-        · sorry
-        · sorry
+        suffices ∀ mn, ContCFGInv (stmtCFG s) (.seqK s₂ :: K') mn →
+          mn ∈ (stmtCFG s).nodes →
+          ∃ n₂, cfgcekRel s ⟨.sourceStmt s₂, E, J, K'⟩ n₂ ∧
+                 CFGReach (stmtCFG s) mn n₂ from this _ hcont hmem
+        intro mn hc hmn
+        generalize hL : (Cont.seqK s₂ :: K') = L at hc
+        induction hc with
+        | step y hs _ ih =>
+          obtain ⟨n₂, hr, hreach⟩ := ih (CFGStep_dst_mem_nodes hs) hL
+          exact ⟨n₂, hr, .head hs hreach⟩
+        | seqK s₂' s₂en s₂ex pex hks₂en hks₂ex hstep_s₂en hstep_pex
+            hms₂en hms₂ex hseei hcont_pex =>
+          cases hL
+          refine ⟨s₂en, ?_, .single hstep_s₂en⟩
+          refine cfgcekRel.stmtEntry s₂ E J K' _ s₂en s₂ex
+            hks₂en hks₂ex hms₂en hms₂ex hseei
+            (ContCFGInv.step pex hstep_pex hcont_pex)
+            ?_
+          sorry -- breakTargets mismatch
+        | _ => simp at hL
       case ScopeBody K' body m =>
-        cases hcont
-        case scopeBodyK bts' een eex _ _ _ _ _ _ _ _ hfinstep =>
-        refine ⟨een, ?_, hfinstep⟩
-        constructor <;> try assumption
-        constructor <;> try assumption
-        sorry
+        suffices ∀ mn, ContCFGInv (stmtCFG s) (.scopeBodyK body m :: K') mn →
+          mn ∈ (stmtCFG s).nodes →
+          ∃ n₂, cfgcekRel s ⟨.sourceExpr body, E, J, .scopeExitK m :: K'⟩ n₂ ∧
+                 CFGReach (stmtCFG s) mn n₂ from this _ hcont hmem
+        intro mn hc hmn
+        generalize hL : (Cont.scopeBodyK body m :: K') = L at hc
+        induction hc with
+        | step y hs _ ih =>
+          obtain ⟨n₂, hr, hreach⟩ := ih (CFGStep_dst_mem_nodes hs) hL
+          exact ⟨n₂, hr, .head hs hreach⟩
+        | scopeBodyK e nn par een eex pex hkeen hkeex hkpex hstep_een hstep_pex
+            hmeen hmeex heeei hcont_pex =>
+          cases hL
+          refine ⟨een, ?_, .single hstep_een⟩
+          refine cfgcekRel.exprEntry body E J (.scopeExitK m :: K') _ een eex
+            hkeen hkeex hmeen hmeex heeei ?_ ?_
+          · exact ContCFGInv.scopeExitK m par pex hkpex hstep_pex hcont_pex
+          · sorry -- breakTargets mismatch
+        | _ => simp at hL
 
   edge_complete := by
     intros n m h

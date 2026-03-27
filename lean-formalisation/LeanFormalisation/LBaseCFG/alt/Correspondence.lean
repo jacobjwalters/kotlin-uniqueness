@@ -38,7 +38,7 @@ class TranslationReq (s : Lang .Stmt) (R : StateRel) : Prop where
 
   step_sound :
     ∀ {σ σ' n}, R σ n -> Eval σ σ' ->
-      ∃ n', R σ' n' ∧ CFGStep (stmtCFG s) n n'
+      ∃ n', R σ' n' ∧ CFGReach (stmtCFG s) n n'
 
   edge_complete :
     ∀ {n m}, CFGStep (stmtCFG s) n m ->
@@ -63,7 +63,7 @@ theorem translation_sound_reachability
     obtain ⟨mid, hbmid, hreachMid⟩ := ih
     obtain ⟨mid', hcmid', hstepMid⟩ :=
       tr.step_sound hbmid hbc
-    exact ⟨mid', hcmid', Relation.ReflTransGen.tail hreachMid hstepMid⟩
+    exact ⟨mid', hcmid', Relation.ReflTransGen.trans hreachMid hstepMid⟩
 
 -- theorem translation_complete_reachability
 --       (s : Lang .Stmt) (R : StateRel) [tr : TranslationReq s R]
