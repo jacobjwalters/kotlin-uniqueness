@@ -21,9 +21,9 @@ Final environment: `[Nat 3, Nat 8]` (y=3, x=8; newest-declared first)
 
 def ex1 : Lang .Stmt := elaborate do
   eStmts [
-    eDecl "x" .nat (eNat 5),
-    eDecl "y" .nat (eNat 3),
-    eAssign "x" (eAdd (eVar "x") (eVar "y"))
+    var_ "x" .nat 5,
+    var_ "y" .nat 3,
+    set_ "x" (v "x" + v "y")
   ]
 
 #eval! runProgram ex1
@@ -37,10 +37,7 @@ def ex1 : Lang .Stmt := elaborate do
 ```pseudo
 var x : nat := 10
 var y : nat := 10
-do (if x == y then
-      { x := 1; unit }
-    else
-      { y := 2; unit })
+if x == y then x := 1 else y := 2
 ```
 
 Since x == y (both 10), the true branch runs: x becomes 1.
@@ -49,11 +46,11 @@ Final environment: `[Nat 10, Nat 1]` (y=10, x=1)
 
 def ex2 : Lang .Stmt := elaborate do
   eStmts [
-    eDecl "x" .nat (eNat 10),
-    eDecl "y" .nat (eNat 10),
-    eDo (eIf (eNatEq (eVar "x") (eVar "y"))
-      (eScope (eAssign "x" (eNat 1)) eUnit)
-      (eScope (eAssign "y" (eNat 2)) eUnit))
+    var_ "x" .nat 10,
+    var_ "y" .nat 10,
+    if_ (v "x" .==. v "y")
+      [set_ "x" 1]
+      [set_ "y" 2]
   ]
 
 #eval! runProgram ex2
@@ -67,32 +64,24 @@ def ex2 : Lang .Stmt := elaborate do
 ```pseudo
 var counter : nat := 5
 var acc : nat := 0
-do while (not (isZero counter)) {
+while counter != 0 {
   acc := acc + counter
   counter := counter - 1
-  unit
 }
 ```
 
 Computes 5 + 4 + 3 + 2 + 1 = 15.
 Final environment: `[Nat 15, Nat 0]` (acc=15, counter=0)
-
-We encode `not (isZero x)` as `if isZero(x) then false else true`
-since the language has no boolean-not primitive.
 -/
 
 def ex3 : Lang .Stmt := elaborate do
   eStmts [
-    eDecl "counter" .nat (eNat 5),
-    eDecl "acc" .nat (eNat 0),
-    eDo (eWhile
-      (eIf (eIsZero (eVar "counter")) eFalse eTrue)
-      (eScope
-        (eStmts [
-          eAssign "acc" (eAdd (eVar "acc") (eVar "counter")),
-          eAssign "counter" (eSub (eVar "counter") (eNat 1))
-        ])
-        eUnit))
+    var_ "counter" .nat 5,
+    var_ "acc" .nat 0,
+    while_ (eNotZero (v "counter")) [
+      set_ "acc" (v "acc" + v "counter"),
+      set_ "counter" (v "counter" - 1)
+    ]
   ]
 
 #eval! runProgram ex3
@@ -105,11 +94,7 @@ def ex3 : Lang .Stmt := elaborate do
 
 ```pseudo
 var x : nat := 1
-do {
-  var y : nat := 10
-  x := x + y
-  ; x
-}
+do { var y : nat := 10; x := x + y; return x }
 x := x + x
 ```
 
@@ -120,14 +105,12 @@ Final environment: `[Nat 22]`
 
 def ex4 : Lang .Stmt := elaborate do
   eStmts [
-    eDecl "x" .nat (eNat 1),
-    eDo (eScope
-      (eStmts [
-        eDecl "y" .nat (eNat 10),
-        eAssign "x" (eAdd (eVar "x") (eVar "y"))
-      ])
-      (eVar "x")),
-    eAssign "x" (eAdd (eVar "x") (eVar "x"))
+    var_ "x" .nat 1,
+    eDo (scopeReturn
+      [var_ "y" .nat 10,
+       set_ "x" (v "x" + v "y")]
+      (v "x")),
+    set_ "x" (v "x" + v "x")
   ]
 
 #eval! runProgram ex4
@@ -140,10 +123,9 @@ def ex4 : Lang .Stmt := elaborate do
 
 ```pseudo
 var x : nat := 0
-do while true {
+while true {
   x := x + 1
-  do (if x == 3 then { break } else { unit })
-  unit
+  if x == 3 then break else skip
 }
 ```
 
@@ -154,16 +136,13 @@ Final environment: `[Nat 3]`
 
 def ex5 : Lang .Stmt := elaborate do
   eStmts [
-    eDecl "x" .nat (eNat 0),
-    eDo (eWhile eTrue
-      (eScope
-        (eStmts [
-          eAssign "x" (eAdd (eVar "x") (eNat 1)),
-          eDo (eIf (eNatEq (eVar "x") (eNat 3))
-            (eScope (pure (.Do (.Break 0))) eUnit)
-            eUnit)
-        ])
-        eUnit))
+    var_ "x" .nat 0,
+    while_ eTrue [
+      set_ "x" (v "x" + 1),
+      if_ (v "x" .==. 3)
+        [break_]
+        []
+    ]
   ]
 
 #eval! runProgram ex5
@@ -178,12 +157,11 @@ def ex5 : Lang .Stmt := elaborate do
 var a : nat := 0
 var b : nat := 1
 var n : nat := 10
-do while (not (isZero n)) {
+while n != 0 {
   var temp : nat := b
   b := a + b
   a := temp
   n := n - 1
-  unit
 }
 ```
 
@@ -193,19 +171,15 @@ Final environment: `[Nat 0, Nat 89, Nat 55]` (n=0, b=89, a=55)
 
 def ex6_fib : Lang .Stmt := elaborate do
   eStmts [
-    eDecl "a" .nat (eNat 0),
-    eDecl "b" .nat (eNat 1),
-    eDecl "n" .nat (eNat 10),
-    eDo (eWhile
-      (eIf (eIsZero (eVar "n")) eFalse eTrue)
-      (eScope
-        (eStmts [
-          eDecl "temp" .nat (eVar "b"),
-          eAssign "b" (eAdd (eVar "a") (eVar "b")),
-          eAssign "a" (eVar "temp"),
-          eAssign "n" (eSub (eVar "n") (eNat 1))
-        ])
-        eUnit))
+    var_ "a" .nat 0,
+    var_ "b" .nat 1,
+    var_ "n" .nat 10,
+    while_ (eNotZero (v "n")) [
+      var_ "temp" .nat (v "b"),
+      set_ "b" (v "a" + v "b"),
+      set_ "a" (v "temp"),
+      set_ "n" (v "n" - 1)
+    ]
   ]
 
 #eval! runProgram ex6_fib
