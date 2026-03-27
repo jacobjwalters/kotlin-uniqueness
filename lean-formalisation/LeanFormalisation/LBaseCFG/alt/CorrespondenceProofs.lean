@@ -123,12 +123,11 @@ private theorem branch_src_exprExit_stmt
   all_goals
     try
       (rcases hed with h₁ | h₂ | h₃
-        <;> (try (subst ed; simp [mkEdge] at hkind))
-        <;> (try exact (branch_src_exprExit_expr _ _ _ _ h₃ hkind)))
+        <;> (try (subst ed; simp [mkEdge] at hkind));
+          (try exact (branch_src_exprExit_expr _ _ _ _ h₃ hkind)))
   case inr s₁ s₂ =>
     rcases h₃ with h₁ | h₂ | h₃
     <;> (try (subst ed; simp [mkEdge] at hkind))
-    <;> (try exact (branch_src_exprExit_expr _ _ _ _ h₄ hkind))
     · exact (branch_src_exprExit_stmt _ _ _ _ h₂ hkind)
     · exact (branch_src_exprExit_stmt _ _ _ _ h₃ hkind)
 
