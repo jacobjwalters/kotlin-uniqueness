@@ -188,22 +188,10 @@ private theorem branch_src_exprExit_expr
       simp [mkEdge] at hkind
     · subst ed
       refine ⟨cond, ?_⟩
-      sorry
-      -- simpa [mkEdge] using
-      --   (buildExpr_exit_kind ({
-      --       id := nextId + 1,
-      --       kind := .exprExit (.While cond body)
-      --     } :: breakTargets)
-      --     (nextId + 2) cond)
+      simpa [mkEdge] using buildExpr_exit_kind breakTargets (nextId + 2) cond
     · subst ed
       refine ⟨cond, ?_⟩
-      sorry
-      -- simpa [mkEdge] using
-      --   (buildExpr_exit_kind ({
-      --       id := nextId + 1,
-      --       kind := .exprExit (.While cond body)
-      --     } :: breakTargets)
-      --     (nextId + 2) cond)
+      simpa [mkEdge] using buildExpr_exit_kind breakTargets (nextId + 2) cond
     · subst ed
       simp [mkEdge] at hkind
     · rcases h₅ with h | h <;> apply branch_src_exprExit_expr <;> assumption
@@ -370,21 +358,12 @@ private theorem back_edge_shape_expr
     · subst ed
       refine ⟨cond, body, ?_⟩
       constructor
-      · sorry
-        -- simpa [mkEdge] using
-        --   (buildExpr_exit_kind
-        --     ({ id := nid + 1, kind := .exprExit (.While cond body) } :: bts)
-        --     ((buildExpr ({
-        --         id := nid + 1,
-        --         kind := .exprExit (.While cond body)
-        --       } :: bts)
-        --       (nid + 2) cond).nextId)
-        --     body)
-      · sorry
-        -- simpa [mkEdge] using
-        --   (buildExpr_entry_kind
-        --     ({ id := nid + 1, kind := .exprExit (.While cond body) } :: bts)
-        --     (nid + 2) cond)
+      · simpa [mkEdge] using
+          buildExpr_exit_kind
+            ({ id := nid + 1, kind := .exprExit (.While cond body) } :: bts)
+            ((buildExpr bts (nid + 2) cond).nextId)
+            body
+      · simpa [mkEdge] using buildExpr_entry_kind bts (nid + 2) cond
     · rcases h₅ with h | h
       · apply back_edge_shape_expr <;> assumption
       · apply back_edge_shape_expr <;> assumption
@@ -620,10 +599,7 @@ private theorem break_edge_target_exprExit_expr
     · subst ed
       simp [mkEdge] at hkind
     · rcases h₅ with h | h
-      · refine break_edge_target_exprExit_expr
-          ({ id := nextId + 1, kind := .exprExit (.While cond body) } :: breakTargets)
-          (by exact ⟨⟨.While cond body, rfl⟩, hbt⟩)
-          ?_ ?_ _ ?_ hkind <;> sorry
+      · exact break_edge_target_exprExit_expr breakTargets hbt _ _ _ h hkind
       · exact break_edge_target_exprExit_expr
           ({ id := nextId + 1, kind := .exprExit (.While cond body) } :: breakTargets)
           (by exact ⟨⟨.While cond body, rfl⟩, hbt⟩)
@@ -1200,28 +1176,20 @@ theorem buildExpr_entry_edge_inv
         by simp [mkEdge], by simp [mkEdge]⟩
     have hec := (buildExpr_entry_edge_inv breakTargets (nextId + 2) cond hwf).mono
                   (g₂ := g) (by grind [buildExpr])
-    have heb := by
-      refine (buildExpr_entry_edge_inv (r.exit :: breakTargets) rc.nextId body ⟨⟨?_, ?_⟩, hwf⟩).mono
-                  (g₂ := g) (by grind [buildExpr])
-      all_goals
-        -- ⊢ ?e : Lang Tag.Expr
-        sorry
-    -- ⊢ ⊢ r.exit.kind = CFGNodeKind.exprExit ?e
-    sorry
-
-    -- refine .whil breakTargets cond body _ _ rc.entry rc.exit rb.entry rb.exit
-    --   hs1
-    --   ?_ ?_ ?_ ?_
-    --   hs2 hs3 hs4
-    --   (CFGStep_dst_mem_nodes hs1) (CFGStep_src_mem_nodes hs2)
-    --   (CFGStep_dst_mem_nodes hs2) (CFGStep_src_mem_nodes hs4)
-    --   ?_ ?_
-    -- · exact buildExpr_entry_kind ..
-    -- · exact buildExpr_exit_kind ..
-    -- · exact buildExpr_entry_kind ..
-    -- · exact buildExpr_exit_kind ..
-    -- · exact hec
-    -- · exact heb
+    have heb :=
+      (buildExpr_entry_edge_inv (r.exit :: breakTargets) rc.nextId body
+        ⟨⟨.While cond body, buildExpr_exit_kind breakTargets nextId (.While cond body)⟩, hwf⟩).mono
+        (g₂ := g) (by grind [buildExpr])
+    refine .whil breakTargets cond body _ _ rc.entry rc.exit rb.entry rb.exit
+      hs1
+      ?_ ?_ ?_ ?_
+      hs2 hs3 hs4
+      (CFGStep_dst_mem_nodes hs1) (CFGStep_src_mem_nodes hs2)
+      (CFGStep_dst_mem_nodes hs2) (CFGStep_src_mem_nodes hs4)
+      hec heb
+    all_goals (first
+      | exact buildExpr_entry_kind ..
+      | exact buildExpr_exit_kind ..)
   | Break l =>
     by_cases hl : l < breakTargets.length
     · -- in-bounds: emit breakOut edge

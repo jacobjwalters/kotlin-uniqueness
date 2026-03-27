@@ -406,4 +406,3 @@ def exampleProgram : Lang .Stmt :=
 
 def exampleCFG : CFGNode := cfgInit exampleProgram
 
-#eval exampleCFG.succs
