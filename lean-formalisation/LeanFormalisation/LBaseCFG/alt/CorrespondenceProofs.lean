@@ -1826,8 +1826,6 @@ noncomputable def cfgcekRelReq (s : Lang .Stmt) :
             refine ⟨cen, ?_, .single (by assumption)⟩
             apply cfgcekRel.exprEntry <;> try assumption
             apply ContCFGInv.loopK <;> try assumption
-
-
         | _ => simp at hL
       case ScopeExit K' b m =>
         suffices ∀ bts' m', ContCFGInv (stmtCFG s) (.scopeExitK m :: K') bts' m' ->
