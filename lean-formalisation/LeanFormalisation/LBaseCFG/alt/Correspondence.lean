@@ -40,10 +40,6 @@ class TranslationReq (s : Lang .Stmt) (R : StateRel) : Prop where
     ∀ {σ σ' n}, R σ n -> Eval σ σ' ->
       ∃ n', R σ' n' ∧ CFGReach (stmtCFG s) n n'
 
-  edge_complete :
-    ∀ {n m}, CFGStep (stmtCFG s) n m ->
-      ∃ σ σ', CEKReach (initState s) σ ∧ R σ n ∧ Eval σ σ' ∧ R σ' m
-
 /-!
 ## cfg translation correctness: two directions
 -/

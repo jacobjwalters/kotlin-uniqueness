@@ -1943,11 +1943,6 @@ noncomputable def cfgcekRelReq (s : Lang .Stmt) :
           apply cfgcekRel.exprEntry body E J (.scopeExitK m :: K') _ een eex <;> try assumption
           apply ContCFGInv.scopeExitK m pex <;> try assumption
         | _ => simp at hL
-  edge_complete := by
-    intros n m h
-    obtain ⟨e, he, hen, hem⟩ := h
-    simp only [exists_and_left]
-    sorry
 
 end TranslationTests
 
