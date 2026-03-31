@@ -1,9 +1,14 @@
 import LeanFormalisation.LBaseCFG.alt.AltCFG
 
-namespace Utils
+open LeanFormalisation.AltCFG
 
+-- note: multiple times in this document, the explicit `Eq x y` constructor is used
+-- in place of the more usual `x = y` notation. This is due to notation conflicts
+-- introduced by `LBase.lean`.
+
+namespace Utils
 private lemma sum_map_update_le {A : Type} [DecidableEq A]
-      (l : List A) (f : A → Nat) (n : A) (nv : Nat) (hle : f n ≤ nv) :
+      (l : List A) (f : A -> Nat) (n : A) (nv : Nat) (hle : f n ≤ nv) :
     (l.map f).sum ≤ (l.map (fun x => if x = n then nv else f x)).sum := by
   induction l with
   | nil => grind
@@ -30,49 +35,61 @@ lemma sum_map_update_lt {A : Type} [DecidableEq A]
       grind
 end Utils
 
-open LeanFormalisation.AltCFG
-
+section Dataflow
+/-- a fact is what is known about the abstract state at a given node.
+    `A` represents the "abstract domain", dependent on the analysis
+    being carried out. -/
 abbrev fact (A : Type) := CFGNode -> A
 
+/-- update the fact what is known about the current node `n` with a new
+    abstract state `v`. -/
 def fact.update {A : Type} (f : fact A) (n : CFGNode) (v : A) : fact A :=
   fun m => if m = n then v else f m
 
-def joinPredEdges [DecidableEq CFGNode] {A : Type} [Bot A] [Max A]
-    (g : CFG) (edgeTransfer : CFGEdge → A → A)
-    (outF : fact A) (n : CFGNode) : A :=
-  (g.inEdges n).foldl (fun acc e => acc ⊔ edgeTransfer e (outF e.src)) ⊥
+/-- characterization of monotonicity for a function wrt `Max` -/
+def monotoneD {A : Type} [Max A] (f : A -> A) : Prop :=
+  ∀ x y, x ⊔ y = x -> (f x) ⊔ (f y) = (f x)
 
+/-- definition of `f ≤ g` for `fact` -/
+def factLe {A : Type} [Max A] (f g : fact A) : Prop :=
+  ∀ n, (f n) ⊔ (g n) = (f n)
+
+/-- characterization of a finite lattice for types equipped with a `Max`
+    operation. we require:
+    - a height value for every possible abstract state;
+    - a maximal height;
+    - a proof that this height is, indeed, maximal
+    - a proof of the monotonicity of height. -/
 class FiniteHeight (A : Type) [Max A] where
   height : A -> Nat
   maxHeight : Nat
   maxHeight_ub : ∀ a, height a ≤ maxHeight
   height_mono : ∀ a b, a ⊔ b ≠ a -> height a < height (a ⊔ b)
 
+/-- computes the height of the current fact height.
+    used for proof of worklist termination. -/
 def factHeight {A : Type} [Max A] [fh : FiniteHeight A] (g : CFG) (f : fact A) : Nat :=
   let tot := fh.maxHeight * g.nodes.length
   let curr := (g.nodes.map (fun n => fh.height (f n))).sum
   tot - curr
 
-open FiniteHeight in
-lemma sum_height_le_max {A : Type} [Max A] [FiniteHeight A] (l : List CFGNode) (f : fact A) :
-    (l.map (fun x => height (f x))).sum ≤ maxHeight A * l.length := by
+/-- for any list of nodes `l`, `∑_(n ∈ l) (h (f n)) ≤ maxHeight * |l|` -/
+lemma sum_height_le_max {A : Type} [Max A] [fh : FiniteHeight A] (l : List CFGNode) (f : fact A) :
+    (l.map (fun x => fh.height (f x))).sum ≤ fh.maxHeight * l.length := by
   induction l with
   | nil =>
     simp
   | cons h t ih =>
     simp only [List.map_cons, List.sum_cons, List.length_cons]
     calc
-      _ ≤ maxHeight A + (List.map (fun x ↦ height (f x)) t).sum := by
-        simp [maxHeight_ub]
-      _ ≤ maxHeight A + maxHeight A * t.length := by
+      _ ≤ fh.maxHeight + (List.map (fun x ↦ fh.height (f x)) t).sum := by
+        simp [fh.maxHeight_ub]
+      _ ≤ fh.maxHeight + fh.maxHeight * t.length := by
         simp [ih]
-      _ ≤ maxHeight A * (t.length + 1) := by
+      _ ≤ fh.maxHeight * (t.length + 1) := by
         grind
 
--- NOTE: LBase.lean defines a notation `Γ₁ "("x")" "=" type` that matches
--- any `expr (expr) = expr` pattern at the top level, breaking lemma statements
--- that use `... (fun x => ...) = ...`. We use `Eq` explicitly to work around this.
-
+/-- update/height commutativity -/
 private lemma map_height_update_eq {A : Type} [Max A] [FiniteHeight A]
     (nodes : List CFGNode) (outF : fact A) (node : CFGNode) (newOut : A) :
     Eq (nodes.map (fun x => FiniteHeight.height (fact.update outF node newOut x)))
@@ -80,6 +97,7 @@ private lemma map_height_update_eq {A : Type} [Max A] [FiniteHeight A]
         else FiniteHeight.height (outF x))) := by
   congr 1; ext x; simp [fact.update]; split <;> rfl
 
+/-- update/height monotonicity -/
 private lemma map_update_sum_lt {A : Type} [Max A] [FiniteHeight A]
     (nodes : List CFGNode) (outF : fact A) (node : CFGNode) (newOut : A)
     (hn : node ∈ nodes)
@@ -90,6 +108,8 @@ private lemma map_update_sum_lt {A : Type} [Max A] [FiniteHeight A]
   exact Utils.sum_map_update_lt nodes
     (fun x => FiniteHeight.height (outF x)) node (FiniteHeight.height newOut) hn hlt
 
+/-- if you replace a node's fact with one of smaller height, the resulting
+    `factHeight` is smaller -/
 private theorem factHeight_decreases
     {A : Type} [Max A] [FiniteHeight A]
     (g : CFG) (outF : fact A) (node : CFGNode) (newOut : A)
@@ -101,8 +121,14 @@ private theorem factHeight_decreases
   unfold factHeight; simp only []
   omega
 
--- node/edgeTransfer to maintain branch sensitivity -> feed choice information
--- to the branch's environments.
+/-- computes the join of the results of applying an edge transfer function to all
+    incoming edges of a given node in `g`. -/
+def joinPredEdges [DecidableEq CFGNode] {A : Type} [Bot A] [Max A]
+    (g : CFG) (edgeTransfer : CFGEdge -> A -> A)
+    (outF : fact A) (n : CFGNode) : A :=
+  (g.inEdges n).foldl (fun acc e => acc ⊔ edgeTransfer e (outF e.src)) ⊥
+
+/-- main forward worklist algorithm. -/
 def worklistForwardEdge
     [DecidableEq CFGNode] {A : Type} [Bot A] [Max A] [DecidableEq A] [FiniteHeight A]
     (g : CFG) (nodeTransfer : CFGNode -> A -> A) (edgeTransfer : CFGEdge -> A -> A)
@@ -135,34 +161,63 @@ decreasing_by
       (hwl n (List.Mem.head _))
       (FiniteHeight.height_mono _ _ (by assumption))
 
+/-- computes the input fact for a given node `n`. if `n` is the entry of the
+    current graph, returns the initial entry fact; otherwise, computes the
+    join of all incoming fact. -/
 def expectedIn {A : Type} [Bot A] [Max A]
     (g : CFG) (edgeTransfer : CFGEdge -> A -> A)
     (entryInit : A) (outF : fact A) (n : CFGNode) : A :=
   if n = g.entry then entryInit else joinPredEdges g edgeTransfer outF n
 
+/-- computes the full dataflow analysis, returning entry and exit metadata for
+    every node -/
 def runDataflow
     [DecidableEq CFGNode] {A : Type} [Bot A] [Max A] [DecidableEq A] [FiniteHeight A]
     (g : CFG) (nodeTransfer : CFGNode -> A -> A) (edgeTransfer : CFGEdge -> A -> A)
     (entryInit : A) (out0 : fact A) (wl0 : List CFGNode)
     (hwl0 : ∀ x ∈ wl0, x ∈ g.nodes) : fact A × fact A :=
-  let finalOut := worklistForwardEdge g nodeTransfer edgeTransfer entryInit out0 wl0 hwl0
-  let finalIn := fun n => expectedIn g edgeTransfer entryInit finalOut n
+  let finalOut : fact A := worklistForwardEdge g nodeTransfer edgeTransfer entryInit out0 wl0 hwl0
+  let finalIn : fact A := fun n => expectedIn g edgeTransfer entryInit finalOut n
   ⟨finalIn, finalOut⟩
+end Dataflow
 
-abbrev Domain (n : Nat) (A : Type) [Bot A] := Fin n → A
+section Domain
+/-
+  we define a canonical instantiation for extending a variable-level
+  abstract state `A` to a state comprised of multiple variables.
+  the idea is: the user can define any abstract state `A` and abstraction
+  function towards it, ensuring that this state has lattice structure.
+  they then instantiate the user-facing dataflow analysis framework with it.
+  under the hood, that framework lifts the user supplied pointwise abstraction
+  to the multi-variable `Domain`, lifting the lattice structure and the finite
+  height requirements to be able to run dataflow on it.
+-/
 
+/-- for every variable in `[0, n - 1]`, return the abstract state.
+    we say that `Domain n A` is an _abstract domain of size `n` over `A`_.
+-/
+abbrev Domain (n : Nat) (A : Type) [Bot A] := Fin n -> A
+
+/-- `Repr` instance for Domain. -/
+instance {n : Nat} {A : Type} [Bot A] [Repr A] : Repr (Domain n A) where
+  reprPrec := fun d _ =>
+    let entries := (List.finRange n).map (fun i => s!"x{i.val}:{repr (d i)}")
+    s!"[{String.intercalate ", " entries}]"
+
+/-- in the lattice of `Domain n A`, the bot element is the constant function
+    (λ _ => ⊥ₐ) -/
 instance {n : Nat} {A : Type} [Bot A] : Bot (Domain n A) where
   bot := fun _ => ⊥
 
-def domainJoin {n : Nat} {A : Type} [Bot A] [Max A] (ρ₁ ρ₂ : Domain n A) : Domain n A :=
-  fun i => ρ₁ i ⊔ ρ₂ i
-
+/-- the join of ρ₁, ρ₂ in `Domain n A` is the pointwise join of their elements. -/
 instance {n : Nat} {A : Type} [Bot A] [Max A] : Max (Domain n A) where
-  max := domainJoin
+  max := fun ρ₁ ρ₂ => fun i => ρ₁ i ⊔ ρ₂ i
 
+/-- boolean equality on two domains of size n over a type `A` with decidable equality. -/
 private def domainBEq {n : Nat} {A : Type} [Bot A] [DecidableEq A] (ρ₁ ρ₂ : Domain n A) : Bool :=
   (List.finRange n).all (fun i => ρ₁ i = ρ₂ i)
 
+/-- two domains are boolean equal if and only if they're equal. -/
 private theorem domainBEq_iff {n : Nat} {A : Type} [Bot A] [DecidableEq A]
     (ρ₁ ρ₂ : Domain n A) : domainBEq ρ₁ ρ₂ = true ↔ ρ₁ = ρ₂ := by
   constructor
@@ -175,6 +230,7 @@ private theorem domainBEq_iff {n : Nat} {A : Type} [Bot A] [DecidableEq A]
     subst h
     simp [domainBEq, List.all_eq_true]
 
+/-- decidable equality instance for `Domain` -/
 instance {n : Nat} {A : Type} [Bot A] [DecidableEq A] : DecidableEq (Domain n A) :=
   fun ρ₁ ρ₂ =>
     if h : domainBEq ρ₁ ρ₂ then
@@ -182,37 +238,39 @@ instance {n : Nat} {A : Type} [Bot A] [DecidableEq A] : DecidableEq (Domain n A)
     else
       isFalse (fun heq => h ((domainBEq_iff ρ₁ ρ₂).mpr heq))
 
+/-- get abstract state of `x` in `ρ`, or `⊥` if `x` is outside of range. -/
 def getVar {n : Nat} {A : Type} [Bot A] (ρ : Domain n A) (x : VarName) : A :=
   if h : x < n then ρ ⟨x, h⟩ else ⊥
 
+/-- set abstract state of `x` in `ρ` to `v`. -/
 def setVar {n : Nat} {A : Type} [Bot A] (ρ : Domain n A) (x : VarName) (v : A) : Domain n A :=
   fun i => if i.val = x then v else ρ i
 
+/-- push new binding in Domain, shifting all others by one. -/
 def pushBinding {n : Nat} {A : Type} [Bot A] (ρ : Domain n A) (v : A) : Domain n A :=
   fun i =>
     if i.val = 0 then v
     else if h : i.val - 1 < n then ρ ⟨i.val - 1, h⟩
     else ⊥
 
+/-- pop `k` bindings from Domain. -/
 def popBindings {n : Nat} {A : Type} [Bot A] (k : Nat) (ρ : Domain n A) : Domain n A :=
   fun i =>
     if h : i.val + k < n then ρ ⟨i.val + k, h⟩
     else ⊥
 
-instance {n : Nat} {A : Type} [Bot A] [Repr A] : Repr (Domain n A) where
-  reprPrec := fun d _ =>
-    let entries := (List.finRange n).map (fun i => s!"x{i.val}:{repr (d i)}")
-    s!"[{String.intercalate ", " entries}]"
-
+/-- compute height for a domain as sum of height of its elements. -/
 def domainHeight {n : Nat} {A : Type} [Bot A] [Max A] [FiniteHeight A] (ρ : Domain n A) : Nat :=
   ((List.finRange n).map (fun i => FiniteHeight.height (ρ i))).sum
 
+/-- height is monotonic wrt lub. -/
 private lemma height_le_of_join {A : Type} [Max A] [FiniteHeight A] (a b : A) :
     FiniteHeight.height a ≤ FiniteHeight.height (a ⊔ b) := by
   by_cases h : a ⊔ b = a
   · rw [h]
   · exact Nat.le_of_lt (FiniteHeight.height_mono a b h)
 
+/-- if `A` is of finite height, then so is `Domain n A` for any `n`. -/
 instance {A n} [Bot A] [Max A] [fh : FiniteHeight A] : FiniteHeight (Domain n A) where
   height := domainHeight
   maxHeight := n * FiniteHeight.maxHeight A
@@ -231,10 +289,9 @@ instance {A n} [Bot A] [Max A] [fh : FiniteHeight A] : FiniteHeight (Domain n A)
       by_contra hall; push_neg at hall; apply h
       funext i; apply hall
       grind
-    suffices hsuf : ∀ (l : List (Fin n)), i ∈ l →
+    suffices ∀ (l : List (Fin n)), i ∈ l ->
         (l.map (fun j => FiniteHeight.height (ρ₁ j))).sum <
-        (l.map (fun j => FiniteHeight.height ((ρ₁ ⊔ ρ₂) j))).sum from
-      hsuf _ hi₁
+        (l.map (fun j => FiniteHeight.height ((ρ₁ ⊔ ρ₂) j))).sum from this _ hi₁
     intro l hmem
     induction l with
     | nil => cases hmem
@@ -259,16 +316,22 @@ instance {A n} [Bot A] [Max A] [fh : FiniteHeight A] : FiniteHeight (Domain n A)
         refine Nat.add_lt_add_of_le_of_lt ?_ (ih htl)
         exact height_le_of_join _ _
 
-section LangSpecific
+end Domain
 
-def stmtDeclDelta : Lang .Stmt -> Nat
+section LBaseSpec
+/-- compute the shift depth needed to account for a statement. -/
+private def stmtDeclDelta : Lang .Stmt -> Nat
 | .Decl _ _ => 1
 | .Assign _ _ => 0
 | .Seq s₁ s₂ => stmtDeclDelta s₁ + stmtDeclDelta s₂
 | .Do _ => 0
 
+/-- a LangEval is a function that takes an abstract domain and
+    an expression and computes the output fact for it. -/
 abbrev LangEval (n : Nat) (A : Type) [Bot A] := Domain n A -> Lang .Expr -> A
 
+/-- update the current domain according to the eval function based on the
+    statement being treated. -/
 def transferScopedNode {n : Nat} {A : Type} [Max A] [Bot A]
     (eval : LangEval n A) (node : CFGNode) (ρ : Domain n A) : Domain n A :=
   match node.kind with
@@ -277,6 +340,7 @@ def transferScopedNode {n : Nat} {A : Type} [Max A] [Bot A]
   | .exprExit (.Scope s _) => popBindings (stmtDeclDelta s) ρ
   | _ => ρ
 
+/-- carry branch information into the domain. -/
 def transferBranchEdge {n : Nat} {A : Type} [Max A] [Bot A]
     (refine : Lang .Expr -> Bool -> Domain n A -> Domain n A)
     (e : CFGEdge) (ρ : Domain n A) : Domain n A :=
@@ -284,5 +348,4 @@ def transferBranchEdge {n : Nat} {A : Type} [Max A] [Bot A]
   | .trueBranch, .exprExit cond => refine cond true ρ
   | .falseBranch, .exprExit cond => refine cond false ρ
   | _, _ => ρ
-
-end LangSpecific
+end LBaseSpec

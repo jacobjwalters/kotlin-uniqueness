@@ -1,5 +1,6 @@
 import LeanFormalisation.LBaseCFG.alt.AltCFG
 import LeanFormalisation.LBaseCFG.alt.Analysis
+import LeanFormalisation.LBaseCFG.alt.AnalysisProofs
 import LeanFormalisation.LBaseCFG.alt.AltCFGRepr
 
 open LeanFormalisation AltCFG
@@ -198,6 +199,10 @@ def runPositivity (n : Nat) (g : CFG) (entryInit : Domain n Sign := ⊥) : PosFa
   runDataflow g transferPosNode transferPosEdge
     entryInit bot g.nodes (fun _ h => h)
 
+
+/- representing the result of running this analysis -/
+section Repr
+
 def positivityOverlay {n : Nat} (inF outF : PosFact n) : AltCFGRepr.DotOverlay :=
   { nodeMeta := fun n =>
       [ s!"in={repr (inF n)}"
@@ -219,3 +224,41 @@ def main (_ : List String) : IO Unit := do
   let g := stmtCFG sampleProgram
   let (inF, outF) := runPositivity 10 g
   printResult g inF outF
+
+end Repr
+
+def abs_sign : Value -> Sign -> Prop
+| .Nat 0, .Zero
+| .Nat 0, .NonPos
+| .Nat 0, .NonNeg
+| .Nat 0, .Top
+| .Nat (_ + 1), .Pos
+| .Nat (_ + 1), .NonNeg
+| .Nat (_ + 1), .Top
+| .True, .Top
+| .False, .Top
+| .Unit, .Top => True
+| _, _ => False
+
+def abs_val {n : Nat} (σ : CEK) (Γ : Domain n Sign) :=
+    ∀ x (hx_env : x < σ.E.length) (hx_dom : x < n),
+      abs_sign (σ.E[x]'hx_env) (Γ ⟨x, hx_dom⟩)
+
+instance {n : Nat} :
+    Framework (Domain n Sign) transferPosEdge transferPosNode abs_val where
+  join_comm := by
+    intros a b
+    ext x; simp only [Pi.sup_apply]; cases (a x) <;> cases (b x) <;> try simp [max]
+  join_assoc := by
+    intros a b c
+    ext x; simp only [Pi.sup_apply]; cases (a x) <;> cases (b x)
+      <;> cases (c x) <;> try simp [max, Sign.fromAtomFlags]
+  join_idem := by
+    intro a; ext x; simp only [Pi.sup_apply]; cases (a x) <;> simp [max, Sign.fromAtomFlags]
+  bot_le := by
+    intro a; ext x
+    simp only [Pi.sup_apply]; cases (a x) <;> simp [max, Sign.fromAtomFlags]
+  node_mono := by
+    sorry
+  edge_mono := by
+    sorry
