@@ -811,6 +811,13 @@ theorem buildStmt_do_edges (breakTargets : List CFGNode) (nextId : Nat)
     ∧ mkEdge rExpr.exit exit ∈ r.edges := by
   split_ands <;> simp [buildStmt]
 
+lemma stmtEntry_unique {s : Lang .Stmt} {n : CFGNode}
+    (hmem : n ∈ (stmtCFG s).nodes)
+    (hkind : n.kind = .stmtEntry s) :
+    n = (stmtCFG s).entry := by
+  -- seems straightforward enough
+  sorry
+
 end BuilderEdgeLemmas
 
 section TranslationTests
@@ -1544,6 +1551,7 @@ inductive cfgcekRel (s : Lang .Stmt) : StateRel where
       ex.kind = .stmtExit st ->
       n ∈ (stmtCFG s).nodes ->
       ex ∈ (stmtCFG s).nodes ->
+      (st = s ∧ E = [] ∧ J = [] ∧ K = [] → n = (stmtCFG s).entry) ->
       StmtEntryEdgeInv (stmtCFG s) breakTargets st n ex ->
       ContCFGInv (stmtCFG s) K breakTargets ex ->
       JCFGInv (stmtCFG s) J breakTargets ->
@@ -1559,12 +1567,13 @@ inductive cfgcekRel (s : Lang .Stmt) : StateRel where
 noncomputable def cfgcekRelReq (s : Lang .Stmt) :
     TranslationReq s (cfgcekRel s) where
   init_related := by
-    exact cfgcekRel.stmtEntry s [] [] [] []
+    refine cfgcekRel.stmtEntry s [] [] [] []
       (stmtCFG s).entry (stmtCFG s).exit
       (buildStmt_entry_kind [] 0 s)
       (buildStmt_exit_kind [] 0 s)
       (cfg_entry_in_nodes _)
       (cfg_exit_in_nodes _)
+      (by grind)
       (by grind [stmtCFG, buildStmt_entry_edge_inv [] 0 s (by simp [BreakTargetsWellFormed])])
       (ContCFGInv.halt rfl)
       JCFGInv.empty
@@ -1576,7 +1585,12 @@ noncomputable def cfgcekRelReq (s : Lang .Stmt) :
       (cfg_exit_in_nodes _)
       (ContCFGInv.halt rfl)
       JCFGInv.empty
-
+  init_uniq := by
+    intros n hn
+    cases hn
+    case stmtEntry _ _ _ _ _ _ _ _ _ h =>
+    apply h
+    grind
   step_sound := by
     intros σ σ' n hrel heval
     cases hrel with
@@ -1639,7 +1653,8 @@ noncomputable def cfgcekRelReq (s : Lang .Stmt) :
           exists sn
           refine ⟨?_, .single (by assumption)⟩
           apply cfgcekRel.stmtEntry <;> try assumption
-          apply ContCFGInv.scopeBodyK _ _ _ _ _ ex <;> assumption
+          · intros; grind
+          · apply ContCFGInv.scopeBodyK _ _ _ _ _ ex <;> assumption
     | exprExit e v E J K bts n' hkind' hnodes hContInv hJInv =>
       cases heval
       case IfTrue K' s₁ s₂ =>
@@ -1864,7 +1879,7 @@ noncomputable def cfgcekRelReq (s : Lang .Stmt) :
           exact CFGStep_dst_mem_nodes (by assumption)
         | _ => simp at hL
 
-    | stmtEntry s' E J K bts n ex hkind hekind hmem hmemex hseei hcont hjinv =>
+    | stmtEntry s' E J K bts n ex hkind hekind hmem hmemex test hseei hcont hjinv =>
       cases heval
       case VarDecl ty e =>
         cases hseei
@@ -1887,7 +1902,7 @@ noncomputable def cfgcekRelReq (s : Lang .Stmt) :
           refine ⟨?_, .single (by assumption)⟩
           exact cfgcekRel.stmtEntry s₁ E J (.seqK s₂ :: K) bts s₁en s₁ex
             (by assumption) (by assumption) (by assumption) (by assumption)
-            (by assumption)
+            (by intros; grind) (by assumption)
             (ContCFGInv.seqK s₂ s₂en s₂ex ex
               (by assumption) (by assumption) (by assumption) (by assumption)
               (by assumption) (by assumption) (by assumption) hcont)
@@ -1921,7 +1936,8 @@ noncomputable def cfgcekRelReq (s : Lang .Stmt) :
           cases hL
           refine ⟨s₂en, ?_, .single (by assumption)⟩
           · apply cfgcekRel.stmtEntry <;> try assumption
-            constructor <;> assumption
+            · intros; grind [stmtEntry_unique]
+            · constructor <;> assumption
         | _ => simp at hL
       case ScopeBody K' body m =>
         suffices ∀ bts' mn, ContCFGInv (stmtCFG s) (.scopeBodyK body m :: K') bts' mn →

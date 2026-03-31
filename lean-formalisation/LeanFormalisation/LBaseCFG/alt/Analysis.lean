@@ -330,6 +330,9 @@ private def stmtDeclDelta : Lang .Stmt -> Nat
     an expression and computes the output fact for it. -/
 abbrev LangEval (n : Nat) (A : Type) [Bot A] := Domain n A -> Lang .Expr -> A
 
+/-- a LangRefine performs a similar function but on edges instead. -/
+abbrev LangRefine (n : Nat) (A : Type) [Bot A] := Lang .Expr -> Bool -> Domain n A -> Domain n A
+
 /-- update the current domain according to the eval function based on the
     statement being treated. -/
 def transferScopedNode {n : Nat} {A : Type} [Max A] [Bot A]
@@ -342,10 +345,23 @@ def transferScopedNode {n : Nat} {A : Type} [Max A] [Bot A]
 
 /-- carry branch information into the domain. -/
 def transferBranchEdge {n : Nat} {A : Type} [Max A] [Bot A]
-    (refine : Lang .Expr -> Bool -> Domain n A -> Domain n A)
-    (e : CFGEdge) (ρ : Domain n A) : Domain n A :=
+    (refine : LangRefine n A) (e : CFGEdge) (ρ : Domain n A) : Domain n A :=
   match e.kind, e.src.kind with
   | .trueBranch, .exprExit cond => refine cond true ρ
   | .falseBranch, .exprExit cond => refine cond false ρ
   | _, _ => ρ
 end LBaseSpec
+
+class LatticeLike
+    (A : Type) [Max A] [Bot A]
+    (nodeTransfer : CFGNode -> A -> A)
+    (edgeTransfer : CFGEdge -> A -> A) where
+  -- regular lattice structure
+  join_comm : ∀ a b : A, a ⊔ b = b ⊔ a
+  join_assoc : ∀ a b c : A, (a ⊔ b) ⊔ c = a ⊔ (b ⊔ c)
+  join_idem : ∀ a : A, a ⊔ a = a
+  bot_le : ∀ a : A, a ⊔ ⊥ = a
+
+  -- edge and node monotoncity
+  node_mono : ∀ n, monotoneD (nodeTransfer n)
+  edge_mono : ∀ e, monotoneD (edgeTransfer e)

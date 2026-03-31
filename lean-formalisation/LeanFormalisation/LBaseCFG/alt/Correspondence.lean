@@ -36,6 +36,8 @@ class TranslationReq (s : Lang .Stmt) (R : StateRel) : Prop where
   init_related : R (initState s) (stmtCFG s).entry
   terminal_related : ∀ E, R (terminalState E) (stmtCFG s).exit
 
+  init_uniq : ∀ {n}, R (initState s) n -> n = (stmtCFG s).entry
+
   step_sound :
     ∀ {σ σ' n}, R σ n -> Eval σ σ' ->
       ∃ n', R σ' n' ∧ CFGReach (stmtCFG s) n n'
