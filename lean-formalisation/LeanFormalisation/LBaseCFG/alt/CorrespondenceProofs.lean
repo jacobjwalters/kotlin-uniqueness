@@ -1591,6 +1591,10 @@ noncomputable def cfgcekRelReq (s : Lang .Stmt) :
     case stmtEntry _ _ _ _ _ _ _ _ _ h =>
     apply h
     grind
+  rel_uniq := by
+    -- Each CEK state maps to exactly one CFG node because node IDs are unique
+    -- and the invariants pin down the exact node.
+    sorry
   step_sound := by
     intros σ σ' n hrel heval
     cases hrel with

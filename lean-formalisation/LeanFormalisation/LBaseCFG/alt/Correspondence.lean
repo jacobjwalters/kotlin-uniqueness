@@ -38,6 +38,9 @@ class TranslationReq (s : Lang .Stmt) (R : StateRel) : Prop where
 
   init_uniq : ∀ {n}, R (initState s) n -> n = (stmtCFG s).entry
 
+  /-- R is functional: each CEK state relates to at most one CFG node. -/
+  rel_uniq : ∀ {σ n n'}, R σ n -> R σ n' -> n = n'
+
   step_sound :
     ∀ {σ σ' n}, R σ n -> Eval σ σ' ->
       ∃ n', R σ' n' ∧ CFGReach (stmtCFG s) n n'

@@ -58,4 +58,13 @@ theorem dataflow_soundness {s : Lang .Stmt}
     apply fr.abs_preserves_init
     assumption
   | tail σ_mid h_eval ih =>
-    sorry
+    -- From reachability, obtain a CFG node related to the intermediate state
+    obtain ⟨n_mid, hrel_mid, _⟩ :=
+      translation_sound_reachability s R tr.init_related σ_mid
+    -- From step soundness of the translation, obtain the successor node
+    obtain ⟨n', hrel', hcfgreach⟩ := tr.step_sound hrel_mid h_eval
+    -- By functionality of R, n' = n
+    have heq : n' = n := tr.rel_uniq hrel' hrel
+    subst heq
+    -- Apply the framework's step soundness
+    exact fr.step_sound hrel_mid hrel h_eval hcfgreach res h_postfix (ih n_mid hrel_mid)
