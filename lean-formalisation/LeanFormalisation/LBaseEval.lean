@@ -292,7 +292,7 @@ lemma CEK.step_sound {s s' : CEK} :
       dsimp [CEK.step] at h; injection h with h; subst h; exact .ExprStmt e
   | value v =>
     cases K with
-    | nil => simp [CEK.step] at h
+    | nil => dsimp only [CEK.step] at h; exact absurd h nofun
     | cons k K =>
       cases k with
       | ifCondK e₁ e₂ =>
@@ -300,7 +300,7 @@ lemma CEK.step_sound {s s' : CEK} :
         cases v with
         | True => injection h with h; subst h; exact .IfTrue e₁ e₂
         | False => injection h with h; subst h; exact .IfFalse e₁ e₂
-        | _ => simp at h
+        | _ => exact absurd h nofun
       | declK ty =>
         dsimp [CEK.step] at h; injection h with h; subst h; exact .VarDeclDone ty v
       | assignK x =>
@@ -311,7 +311,7 @@ lemma CEK.step_sound {s s' : CEK} :
         dsimp only [CEK.step] at h
         generalize heval : op.eval v₁ v = res at h
         cases res with
-        | none => simp at h
+        | none => dsimp only [CEK.step] at h; exact absurd h nofun
         | some result =>
           injection h with h; subst h
           exact .BinOpR op v₁ v result (BinOp.eval_sound heval)
@@ -319,7 +319,7 @@ lemma CEK.step_sound {s s' : CEK} :
         dsimp only [CEK.step] at h
         generalize heval : op.eval v = res at h
         cases res with
-        | none => simp at h
+        | none => dsimp only [CEK.step] at h; exact absurd h nofun
         | some result =>
           injection h with h; subst h
           exact .UnOpDone op v result (UnOp.eval_sound heval)
@@ -328,38 +328,39 @@ lemma CEK.step_sound {s s' : CEK} :
         cases v with
         | True => injection h with h; subst h; exact .LoopTrue body c n
         | False => injection h with h; subst h; exact .LoopFalse body c n
-        | _ => simp at h
+        | _ => exact absurd h nofun
       | loopContK c body n =>
         dsimp only [CEK.step] at h
         cases v with
         | Unit =>
           cases J with
-          | nil => simp at h
+          | nil => dsimp only [CEK.step] at h; exact absurd h nofun
           | cons p J' =>
             obtain ⟨n', savedK⟩ := p
             dsimp at h
             by_cases heq : n' = n
-            · subst heq; simp at h; subst h
+            · subst heq; simp only [beq_self_eq_true, ↓reduceIte] at h
+              injection h with h; subst h
               exact Eval.LoopCont (K := savedK) body c n' K
             · have : (n' == n) = false := beq_eq_false_iff_ne.mpr heq
-              simp [this] at h
-        | _ => simp at h
+              rw [this] at h; exact absurd h nofun
+        | _ => exact absurd h nofun
       | scopeExitK n =>
         dsimp [CEK.step] at h; injection h with h; subst h; exact .ScopeExit .Unit n v
       | exprStmtK =>
         dsimp [CEK.step] at h; injection h with h; subst h; exact .ExprStmtDone v
-      | scopeBodyK _ _ => simp [CEK.step] at h
-      | seqK _ => simp [CEK.step] at h
+      | scopeBodyK _ _ => dsimp only [CEK.step] at h; exact absurd h nofun
+      | seqK _ => dsimp only [CEK.step] at h; exact absurd h nofun
   | skip =>
     cases K with
-    | nil => simp [CEK.step] at h
+    | nil => dsimp only [CEK.step] at h; exact absurd h nofun
     | cons k K =>
       cases k with
       | seqK s₂ =>
         dsimp [CEK.step] at h; injection h with h; subst h; exact .SeqDone s₂
       | scopeBodyK body n =>
         dsimp [CEK.step] at h; injection h with h; subst h; exact .ScopeBody body n
-      | _ => simp [CEK.step] at h
+      | _ => dsimp only [CEK.step] at h; exact absurd h nofun
 
 /-! ### Completeness: `Eval s s' → CEK.step s = some s'`
 
@@ -371,34 +372,35 @@ lemma CEK.step_complete {s s' : CEK} :
     Eval s s' → s.step = some s' := by
   intro h
   cases h with
-  | Val v => cases v <;> simp [CEK.step, liftValue, isLiftValue]
-  | Var x => simp [CEK.step]
-  | VarDecl type e => simp [CEK.step]
-  | Assign x e => simp [CEK.step]
-  | Seq s₁ s₂ => simp [CEK.step]
-  | ExprStmt e => simp [CEK.step]
-  | BinOp e₁ e₂ op => simp [CEK.step]
-  | UnOp e op => simp [CEK.step]
-  | If e s₁ s₂ => simp [CEK.step]
-  | While c body => simp [CEK.step]
-  | Break K' l => simp [CEK.step]
-  | Scope s e => simp [CEK.step]
-  | IfTrue s₁ s₂ => simp [CEK.step]
-  | IfFalse s₁ s₂ => simp [CEK.step]
-  | VarDeclDone type v => simp [CEK.step]
-  | AssignDone x v => simp [CEK.step]
-  | SeqDone s₂ => simp [CEK.step]
-  | ExprStmtDone v => simp [CEK.step]
-  | BinOpL op v₁ e₂ => simp [CEK.step]
+  | Val v => cases v <;> rfl
+  | Var x => rfl
+  | VarDecl type e => rfl
+  | Assign x e => rfl
+  | Seq s₁ s₂ => rfl
+  | ExprStmt e => rfl
+  | BinOp e₁ e₂ op => rfl
+  | UnOp e op => rfl
+  | If e s₁ s₂ => rfl
+  | While c body => rfl
+  | Break K' l => rfl
+  | Scope s e => rfl
+  | IfTrue s₁ s₂ => rfl
+  | IfFalse s₁ s₂ => rfl
+  | VarDeclDone type v => rfl
+  | AssignDone x v => rfl
+  | SeqDone s₂ => rfl
+  | ExprStmtDone v => rfl
+  | BinOpL op v₁ e₂ => rfl
   | @BinOpR E J K op v₁ v₂ result hstep =>
-    simp [CEK.step, BinOp.eval_complete hstep]
+    dsimp only [CEK.step]; rw [BinOp.eval_complete hstep]
   | @UnOpDone E J K op v result hstep =>
-    simp [CEK.step, UnOp.eval_complete hstep]
-  | LoopTrue body c n => simp [CEK.step]
-  | LoopFalse body c n => simp [CEK.step]
-  | LoopCont body c n K' => simp [CEK.step]
-  | ScopeBody body n => simp [CEK.step]
-  | ScopeExit body n v => simp [CEK.step]
+    dsimp only [CEK.step]; rw [UnOp.eval_complete hstep]
+  | LoopTrue body c n => rfl
+  | LoopFalse body c n => rfl
+  | LoopCont body c n K' =>
+    simp only [CEK.step, beq_self_eq_true, ↓reduceIte]
+  | ScopeBody body n => rfl
+  | ScopeExit body n v => rfl
 
 /-- The evaluator and the small-step relation agree exactly. -/
 theorem CEK.step_iff_eval {s s' : CEK} :
