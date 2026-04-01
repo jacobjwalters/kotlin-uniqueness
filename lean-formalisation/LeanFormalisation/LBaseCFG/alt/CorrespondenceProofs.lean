@@ -822,11 +822,11 @@ set_option relaxedAutoImplicit true
 
 `ExprBreaksBounded bound e` holds when every `Break l` sub-expression of `e`
 satisfies `l < bound`.  This is the semantic content of the typing rule
-`BreakExpr : l < Δ.length → …` projected onto break indices.  Well-typed
+`BreakExpr : l < Δ.length -> …` projected onto break indices.  Well-typed
 programs satisfy `ExprBreaksBounded Δ.length e` (and similarly for stmts).
 -/
 mutual
-def ExprBreaksBounded (bound : Nat) : Lang .Expr → Prop
+def ExprBreaksBounded (bound : Nat) : Lang .Expr -> Prop
   | .Var _ | .True | .False | .Nat _ | .Unit => True
   | .BinOp e₁ e₂ _ => ExprBreaksBounded bound e₁ ∧ ExprBreaksBounded bound e₂
   | .UnOp e _ => ExprBreaksBounded bound e
@@ -835,7 +835,7 @@ def ExprBreaksBounded (bound : Nat) : Lang .Expr → Prop
   | .Break l => l < bound
   | .Scope s e => StmtBreaksBounded bound s ∧ ExprBreaksBounded bound e
 
-def StmtBreaksBounded (bound : Nat) : Lang .Stmt → Prop
+def StmtBreaksBounded (bound : Nat) : Lang .Stmt -> Prop
   | .Decl _ e => ExprBreaksBounded bound e
   | .Assign _ e => ExprBreaksBounded bound e
   | .Seq s₁ s₂ => StmtBreaksBounded bound s₁ ∧ StmtBreaksBounded bound s₂
@@ -1839,9 +1839,9 @@ noncomputable def cfgcekRelReq (s : Lang .Stmt)
           exact CFGStep_dst_mem_nodes (by assumption)
         | _ => simp at hL
       case LoopCont K' J' b c m =>
-        suffices ∀ bts' mn, ContCFGInv (stmtCFG s) (.loopContK c b m :: K') bts' mn →
-          JCFGInv (stmtCFG s) (⟨m, K'⟩ :: J') bts' →
-          mn ∈ (stmtCFG s).nodes →
+        suffices ∀ bts' mn, ContCFGInv (stmtCFG s) (.loopContK c b m :: K') bts' mn ->
+          JCFGInv (stmtCFG s) (⟨m, K'⟩ :: J') bts' ->
+          mn ∈ (stmtCFG s).nodes ->
           ∃ n₂, cfgcekRel s ⟨.sourceExpr c, E, J', .loopK c b m :: K'⟩ n₂ ∧
                  CFGReach (stmtCFG s) mn n₂ from this _ _ hContInv hJInv hnodes
         intro bts' mn hc hjinv' hmn
@@ -1894,7 +1894,6 @@ noncomputable def cfgcekRelReq (s : Lang .Stmt)
           apply cfgcekRel.stmtExit <;> try assumption
           exact CFGStep_dst_mem_nodes (by assumption)
         | _ => simp at hL
-
     | stmtEntry s' E J K bts n ex hkind hekind hmem hmemex hseei hcont hjinv =>
       cases heval
       case VarDecl ty e =>
@@ -1955,9 +1954,9 @@ noncomputable def cfgcekRelReq (s : Lang .Stmt)
             constructor <;> assumption
         | _ => simp at hL
       case ScopeBody K' body m =>
-        suffices ∀ bts' mn, ContCFGInv (stmtCFG s) (.scopeBodyK body m :: K') bts' mn →
-          JCFGInv (stmtCFG s) J bts' →
-          mn ∈ (stmtCFG s).nodes →
+        suffices ∀ bts' mn, ContCFGInv (stmtCFG s) (.scopeBodyK body m :: K') bts' mn ->
+          JCFGInv (stmtCFG s) J bts' ->
+          mn ∈ (stmtCFG s).nodes ->
           ∃ n₂, cfgcekRel s ⟨.sourceExpr body, E, J, .scopeExitK m :: K'⟩ n₂ ∧
                  CFGReach (stmtCFG s) mn n₂ from this _ _ hcont hjinv hmem
         intro bts' mn hc hjinv' hmn
