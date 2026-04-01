@@ -818,6 +818,31 @@ section TranslationTests
 set_option relaxedAutoImplicit true
 
 /-!
+## Break-boundedness
+
+`ExprBreaksBounded bound e` holds when every `Break l` sub-expression of `e`
+satisfies `l < bound`.  This is the semantic content of the typing rule
+`BreakExpr : l < Δ.length → …` projected onto break indices.  Well-typed
+programs satisfy `ExprBreaksBounded Δ.length e` (and similarly for stmts).
+-/
+mutual
+def ExprBreaksBounded (bound : Nat) : Lang .Expr → Prop
+  | .Var _ | .True | .False | .Nat _ | .Unit => True
+  | .BinOp e₁ e₂ _ => ExprBreaksBounded bound e₁ ∧ ExprBreaksBounded bound e₂
+  | .UnOp e _ => ExprBreaksBounded bound e
+  | .If c t f => ExprBreaksBounded bound c ∧ ExprBreaksBounded bound t ∧ ExprBreaksBounded bound f
+  | .While c b => ExprBreaksBounded bound c ∧ ExprBreaksBounded (bound + 1) b
+  | .Break l => l < bound
+  | .Scope s e => StmtBreaksBounded bound s ∧ ExprBreaksBounded bound e
+
+def StmtBreaksBounded (bound : Nat) : Lang .Stmt → Prop
+  | .Decl _ e => ExprBreaksBounded bound e
+  | .Assign _ e => ExprBreaksBounded bound e
+  | .Seq s₁ s₂ => StmtBreaksBounded bound s₁ ∧ StmtBreaksBounded bound s₂
+  | .Do e => ExprBreaksBounded bound e
+end
+
+/-!
 ## Entry-edge invariants
 
 `ExprEntryEdgeInv g e n ex` stores all CFG edges emanating from the entry
@@ -904,10 +929,6 @@ inductive ExprEntryEdgeInv (g : CFG) : List CFGNode -> Lang .Expr ->
       (hkind : ∃ loopExpr, target.kind = .exprExit loopExpr)
       (hmem : target ∈ g.nodes) :
       CFGStep g n target ->
-      ExprEntryEdgeInv g breakTargets (.Break l) n ex
-  /-- Break l out-of-bounds: no edges emitted. -/
-  | brkOOB (breakTargets : List CFGNode) (l : Nat) (n ex : CFGNode)
-      (hl : ¬ l < breakTargets.length) :
       ExprEntryEdgeInv g breakTargets (.Break l) n ex
   /-- Scope: entry -> s.entry; stores s.exit -> res.entry, res.exit -> exit. -/
   | scope (breakTargets : List CFGNode) (st : Lang .Stmt) (res : Lang .Expr)
@@ -1032,7 +1053,6 @@ theorem ExprEntryEdgeInv.mono {g₁ bts e n ex g₂}
   | brk _ l _ _ target hl ht hk _ hs =>
     exact .brk _ l _ _ target hl ht hk
       (CFGStep_dst_mem_nodes (CFG_subgraph_step hs hsub)) (CFG_subgraph_step hs hsub)
-  | brkOOB _ l _ _ hl => exact .brkOOB _ l _ _ hl
   | scope _ st res _ _ sen sx ren rex _ hk1 hk2 hk3 hk4 _ _ _ _ _ _ hs hr =>
     refine .scope _ st res _ _ sen sx ren rex
       ?_ hk1 hk2 hk3 hk4 ?_ ?_ ?_ ?_ ?_ ?_ (hs.mono hsub) (hr.mono hsub) <;> lift_cfg
@@ -1056,7 +1076,8 @@ end
 mutual
 theorem buildExpr_entry_edge_inv
     (breakTargets : List CFGNode) (nextId : Nat) (e : Lang .Expr)
-    (hwf : BreakTargetsWellFormed breakTargets) :
+    (hwf : BreakTargetsWellFormed breakTargets)
+    (hbb : ExprBreaksBounded breakTargets.length e) :
     let r := buildExpr breakTargets nextId e
     let g := CFG.mk r.entry r.exit r.edges
     ExprEntryEdgeInv g breakTargets e r.entry r.exit := by
@@ -1073,6 +1094,7 @@ theorem buildExpr_entry_edge_inv
     split_ands <;> try (unfold e; grind [mkEdge])
     simp [g, r, buildExpr, e]
   | BinOp a₁ a₂ o =>
+    simp only [ExprBreaksBounded] at hbb
     set r₁ := buildExpr breakTargets (nextId + 2) a₁
     set r₂ := buildExpr breakTargets r₁.nextId a₂
     have hs1 : CFGStep g r.entry r₁.entry := by
@@ -1084,9 +1106,9 @@ theorem buildExpr_entry_edge_inv
     have hs3 : CFGStep g r₂.exit r.exit := by
       exists mkEdge r₂.exit r.exit
       grind [buildExpr, mkEdge]
-    have he₁ := (buildExpr_entry_edge_inv breakTargets (nextId + 2) a₁ hwf).mono
+    have he₁ := (buildExpr_entry_edge_inv breakTargets (nextId + 2) a₁ hwf hbb.1).mono
                   (g₂ := g) (by grind [buildExpr])
-    have he₂ := (buildExpr_entry_edge_inv breakTargets r₁.nextId a₂ hwf).mono
+    have he₂ := (buildExpr_entry_edge_inv breakTargets r₁.nextId a₂ hwf hbb.2).mono
                   (g₂ := g) (by grind [buildExpr])
     refine .binop breakTargets o a₁ a₂ _ _ r₁.entry r₁.exit r₂.entry r₂.exit
       hs1
@@ -1099,6 +1121,7 @@ theorem buildExpr_entry_edge_inv
       | exact buildExpr_entry_kind ..
       | exact buildExpr_exit_kind ..)
   | UnOp a o =>
+    simp only [ExprBreaksBounded] at hbb
     set r' := buildExpr breakTargets (nextId + 2) a
     have hs1 : CFGStep g r.entry r'.entry := by
       exists mkEdge r.entry r'.entry
@@ -1106,7 +1129,7 @@ theorem buildExpr_entry_edge_inv
     have hs2 : CFGStep g r'.exit r.exit := by
       exists mkEdge r'.exit r.exit
       grind [buildExpr, mkEdge]
-    have he₁ := (buildExpr_entry_edge_inv breakTargets (nextId + 2) a hwf).mono
+    have he₁ := (buildExpr_entry_edge_inv breakTargets (nextId + 2) a hwf hbb).mono
                   (g₂ := g) (by grind [buildExpr])
     refine .unop breakTargets o a _ _ r'.entry r'.exit
       hs1
@@ -1118,6 +1141,7 @@ theorem buildExpr_entry_edge_inv
       | exact buildExpr_entry_kind ..
       | exact buildExpr_exit_kind ..)
   | If c e₁ e₂ =>
+    simp only [ExprBreaksBounded] at hbb
     set rc := buildExpr breakTargets (nextId + 2) c
     set rt := buildExpr breakTargets rc.nextId e₁
     set rf := buildExpr breakTargets rt.nextId e₂
@@ -1139,11 +1163,11 @@ theorem buildExpr_entry_edge_inv
       exact ⟨mkEdge rf.exit r.exit,
         by simp [g, r, rc, rt, rf, buildExpr],
         by simp [mkEdge], by simp [mkEdge]⟩
-    have hec := (buildExpr_entry_edge_inv breakTargets (nextId + 2) c hwf).mono
+    have hec := (buildExpr_entry_edge_inv breakTargets (nextId + 2) c hwf hbb.1).mono
                   (g₂ := g) (by grind [buildExpr])
-    have het := (buildExpr_entry_edge_inv breakTargets rc.nextId e₁ hwf).mono
+    have het := (buildExpr_entry_edge_inv breakTargets rc.nextId e₁ hwf hbb.2.1).mono
                   (g₂ := g) (by grind [buildExpr])
-    have hef := (buildExpr_entry_edge_inv breakTargets rt.nextId e₂ hwf).mono
+    have hef := (buildExpr_entry_edge_inv breakTargets rt.nextId e₂ hwf hbb.2.2).mono
                   (g₂ := g) (by grind [buildExpr])
     refine .ife breakTargets c e₁ e₂ _ _ rc.entry rc.exit
       rt.entry rt.exit rf.entry rf.exit
@@ -1158,6 +1182,7 @@ theorem buildExpr_entry_edge_inv
       | exact buildExpr_entry_kind ..
       | exact buildExpr_exit_kind ..)
   | While cond body =>
+    simp only [ExprBreaksBounded] at hbb
     set rc := buildExpr breakTargets (nextId + 2) cond
     set rb := buildExpr (r.exit :: breakTargets) rc.nextId body
     have hs1 : CFGStep g r.entry rc.entry := by
@@ -1173,11 +1198,13 @@ theorem buildExpr_entry_edge_inv
       exact ⟨mkEdge rb.exit rc.entry .back,
         by simp [g, r, rc, rb, buildExpr],
         by simp [mkEdge], by simp [mkEdge]⟩
-    have hec := (buildExpr_entry_edge_inv breakTargets (nextId + 2) cond hwf).mono
+    have hec := (buildExpr_entry_edge_inv breakTargets (nextId + 2) cond hwf
+                    (by exact hbb.1)).mono
                   (g₂ := g) (by grind [buildExpr])
     have heb :=
       (buildExpr_entry_edge_inv (r.exit :: breakTargets) rc.nextId body
-        ⟨⟨.While cond body, buildExpr_exit_kind breakTargets nextId (.While cond body)⟩, hwf⟩).mono
+        ⟨⟨.While cond body, buildExpr_exit_kind breakTargets nextId (.While cond body)⟩, hwf⟩
+        (by exact hbb.2)).mono
         (g₂ := g) (by grind [buildExpr])
     refine .whil breakTargets cond body _ _ rc.entry rc.exit rb.entry rb.exit
       hs1
@@ -1190,17 +1217,16 @@ theorem buildExpr_entry_edge_inv
       | exact buildExpr_entry_kind ..
       | exact buildExpr_exit_kind ..)
   | Break l =>
-    by_cases hl : l < breakTargets.length
-    · -- in-bounds: emit breakOut edge
-      have hstep : CFGStep g r.entry (breakTargets[l]) :=
-        ⟨mkEdge r.entry (breakTargets[l]) .breakOut,
-         by simp [g, r, buildExpr, hl],
-         by simp [mkEdge], by simp [mkEdge]⟩
-      exact .brk breakTargets l _ _ (breakTargets[l]) hl rfl
-        (hwf.getIdx hl) (CFGStep_dst_mem_nodes hstep) hstep
-    · -- out-of-bounds: no edges
-      exact .brkOOB breakTargets l _ _ hl
+    simp only [ExprBreaksBounded] at hbb
+    -- hbb : l < breakTargets.length
+    have hstep : CFGStep g r.entry (breakTargets[l]) :=
+      ⟨mkEdge r.entry (breakTargets[l]) .breakOut,
+       by simp [g, r, buildExpr, hbb],
+       by simp [mkEdge], by simp [mkEdge]⟩
+    exact .brk breakTargets l _ _ (breakTargets[l]) hbb rfl
+      (hwf.getIdx hbb) (CFGStep_dst_mem_nodes hstep) hstep
   | Scope s res =>
+    simp only [ExprBreaksBounded] at hbb
     set sr := buildStmt breakTargets (nextId + 2) s
     set rr := buildExpr breakTargets sr.nextId res
     have hs1 : CFGStep g r.entry sr.entry := by
@@ -1212,9 +1238,9 @@ theorem buildExpr_entry_edge_inv
     have hs3 : CFGStep g rr.exit r.exit := by
       exists mkEdge rr.exit r.exit
       grind [buildExpr, mkEdge]
-    have hes := (buildStmt_entry_edge_inv breakTargets (nextId + 2) s hwf).mono
+    have hes := (buildStmt_entry_edge_inv breakTargets (nextId + 2) s hwf hbb.1).mono
                   (g₂ := g) (by grind [buildExpr])
-    have her := (buildExpr_entry_edge_inv breakTargets sr.nextId res hwf).mono
+    have her := (buildExpr_entry_edge_inv breakTargets sr.nextId res hwf hbb.2).mono
                   (g₂ := g) (by grind [buildExpr])
     refine .scope breakTargets s res _ _ sr.entry sr.exit rr.entry rr.exit
       hs1
@@ -1230,13 +1256,15 @@ theorem buildExpr_entry_edge_inv
 
 theorem buildStmt_entry_edge_inv
     (breakTargets : List CFGNode) (nextId : Nat) (s : Lang .Stmt)
-    (hwf : BreakTargetsWellFormed breakTargets) :
+    (hwf : BreakTargetsWellFormed breakTargets)
+    (hbb : StmtBreaksBounded breakTargets.length s) :
     let r := buildStmt breakTargets nextId s
     let g := CFG.mk r.entry r.exit r.edges
     StmtEntryEdgeInv g breakTargets s r.entry r.exit := by
   intros r g
   cases s with
   | Decl ty init =>
+    simp only [StmtBreaksBounded] at hbb
     set ri := buildExpr breakTargets (nextId + 2) init
     have hs1 : CFGStep g r.entry ri.entry := by
       exists mkEdge r.entry ri.entry
@@ -1244,7 +1272,7 @@ theorem buildStmt_entry_edge_inv
     have hs2 : CFGStep g ri.exit r.exit := by
       exists mkEdge ri.exit r.exit
       grind [buildStmt, mkEdge]
-    have hei := (buildExpr_entry_edge_inv breakTargets (nextId + 2) init hwf).mono
+    have hei := (buildExpr_entry_edge_inv breakTargets (nextId + 2) init hwf hbb).mono
                   (g₂ := g) (by grind [buildStmt])
     refine .decl breakTargets ty init _ _ ri.entry ri.exit
       hs1
@@ -1256,6 +1284,7 @@ theorem buildStmt_entry_edge_inv
       | exact buildExpr_entry_kind ..
       | exact buildExpr_exit_kind ..)
   | Assign v rhs =>
+    simp only [StmtBreaksBounded] at hbb
     set ri := buildExpr breakTargets (nextId + 2) rhs
     have hs1 : CFGStep g r.entry ri.entry := by
       exists mkEdge r.entry ri.entry
@@ -1263,7 +1292,7 @@ theorem buildStmt_entry_edge_inv
     have hs2 : CFGStep g ri.exit r.exit := by
       exists mkEdge ri.exit r.exit
       grind [buildStmt, mkEdge]
-    have hei := (buildExpr_entry_edge_inv breakTargets (nextId + 2) rhs hwf).mono
+    have hei := (buildExpr_entry_edge_inv breakTargets (nextId + 2) rhs hwf hbb).mono
                   (g₂ := g) (by grind [buildStmt])
     refine .assign breakTargets v rhs _ _ ri.entry ri.exit
       hs1
@@ -1275,6 +1304,7 @@ theorem buildStmt_entry_edge_inv
       | exact buildExpr_entry_kind ..
       | exact buildExpr_exit_kind ..)
   | Seq s₁ s₂ =>
+    simp only [StmtBreaksBounded] at hbb
     set r₁ := buildStmt breakTargets (nextId + 2) s₁
     set r₂ := buildStmt breakTargets r₁.nextId s₂
     have hs1 : CFGStep g r.entry r₁.entry := by
@@ -1286,9 +1316,9 @@ theorem buildStmt_entry_edge_inv
     have hs3 : CFGStep g r₂.exit r.exit := by
       exists mkEdge r₂.exit r.exit
       grind [buildStmt, mkEdge]
-    have he₁ := (buildStmt_entry_edge_inv breakTargets (nextId + 2) s₁ hwf).mono
+    have he₁ := (buildStmt_entry_edge_inv breakTargets (nextId + 2) s₁ hwf hbb.1).mono
                   (g₂ := g) (by grind [buildStmt])
-    have he₂ := (buildStmt_entry_edge_inv breakTargets r₁.nextId s₂ hwf).mono
+    have he₂ := (buildStmt_entry_edge_inv breakTargets r₁.nextId s₂ hwf hbb.2).mono
                   (g₂ := g) (by grind [buildStmt])
     refine .seq breakTargets s₁ s₂ _ _ r₁.entry r₁.exit r₂.entry r₂.exit
       hs1
@@ -1301,6 +1331,7 @@ theorem buildStmt_entry_edge_inv
       | exact buildStmt_entry_kind ..
       | exact buildStmt_exit_kind ..)
   | Do e =>
+    simp only [StmtBreaksBounded] at hbb
     set re := buildExpr breakTargets (nextId + 2) e
     have hs1 : CFGStep g r.entry re.entry := by
       exists mkEdge r.entry re.entry
@@ -1308,7 +1339,7 @@ theorem buildStmt_entry_edge_inv
     have hs2 : CFGStep g re.exit r.exit := by
       exists mkEdge re.exit r.exit
       grind [buildStmt, mkEdge]
-    have hei := (buildExpr_entry_edge_inv breakTargets (nextId + 2) e hwf).mono
+    have hei := (buildExpr_entry_edge_inv breakTargets (nextId + 2) e hwf hbb).mono
                   (g₂ := g) (by grind [buildStmt])
     refine .do_ breakTargets e _ _ re.entry re.exit
       hs1
@@ -1556,7 +1587,8 @@ inductive cfgcekRel (s : Lang .Stmt) : StateRel where
       JCFGInv (stmtCFG s) J breakTargets ->
       cfgcekRel s ⟨.skip, E, J, K⟩ n
 
-noncomputable def cfgcekRelReq (s : Lang .Stmt) :
+noncomputable def cfgcekRelReq (s : Lang .Stmt)
+    (hbb : StmtBreaksBounded 0 s) :
     TranslationReq s (cfgcekRel s) where
   init_related := by
     exact cfgcekRel.stmtEntry s [] [] [] []
@@ -1565,7 +1597,7 @@ noncomputable def cfgcekRelReq (s : Lang .Stmt) :
       (buildStmt_exit_kind [] 0 s)
       (cfg_entry_in_nodes _)
       (cfg_exit_in_nodes _)
-      (by grind [stmtCFG, buildStmt_entry_edge_inv [] 0 s (by simp [BreakTargetsWellFormed])])
+      (by grind [stmtCFG, buildStmt_entry_edge_inv [] 0 s (by simp [BreakTargetsWellFormed]) hbb])
       (ContCFGInv.halt rfl)
       JCFGInv.empty
   terminal_related := by
@@ -1632,7 +1664,6 @@ noncomputable def cfgcekRelReq (s : Lang .Stmt) :
             <;> try assumption
           · grind [hjinv.getIdx]
           · grind [hjinv.drop]
-        case brkOOB => sorry
       case Scope st e =>
         cases heeei
         case scope sn sx rn rx _ _ _ _ _ _ _ _ _ _ _ _ _ =>
