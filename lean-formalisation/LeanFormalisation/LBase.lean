@@ -371,7 +371,7 @@ inductive Eval : CEK → CEK → Prop
     ⟨.sourceExpr (liftValue v), E, J, K⟩
     ⟨.value v, E, J, K⟩
 | Var (v : Value) (x : VarName) :
-  E[x]? = some v ->
+  E[x]? = some v →
   Eval
     ⟨.sourceExpr (.Var x), E, J, K⟩
     ⟨.value v, E, J, K⟩
@@ -408,7 +408,7 @@ inductive Eval : CEK → CEK → Prop
     ⟨.sourceExpr (.While c body), E, J, K⟩
     ⟨.sourceExpr c, E, J, (.loopK c body E.length) :: K⟩
 | Break (K' : List Cont) (l : Nat):
-    J[l]? = some j ->
+    J[l]? = some j →
   Eval
     ⟨.sourceExpr (.Break l), E, J, K⟩
     -- was skip before, should it be .skip?
@@ -707,7 +707,7 @@ lemma List.eq_take_drop (Γ : List α) (n : Nat) :
 
 lemma jcoh_drop (J : JStackCtx) (Γ : Ctx) (l : Nat) :
     JCoh J Γ Δ →
-    J[l]? = some j ->
+    J[l]? = some j →
     JCoh (J.drop (l + 1))
       (Γ.drop (Γ.length - j.1)) (Δ.drop (l + 1)) := by
     intro hj
@@ -729,7 +729,7 @@ lemma jcoh_drop (J : JStackCtx) (Γ : Ctx) (l : Nat) :
 lemma jcoh_cont_type_drop (J : JStackCtx) (Γ : Ctx) (l : Nat) :
     l < Δ.length →
     JCoh J Γ Δ →
-    J[l]? = some j ->
+    J[l]? = some j →
     ContType Tag.Expr
       (List.drop (l + 1) Δ)
       (List.drop (List.length Γ - j.1) Γ)
