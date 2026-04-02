@@ -371,9 +371,10 @@ inductive Eval : CEK → CEK → Prop
     ⟨.sourceExpr (liftValue v), E, J, K⟩
     ⟨.value v, E, J, K⟩
 | Var (v : Value) (x : VarName) :
+  E[x]? = some v ->
   Eval
     ⟨.sourceExpr (.Var x), E, J, K⟩
-    ⟨.value (E[x]!), E, J, K⟩
+    ⟨.value v, E, J, K⟩
 | VarDecl (type : Ty) (e : Lang .Expr) :
   Eval
     ⟨.sourceStmt (.Decl type e), E, J, K⟩
@@ -611,7 +612,8 @@ lemma coh_len (E : Environment) (Γ : Ctx) :
 
 lemma coh_get (E : Environment) (Γ : Ctx) (idx : Nat) :
   Coh E Γ → idx < E.length →
-  value_type E[idx]! Γ[idx]! := by
+  E[idx]? = some v → Γ[idx]? = some τ →
+  value_type v τ := by
     intro h
     induction h generalizing idx <;> grind
 
@@ -783,14 +785,15 @@ theorem preservation (s s' : CEK) :
       { apply lift_value_type v type a_2 }
       apply a_3 }
     -- Var: environment lookup
-    { cases a_2
+    { unhygienic cases a_3
       apply Wt.WtContV
-      { apply a }
       { apply a_1 }
-      { apply coh_get
-        { apply a }
-        grind [coh_len] }
-      grind }
+      { apply a_2 }
+      { obtain ⟨l, r⟩ := a_5
+        apply coh_get _ _ _ a_1 _ a r
+        grind }
+      { apply a_4 }
+      }
     -- While: push LoopK continuation
     { unhygienic cases a_2
       apply Wt.WtExprE
