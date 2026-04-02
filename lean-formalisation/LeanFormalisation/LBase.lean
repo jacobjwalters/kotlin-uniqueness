@@ -618,8 +618,8 @@ lemma coh_get (E : Environment) (Γ : Ctx) (idx : Nat) :
     induction h generalizing idx <;> grind
 
 lemma coh_set (E : Environment) (Γ : Ctx) (idx : Nat) (v : Value) :
-  Coh E Γ → idx < E.length →
-  value_type v Γ[idx]! →
+  Coh E Γ → idx < E.length → Γ[idx]? = some τ →
+  value_type v τ →
   Coh (E.set idx v) Γ := by
     intro h
     induction h generalizing idx
@@ -848,10 +848,12 @@ theorem preservation (s s' : CEK) :
     -- AssignDone: update environment
     { unhygienic cases a_3
       apply Wt.WtContS
-      { apply coh_set
+      { obtain ⟨l, r⟩ := a_4
+        apply coh_set
         { apply a }
         { grind [coh_len] }
-        grind }
+        { apply r }
+        apply a_2 }
       { apply a_1 }
       apply a_5 }
     -- BinOpR: step produces result
