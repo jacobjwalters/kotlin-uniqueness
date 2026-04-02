@@ -1,7 +1,8 @@
 import LeanFormalisation.LBaseCFG.alt.AltCFG
 import LeanFormalisation.LBaseCFG.alt.Analysis
-import LeanFormalisation.LBaseCFG.alt.AnalysisProofs
+import LeanFormalisation.LBaseCFG.alt.Framework
 import LeanFormalisation.LBaseCFG.alt.AltCFGRepr
+import LeanFormalisation.LBaseCFG.alt.CorrespondenceProofs
 
 open LeanFormalisation AltCFG
 
@@ -71,6 +72,7 @@ def Sign.inf : Sign → Sign → Sign
       (s₁.hasZero && s₂.hasZero)
       (s₁.hasPos && s₂.hasPos)
 
+@[simp]
 instance : Max Sign where
   max := Sign.sup
 
@@ -227,6 +229,7 @@ def main (_ : List String) : IO Unit := do
 
 end Repr
 
+@[simp]
 def abs_sign : Value -> Sign -> Prop
 | .Nat 0, .Zero
 | .Nat 0, .NonPos
@@ -240,12 +243,15 @@ def abs_sign : Value -> Sign -> Prop
 | .Unit, .Top => True
 | _, _ => False
 
+@[simp]
 def abs_val {n : Nat} (σ : CEK) (Γ : Domain n Sign) :=
     ∀ x (hx_env : x < σ.E.length) (hx_dom : x < n),
       abs_sign (σ.E[x]'hx_env) (Γ ⟨x, hx_dom⟩)
 
-instance {n : Nat} :
-    Framework (Domain n Sign) transferPosEdge transferPosNode abs_val where
+open LeanFormalisation.AltCFGProofs
+
+instance {n : Nat} (s : Lang .Stmt) :
+    Framework (Domain n Sign) transferPosEdge transferPosNode s (cfgcekRel s) abs_val where
   join_comm := by
     intros a b
     ext x; simp only [Pi.sup_apply]; cases (a x) <;> cases (b x) <;> try simp [max]
@@ -261,4 +267,28 @@ instance {n : Nat} :
   node_mono := by
     sorry
   edge_mono := by
+    sorry
+  abs_mono := by
+    intros σ a b hle habsa
+    have {v : Value} : ∀ s₁ s₂ : Sign, s₁ ⊔ s₂ = s₂ -> abs_sign v s₁ -> abs_sign v s₂ := by
+      intros s₁ s₂ hle habs
+      cases v with
+      | Nat n =>
+        cases n <;> cases s₁ <;> cases s₂ <;>
+          simp [Sign.sup, Sign.fromAtomFlags] at hle habs ⊢
+      | _ =>
+        cases s₁ <;> cases s₂ <;>
+          simp [Sign.sup, Sign.fromAtomFlags] at hle habs ⊢
+
+    intro x hxe hxd
+    specialize habsa x hxe hxd
+    apply this _ _ _ habsa
+    exact congrArg (fun d => d ⟨x, hxd⟩) hle
+  abs_preserves_init := by
+    intros a ha
+    cases s <;>
+      simp only [transferPosNode, transferScopedNode, stmtCFG, Internal.buildStmt, zero_add,
+        List.cons_append, List.nil_append] <;>
+      assumption
+  step_sound := by
     sorry

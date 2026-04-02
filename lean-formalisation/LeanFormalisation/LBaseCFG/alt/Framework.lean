@@ -24,13 +24,13 @@ class Framework
     (abs : CEK -> A -> Prop)
     extends LatticeLike A nodeTransfer edgeTransfer where
 
-  abs_mono : ∀ {σ : CEK} {a b : A}, a ⊔ b = b → abs σ a → abs σ b
-  abs_preserves_init : ∀ {a : A}, abs (initState s) a →
+  abs_mono : ∀ {σ : CEK} {a b : A}, a ⊔ b = b -> abs σ a -> abs σ b
+  abs_preserves_init : ∀ {a : A}, abs (initState s) a ->
     abs (initState s) (nodeTransfer (stmtCFG s).entry a)
   step_sound : ∀ {σ σ' : CEK} {n n' : CFGNode} {entryInit : A},
-    R σ n → R σ' n' → Eval σ σ' → CFGReach (stmtCFG s) n n' →
-    ∀ (f : fact A), IsForwardPostFixpoint (stmtCFG s) nodeTransfer edgeTransfer entryInit f →
-    abs σ (f n) → abs σ' (f n')
+    R σ n -> R σ' n' -> Eval σ σ' -> CFGReach (stmtCFG s) n n' ->
+    ∀ (f : fact A), IsForwardPostFixpoint (stmtCFG s) nodeTransfer edgeTransfer entryInit f ->
+    abs σ (f n) -> abs σ' (f n')
 
 /-- for all reachable CEK states σ, there exists a state n such that -/
 theorem dataflow_soundness_exists {s : Lang .Stmt}
@@ -40,7 +40,7 @@ theorem dataflow_soundness_exists {s : Lang .Stmt}
     [fr : Framework A edgeTransfer nodeTransfer s R abs]
     (entryInit : A) (out0 : fact A)
     (wl0 : List CFGNode) (hwl0 : ∀ x ∈ wl0, x ∈ (stmtCFG s).nodes)
-    (h_inv0 : ∀ m, m ∉ wl0 →
+    (h_inv0 : ∀ m, m ∉ wl0 ->
         nodeTransfer m (expectedIn (stmtCFG s) edgeTransfer entryInit out0 m) ⊔ out0 m = out0 m)
     (hinit_sound : abs (initState s) entryInit)
     (σ : CEK) (hreach : CEKReach (initState s) σ) :
@@ -68,7 +68,7 @@ theorem dataflow_soundness {s : Lang .Stmt}
     [fr : Framework A edgeTransfer nodeTransfer s R abs]
     (entryInit : A) (out0 : fact A)
     (wl0 : List CFGNode) (hwl0 : ∀ x ∈ wl0, x ∈ (stmtCFG s).nodes)
-    (h_inv0 : ∀ m, m ∉ wl0 →
+    (h_inv0 : ∀ m, m ∉ wl0 ->
         nodeTransfer m (expectedIn (stmtCFG s) edgeTransfer entryInit out0 m) ⊔ out0 m = out0 m)
     (hinit_sound : abs (initState s) entryInit)
     (σ : CEK) (n : CFGNode) (hreach : CEKReach (initState s) σ) (hrel : R σ n) :
