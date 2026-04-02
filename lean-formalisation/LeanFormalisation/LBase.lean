@@ -407,10 +407,11 @@ inductive Eval : CEK → CEK → Prop
     ⟨.sourceExpr (.While c body), E, J, K⟩
     ⟨.sourceExpr c, E, J, (.loopK c body E.length) :: K⟩
 | Break (K' : List Cont) (l : Nat):
+    J[l]? = some j ->
   Eval
     ⟨.sourceExpr (.Break l), E, J, K⟩
     -- was skip before, should it be .skip?
-    ⟨.value .Unit, E.drop (E.length - J[l]!.1), J.drop (l + 1), J[l]!.2⟩
+    ⟨.value .Unit, E.drop (E.length - j.1), J.drop (l + 1), j.2⟩
 | Scope (s : Lang .Stmt) (e : Lang .Expr) :
   Eval
     ⟨.sourceExpr (.Scope s e), E, J, K⟩
@@ -704,8 +705,9 @@ lemma List.eq_take_drop (Γ : List α) (n : Nat) :
 
 lemma jcoh_drop (J : JStackCtx) (Γ : Ctx) (l : Nat) :
     JCoh J Γ Δ →
+    J[l]? = some j ->
     JCoh (J.drop (l + 1))
-      (Γ.drop (Γ.length - J[l]!.1)) (Δ.drop (l + 1)) := by
+      (Γ.drop (Γ.length - j.1)) (Δ.drop (l + 1)) := by
     intro hj
     unhygienic induction l generalizing J Δ Γ
     { cases hj
@@ -725,10 +727,11 @@ lemma jcoh_drop (J : JStackCtx) (Γ : Ctx) (l : Nat) :
 lemma jcoh_cont_type_drop (J : JStackCtx) (Γ : Ctx) (l : Nat) :
     l < Δ.length →
     JCoh J Γ Δ →
+    J[l]? = some j ->
     ContType Tag.Expr
       (List.drop (l + 1) Δ)
-      (List.drop (List.length Γ - J[l]!.1) Γ)
-      J[l]!.2
+      (List.drop (List.length Γ - j.1) Γ)
+      j.2
       (ContTypeRes.Expr Ty.unit) := by
     intro hl hj
     unhygienic induction l generalizing J Δ Γ
@@ -801,16 +804,17 @@ theorem preservation (s s' : CEK) :
       { grind [jcoh_ctx] }
     /-apply a_3-/ }
     -- Break: jump to saved context
-    { unhygienic cases a_2
+    { unhygienic cases a_3
+      -- { cases a }
       apply Wt.WtContV (type := Ty.unit)
         (Δ := Δ.drop (l + 1))
       { apply coh_mono
-        apply a }
-      { rw [coh_len E Γ a]
-        apply jcoh_drop
         apply a_1 }
+      { rw [coh_len E Γ a_1]
+        refine jcoh_drop _ _ _ ?_ a
+        { apply a_2 } }
       { simp [value_type] }
-      rw [coh_len _ _ a]
+      rw [coh_len _ _ a_1]
       apply jcoh_cont_type_drop <;> solve_by_elim
       }
     -- Scope: push ScopeBodyK continuation
