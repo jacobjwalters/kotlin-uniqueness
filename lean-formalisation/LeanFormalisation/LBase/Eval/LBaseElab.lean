@@ -1,4 +1,4 @@
-import LeanFormalisation.LBase
+import LeanFormalisation.LBase.LBaseDefs
 
 /-! # Elaborator for LBase
 

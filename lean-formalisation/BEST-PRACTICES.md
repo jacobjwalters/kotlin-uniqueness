@@ -8,7 +8,7 @@ Lessons learned while working on this formalization.
   that break when simp lemmas change upstream.
 - Use `omega` for Nat arithmetic side-goals rather than manual reasoning.
 - Use `nofun`/`nomatch` for impossible cases instead of `intro h; cases h`.
-- Use `grind` cautiously — it works well for list-index lemmas (see LBaseHelpers)
+- Use `grind` cautiously — it works well for list-index lemmas (see LBase/Theorems/Helpers)
   but can be slow on larger goals.
 - Prefer `ReflTransGen.lift` for congruence/inclusion over manual induction
   on `ReflTransGen`. Constructors are `refl` and `tail` (not `head`).

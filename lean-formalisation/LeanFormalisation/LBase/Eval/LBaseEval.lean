@@ -1,4 +1,4 @@
-import LeanFormalisation.LBase
+import LeanFormalisation.LBase.LBaseDefs
 import Mathlib.Tactic.Convert
 
 /-! # Computable evaluator for LBase
