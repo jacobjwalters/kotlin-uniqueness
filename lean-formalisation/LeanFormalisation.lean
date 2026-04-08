@@ -1,4 +1,3 @@
-import LeanFormalisation.LBase
-import LeanFormalisation.LBaseElab
-import LeanFormalisation.LBaseEval
-import LeanFormalisation.LBaseExamples
+import LeanFormalisation.LBase.Theorems.TypeTheorems
+import LeanFormalisation.LBase.LBaseCFG.SampleProgram
+import LeanFormalisation.LBase.LBaseExamples

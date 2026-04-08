@@ -7,12 +7,17 @@ with an informal specification in Typst.
 
 - `doc/` — Typst informal specification (Lbase, Lclass)
 - `lean-formalisation/` — Lean 4 formalization
-  - `LeanFormalisation/LBase.lean` — main Lbase system (types, syntax, semantics, progress)
-  - `LeanFormalisation/LBaseHelpers.lean` — helper lemmas
-  - `LeanFormalisation/LBaseElab.lean` — elaborator with operator overloading
-  - `LeanFormalisation/LBaseEval.lean` — evaluator and step-counting interpreter
-  - `LeanFormalisation/LBaseExamples.lean` — example programs and tests
-  - `LeanFormalisation/LBaseCFG/` — control-flow graph representations (two approaches, neither yet integrated)
+  - `LeanFormalisation/LBase/LBaseDefs.lean` — main Lbase system (types, syntax, semantics)
+  - `LeanFormalisation/LBase/Eval` - evaluation and elaboration for LBase
+    - `LBaseElab.lean` — elaborator with operator overloading
+    - `LBaseEval.lean` — evaluator and step-counting interpreter
+  - `LeanFormalisation/LBase/LBaseExamples.lean` — example programs and tests
+  - `LeanFormalisation/LBase/Theorems` - theorems about LBase language 
+    - `Helpers.lean` - technical lemmas about Lists
+    - `TypeProperties.lean` - lemmas about typing (extension, determinism, monotonicity of Stmt)
+    - `ContextProperties.lean` - lemmas about context coherence
+    - `TypeTheorems.lean` - key results: progress and preservation proofs
+  - `LeanFormalisation/LBase/LBaseCFG/` — control-flow graph representations (two approaches, neither yet integrated)
     - `basic/` — symbolic CEK-based CFG
     - `alt/` — explicit node-ID-based CFG with analysis framework
 
