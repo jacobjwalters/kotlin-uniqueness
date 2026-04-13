@@ -1,6 +1,6 @@
-import LeanFormalisation.LBaseCFG.alt.AltCFG
-import LeanFormalisation.LBaseCFG.alt.Analysis
-import LeanFormalisation.LBaseCFG.alt.AltCFGRepr
+import LeanFormalisation.LBase.LBaseCFG.AltCFG
+import LeanFormalisation.LBase.LBaseCFG.Analysis
+import LeanFormalisation.LBase.LBaseCFG.AltCFGRepr
 
 open LeanFormalisation AltCFG
 
