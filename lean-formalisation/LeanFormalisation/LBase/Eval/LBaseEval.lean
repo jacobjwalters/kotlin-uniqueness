@@ -1,5 +1,7 @@
 import LeanFormalisation.LBase.LBaseDefs
 import Mathlib.Tactic.Convert
+--needed for exacts
+import Batteries.Tactic.Init
 
 /-! # Computable evaluator for LBase
 
@@ -39,35 +41,31 @@ end OperatorEval
 
 section Repr
 
-def Control.show : Control → String
-  | .sourceExpr e => s!"expr({repr e})"
-  | .sourceStmt s => s!"stmt({repr s})"
-  | .value v => s!"val({repr v})"
-  | .skip => "skip"
-
 instance : Repr Control where
-  reprPrec c _ := Control.show c
-
-def Cont.show : Cont → String
-  | .ifCondK _ _ => "ifCondK"
-  | .declK ty => s!"declK({repr ty})"
-  | .assignK x => s!"assignK({x})"
-  | .seqK _ => "seqK"
-  | .binopLK op _ => s!"binopLK({repr op})"
-  | .binopRK op v => s!"binopRK({repr op},{repr v})"
-  | .unopK op => s!"unopK({repr op})"
-  | .loopK _ _ n => s!"loopK@{n}"
-  | .loopContK _ _ n => s!"loopContK@{n}"
-  | .scopeBodyK _ n => s!"scopeBodyK@{n}"
-  | .scopeExitK n => s!"scopeExitK@{n}"
-  | .exprStmtK => "exprStmtK"
+  reprPrec c _ := match c with
+    | .sourceExpr e => s!"expr({repr e})"
+    | .sourceStmt s => s!"stmt({repr s})"
+    | .value v => s!"val({repr v})"
+    | .skip => "skip"
 
 instance : Repr Cont where
-  reprPrec c _ := Cont.show c
+  reprPrec c _ := match c with
+    | .ifCondK _ _ => "ifCondK"
+    | .declK ty => s!"declK({repr ty})"
+    | .assignK x => s!"assignK({x})"
+    | .seqK _ => "seqK"
+    | .binopLK op _ => s!"binopLK({repr op})"
+    | .binopRK op v => s!"binopRK({repr op},{repr v})"
+    | .unopK op => s!"unopK({repr op})"
+    | .loopK _ _ n => s!"loopK@{n}"
+    | .loopContK _ _ n => s!"loopContK@{n}"
+    | .scopeBodyK _ n => s!"scopeBodyK@{n}"
+    | .scopeExitK n => s!"scopeExitK@{n}"
+    | .exprStmtK => "exprStmtK"
 
 instance : Repr CEK where
   reprPrec cek _ :=
-    s!"⟨{Control.show cek.C}, E={repr cek.E}, K=[{",".intercalate (cek.K.map Cont.show)}]⟩"
+    s!"⟨{repr cek.C}, E={repr cek.E}, K=[{",".intercalate (cek.K.map (toString ∘ repr))}]⟩"
 
 end Repr
 
@@ -237,12 +235,7 @@ lemma isLiftValue_complete (v : Value) :
 
 lemma isLiftValue_sound (e : Lang .Expr) (v : Value) :
     (isLiftValue e) = some v → e = liftValue v := by
-  intro h
-  cases e <;> simp [isLiftValue] at h
-  case True => subst h; rfl
-  case False => subst h; rfl
-  case Nat n => subst h; rfl
-  case Unit => subst h; rfl
+  intro h; cases e <;> simp [isLiftValue] at h <;> subst h <;> rfl
 
 /-! ### Soundness: `CEK.step s = some s' → Eval s s'`
 
@@ -257,39 +250,12 @@ lemma CEK.step_sound {s s' : CEK} :
   -- We use dsimp (not simp) to unfold CEK.step without rewriting getElem!/getElem?
   cases C with
   | sourceExpr e =>
-    cases e with
-    | Var x =>
-      dsimp [CEK.step] at h; injection h with h; subst h; exact .Var x
-    | BinOp e₁ e₂ op =>
-      dsimp [CEK.step] at h; injection h with h; subst h; exact .BinOp e₁ e₂ op
-    | UnOp e₁ op =>
-      dsimp [CEK.step] at h; injection h with h; subst h; exact .UnOp e₁ op
-    | If c e₁ e₂ =>
-      dsimp [CEK.step] at h; injection h with h; subst h; exact .If c e₁ e₂
-    | While c body =>
-      dsimp [CEK.step] at h; injection h with h; subst h; exact .While c body
-    | Break l =>
-      dsimp [CEK.step] at h; injection h with h; subst h; exact .Break K l
-    | Scope st res =>
-      dsimp [CEK.step] at h; injection h with h; subst h; exact .Scope st res
-    | True =>
-      dsimp [CEK.step, isLiftValue] at h; injection h with h; subst h; exact .Val .True
-    | False =>
-      dsimp [CEK.step, isLiftValue] at h; injection h with h; subst h; exact .Val .False
-    | Nat n =>
-      dsimp [CEK.step, isLiftValue] at h; injection h with h; subst h; exact .Val (.Nat n)
-    | Unit =>
-      dsimp [CEK.step, isLiftValue] at h; injection h with h; subst h; exact .Val .Unit
+    cases e <;> dsimp [CEK.step, isLiftValue] at h <;> injection h with h <;> subst h
+    exacts [.Var _, .Val .True, .Val .False, .Val (.Nat _), .Val .Unit,
+            .BinOp _ _ _, .UnOp _ _, .If _ _ _, .While _ _, .Break K _, .Scope _ _]
   | sourceStmt st =>
-    cases st with
-    | Decl ty e =>
-      dsimp [CEK.step] at h; injection h with h; subst h; exact .VarDecl ty e
-    | Assign x e =>
-      dsimp [CEK.step] at h; injection h with h; subst h; exact .Assign x e
-    | Seq s₁ s₂ =>
-      dsimp [CEK.step] at h; injection h with h; subst h; exact .Seq s₁ s₂
-    | Do e =>
-      dsimp [CEK.step] at h; injection h with h; subst h; exact .ExprStmt e
+    cases st <;> dsimp [CEK.step] at h <;> injection h with h <;> subst h
+    exacts [.VarDecl _ _, .Assign _ _, .Seq _ _, .ExprStmt _]
   | value v =>
     cases K with
     | nil => simp [CEK.step] at h
@@ -372,33 +338,11 @@ lemma CEK.step_complete {s s' : CEK} :
   intro h
   cases h with
   | Val v => cases v <;> simp [CEK.step, liftValue, isLiftValue]
-  | Var x => simp [CEK.step]
-  | VarDecl type e => simp [CEK.step]
-  | Assign x e => simp [CEK.step]
-  | Seq s₁ s₂ => simp [CEK.step]
-  | ExprStmt e => simp [CEK.step]
-  | BinOp e₁ e₂ op => simp [CEK.step]
-  | UnOp e op => simp [CEK.step]
-  | If e s₁ s₂ => simp [CEK.step]
-  | While c body => simp [CEK.step]
-  | Break K' l => simp [CEK.step]
-  | Scope s e => simp [CEK.step]
-  | IfTrue s₁ s₂ => simp [CEK.step]
-  | IfFalse s₁ s₂ => simp [CEK.step]
-  | VarDeclDone type v => simp [CEK.step]
-  | AssignDone x v => simp [CEK.step]
-  | SeqDone s₂ => simp [CEK.step]
-  | ExprStmtDone v => simp [CEK.step]
-  | BinOpL op v₁ e₂ => simp [CEK.step]
   | @BinOpR E J K op v₁ v₂ result hstep =>
     simp [CEK.step, BinOp.eval_complete hstep]
   | @UnOpDone E J K op v result hstep =>
     simp [CEK.step, UnOp.eval_complete hstep]
-  | LoopTrue body c n => simp [CEK.step]
-  | LoopFalse body c n => simp [CEK.step]
-  | LoopCont body c n K' => simp [CEK.step]
-  | ScopeBody body n => simp [CEK.step]
-  | ScopeExit body n v => simp [CEK.step]
+  | _ => simp [CEK.step]
 
 /-- The evaluator and the small-step relation agree exactly. -/
 theorem CEK.step_iff_eval {s s' : CEK} :
