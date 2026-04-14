@@ -1,5 +1,7 @@
 import LeanFormalisation.LBase.LBaseDefs
 import Mathlib.Tactic.Convert
+--needed for exacts
+import Batteries.Tactic.Init
 
 /-! # Computable evaluator for LBase
 
