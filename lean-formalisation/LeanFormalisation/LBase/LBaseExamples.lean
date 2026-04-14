@@ -1,5 +1,5 @@
-import LeanFormalisation.LBaseElab
-import LeanFormalisation.LBaseEval
+import LeanFormalisation.LBase.Eval.LBaseElab
+import LeanFormalisation.LBase.Eval.LBaseEval
 
 /-! # Example LBase programs
 
