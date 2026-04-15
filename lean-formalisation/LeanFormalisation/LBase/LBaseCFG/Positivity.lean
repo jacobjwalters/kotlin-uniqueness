@@ -149,7 +149,7 @@ instance : FiniteHeight Sign where
 
 end Sign
 
-abbrev PosFact (n : Nat) := fact (Domain n Sign)
+abbrev PosFact (n : Nat) (g : CFG) := GFact g (Domain n Sign)
 
 def signOfNat (k : Nat) : Sign :=
   if k = 0 then .Zero else .Pos
@@ -193,16 +193,19 @@ def refineCond {n : Nat} (cond : Lang .Expr) (assumeTrue : Bool)
 def transferPosEdge {n : Nat} (e : CFGEdge) (ρ : Domain n Sign) : Domain n Sign :=
   transferBranchEdge refineCond e ρ
 
-def runPositivity (n : Nat) (g : CFG) (entryInit : Domain n Sign := ⊥) : PosFact n × PosFact n :=
-  let bot : fact (Domain n Sign) := fun _ => ⊥
-  runDataflow g transferPosNode transferPosEdge
-    entryInit bot g.nodes (fun _ h => h)
+def runPositivity (n : Nat) (g : CFG)
+    (entryInit : Domain n Sign := ⊥) : PosFact n g × PosFact n g :=
+  runDataflowOf g transferPosNode transferPosEdge entryInit
 
-def positivityOverlay {n : Nat} (inF outF : PosFact n) : AltCFGRepr.DotOverlay :=
-  { nodeMeta := fun n =>
-      [ s!"in={repr (inF n)}"
-      , s!"out={repr (outF n)}"
-      ]
+def positivityOverlay {n : Nat} {g : CFG} (inF outF : PosFact n g) : AltCFGRepr.DotOverlay :=
+  { nodeMeta := fun node =>
+      if h : node ∈ g.nodes then
+        let nd := (⟨node, h⟩ : NodeOf g)
+        [ s!"in={repr (inF nd)}"
+        , s!"out={repr (outF nd)}"
+        ]
+      else
+        [ "in=⊥", "out=⊥" ]
     edgeAttrs := fun e =>
       match e.kind with
       | .trueBranch => [("color", "darkgreen")]
@@ -212,7 +215,7 @@ def positivityOverlay {n : Nat} (inF outF : PosFact n) : AltCFGRepr.DotOverlay :
       | .normal => []
   }
 
-def printResult {n : Nat} (g : CFG) (inF outF : PosFact n) : IO Unit := do
+def printResult {n : Nat} (g : CFG) (inF outF : PosFact n g) : IO Unit := do
   IO.println (AltCFGRepr.toDotWith g (positivityOverlay inF outF))
 
 def main (_ : List String) : IO Unit := do

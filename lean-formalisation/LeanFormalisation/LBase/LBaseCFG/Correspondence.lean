@@ -18,9 +18,9 @@ namespace AltCFGProofs
 
 section Translation
 
-abbrev StateRel := CEK -> CFGNode -> Prop
+abbrev StateRel {g : CFG} := CEK -> NodeOf g -> Prop
 
-def CFGStep (g : CFG) (n m : CFGNode) : Prop :=
+def CFGStep (g : CFG) (n m : NodeOf g) : Prop :=
   ∃ e ∈ g.edges, e.src = n ∧ e.dst = m
 
 abbrev CFGReach (g : CFG) := Relation.ReflTransGen (CFGStep g)
@@ -34,8 +34,8 @@ Abstract translation-correctness obligations for a statement `s` and a
 user-supplied CEK/CFG relation `R : StateRel`.
 -/
 class TranslationReq (s : Lang .Stmt) (R : StateRel) : Prop where
-  init_related : R (initState s) (stmtCFG s).entry
-  terminal_related : ∀ E, R (terminalState E []) (stmtCFG s).exit
+  init_related : R (initState s) ⟨(stmtCFG s).entry, (stmtCFG s).entry_in_nodes⟩
+  terminal_related : ∀ E, R (terminalState E []) ⟨(stmtCFG s).exit, (stmtCFG s).exit_in_nodes⟩
 
   init_uniq : ∀ {n}, R (initState s) n -> n = (stmtCFG s).entry
 
@@ -56,7 +56,7 @@ one side correspondence between reachability and relation
 -/
 theorem translation_sound_reachability
       (s : Lang .Stmt) (R : StateRel) [tr : TranslationReq s R]
-      {σ σ' : CEK} {n : CFGNode}
+      {σ σ' : CEK} {n : NodeOf (stmtCFG s)}
       (hrel : R σ n)
       (hreach : CEKReach σ σ') :
     ∃ n', R σ' n' ∧ CFGReach (stmtCFG s) n n' := by

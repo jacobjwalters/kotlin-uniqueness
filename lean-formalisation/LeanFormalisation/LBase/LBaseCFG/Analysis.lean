@@ -41,21 +41,19 @@ section Dataflow
 /-- a fact is what is known about the abstract state at a given node.
     `A` represents the "abstract domain", dependent on the analysis
     being carried out. -/
-abbrev fact (A : Type) := CFGNode -> A
+abbrev GFact (g : CFG) (A : Type) := NodeOf g -> A
 
-/-- update the fact what is known about the current node `n` with a new
-    abstract state `v`. -/
-def fact.update {A : Type} (f : fact A) (n : CFGNode) (v : A) : fact A :=
+/-- update the graph-indexed fact for the current node `n` with a new state `v`. -/
+def GFact.update {g : CFG} {A : Type} (f : GFact g A) (n : NodeOf g) (v : A) : GFact g A :=
   fun m => if m = n then v else f m
-
 
 /-- characterization of monotonicity for a function wrt `Max` -/
 def monotoneD {A : Type} [Max A] (f : A -> A) : Prop :=
   ∀ x y : A, x ⊔ y = x -> (f x) ⊔ (f y) = (f x)
 
-/-- definition of `f ≤ g` for `fact` -/
-def factLe {A : Type} [Max A] (f g : fact A) : Prop :=
-  ∀ n, (f n) ⊔ (g n) = (f n)
+/-- definition of `f ≤ g` for `GFact` -/
+def gfactLe {g : CFG} {A : Type} [Max A] (f1 f2 : GFact g A) : Prop :=
+  ∀ n, (f1 n) ⊔ (f2 n) = (f1 n)
 
 /-- characterization of a finite lattice for types equipped with a `Max`
     operation. we require:
@@ -71,13 +69,11 @@ class FiniteHeight (A : Type) [Max A] where
 
 /-- computes the height of the current fact height.
     used for proof of worklist termination. -/
-def factHeight {A : Type} [Max A] [fh : FiniteHeight A] (g : CFG) (f : fact A) : Nat :=
-  let tot := fh.maxHeight * g.nodes.length
-  let curr := (g.nodes.map (fun n => fh.height (f n))).sum
-  tot - curr
+def gfactHeight {A : Type} [Max A] [fh : FiniteHeight A] (g : CFG) (f : GFact g A) : Nat :=
+  fh.maxHeight * g.nodes.length - (g.nodes.attach.map (fun x => fh.height (f x))).sum
 
-/-- for any list of nodes `l`, `∑_(n ∈ l) (h (f n)) ≤ maxHeight * |l|` -/
-lemma sum_height_le_max {A : Type} [Max A] [fh : FiniteHeight A] (l : List CFGNode) (f : fact A) :
+lemma gfact_sum_height_le_max {A : Type} [Max A] [fh : FiniteHeight A]
+    (g : CFG) (l : List (NodeOf g)) (f : GFact g A) :
     (l.map (fun x => fh.height (f x))).sum ≤ fh.maxHeight * l.length := by
   induction l with
   | nil =>
@@ -85,102 +81,98 @@ lemma sum_height_le_max {A : Type} [Max A] [fh : FiniteHeight A] (l : List CFGNo
   | cons h t ih =>
     simp only [List.map_cons, List.sum_cons, List.length_cons]
     calc
-      _ ≤ fh.maxHeight + (List.map (fun x ↦ fh.height (f x)) t).sum := by
+      _ ≤ fh.maxHeight + (t.map (fun x ↦ fh.height (f x))).sum := by
         simp [fh.maxHeight_ub]
       _ ≤ fh.maxHeight + fh.maxHeight * t.length := by
         simp [ih]
       _ ≤ fh.maxHeight * (t.length + 1) := by
         grind
 
-/-- update/height commutativity -/
-private lemma map_height_update_eq {A : Type} [Max A] [FiniteHeight A]
-    (nodes : List CFGNode) (outF : fact A) (node : CFGNode) (newOut : A) :
-    Eq (nodes.map (fun x => FiniteHeight.height (fact.update outF node newOut x)))
+private lemma gmap_height_update_eq {A : Type} [Max A] [FiniteHeight A]
+    (nodes : List (NodeOf g)) (outF : GFact g A) (node : NodeOf g) (newOut : A) :
+    Eq (nodes.map (fun x => FiniteHeight.height (GFact.update outF node newOut x)))
        (nodes.map (fun x => if x = node then FiniteHeight.height newOut
         else FiniteHeight.height (outF x))) := by
-  congr 1; ext x; simp [fact.update]; split <;> rfl
+  congr 1; ext x; simp [GFact.update]; split <;> rfl
 
-/-- update/height monotonicity -/
-private lemma map_update_sum_lt {A : Type} [Max A] [FiniteHeight A]
-    (nodes : List CFGNode) (outF : fact A) (node : CFGNode) (newOut : A)
+private lemma gmap_update_sum_lt {A : Type} [Max A] [FiniteHeight A]
+    (nodes : List (NodeOf g)) (outF : GFact g A) (node : NodeOf g) (newOut : A)
     (hn : node ∈ nodes)
     (hlt : FiniteHeight.height (outF node) < FiniteHeight.height newOut) :
     (nodes.map (fun x => FiniteHeight.height (outF x))).sum
-    < (nodes.map (fun x => FiniteHeight.height (fact.update outF node newOut x))).sum := by
-  rw [map_height_update_eq]
+    < (nodes.map (fun x => FiniteHeight.height (GFact.update outF node newOut x))).sum := by
+  rw [gmap_height_update_eq]
   exact Utils.sum_map_update_lt nodes
     (fun x => FiniteHeight.height (outF x)) node (FiniteHeight.height newOut) hn hlt
 
 /-- if you replace a node's fact with one of smaller height, the resulting
-    `factHeight` is smaller -/
-private theorem factHeight_decreases
+    `gfactHeight` is smaller -/
+private theorem gfactHeight_decreases
     {A : Type} [Max A] [FiniteHeight A]
-    (g : CFG) (outF : fact A) (node : CFGNode) (newOut : A)
-    (hn : node ∈ g.nodes)
+    (g : CFG) (outF : GFact g A) (node : NodeOf g) (newOut : A)
     (hlt : FiniteHeight.height (outF node) < FiniteHeight.height newOut) :
-    factHeight g (outF.update node newOut) < factHeight g outF := by
-  have h_le := sum_height_le_max g.nodes (outF.update node newOut)
-  have h_lt := map_update_sum_lt g.nodes outF node newOut hn hlt
-  unfold factHeight; simp only []
+    gfactHeight g (GFact.update outF node newOut) < gfactHeight g outF := by
+  have hn : node ∈ g.nodes.attach := List.mem_attach _ _
+  have h_le := gfact_sum_height_le_max g g.nodes.attach (GFact.update outF node newOut)
+  have h_lt := gmap_update_sum_lt g.nodes.attach outF node newOut hn hlt
+  unfold gfactHeight
+  have h_len : g.nodes.length = g.nodes.attach.length := by simp
+  rw [h_len]
   omega
 
 /-- computes the join of the results of applying an edge transfer function to all
-    incoming edges of a given node in `g`. -/
-def joinPredEdges [DecidableEq CFGNode] {A : Type} [Bot A] [Max A]
+    incoming edges of a given node in `g` using graph-indexed facts. -/
+def joinPredEdgesOf [DecidableEq CFGNode] {A : Type} [Bot A] [Max A]
     (g : CFG) (edgeTransfer : CFGEdge -> A -> A)
-    (outF : fact A) (n : CFGNode) : A :=
-  (g.inEdges n).foldl (fun acc e => acc ⊔ edgeTransfer e (outF e.src)) ⊥
+    (outF : GFact g A) (n : NodeOf g) : A :=
+  ((g.inEdges n.val).attach).foldl (fun acc ⟨e, he⟩ =>
+    let srcNode : NodeOf g := ⟨e.src, g.inEdges_src_mem n.val e he⟩
+    acc ⊔ edgeTransfer e (outF srcNode)
+  ) ⊥
 
-/-- main forward worklist algorithm. -/
-def worklistForwardEdge
+/-- main forward worklist algorithm using graph-indexed facts. -/
+def worklistForwardEdgeOf
     [DecidableEq CFGNode] {A : Type} [Bot A] [Max A] [DecidableEq A] [FiniteHeight A]
     (g : CFG) (nodeTransfer : CFGNode -> A -> A) (edgeTransfer : CFGEdge -> A -> A)
-    (entryInit : A) (outF : fact A) (wl : List CFGNode)
-    (hwl : ∀ x ∈ wl, x ∈ g.nodes)
-    : fact A :=
+    (entryInit : A) (outF : GFact g A := fun _ => ⊥) (wl : List (NodeOf g) := g.nodes_mem)
+    : GFact g A :=
   match wl with
   | [] => outF
   | n :: rest =>
       let newIn :=
-        if n = g.entry then entryInit else joinPredEdges g edgeTransfer outF n
-      let newOut := outF n ⊔ nodeTransfer n newIn
+        if n.val = g.entry then entryInit else joinPredEdgesOf g edgeTransfer outF n
+      let newOut := outF n ⊔ nodeTransfer n.val newIn
       if newOut = outF n then
-        worklistForwardEdge g nodeTransfer edgeTransfer entryInit outF rest
-          (fun x hx => hwl x (List.mem_cons_of_mem n hx))
+        worklistForwardEdgeOf g nodeTransfer edgeTransfer entryInit outF rest
       else
-        let outF' := outF.update n newOut
-        let wl' := rest ++ g.succ n
-        worklistForwardEdge g nodeTransfer edgeTransfer entryInit outF' wl'
-          (fun x hx => by
-            cases List.mem_append.mp hx with
-            | inl h => exact hwl x (List.mem_cons_of_mem n h)
-            | inr h => exact g.succ_subset_nodes n x h)
-termination_by (factHeight g outF, wl.length)
+        let outF' := GFact.update outF n newOut
+        let wl' := rest ++ g.succOf n
+        worklistForwardEdgeOf g nodeTransfer edgeTransfer entryInit outF' wl'
+termination_by (gfactHeight g outF, wl.length)
 decreasing_by
-  · refine Prod.Lex.right (factHeight g outF) ?_
+  · refine Prod.Lex.right (gfactHeight g outF) ?_
     grind
-  · refine Prod.Lex.left (rest ++ g.succ n).length (n :: rest).length ?_
-    exact factHeight_decreases g outF n (outF n ⊔ nodeTransfer n newIn)
-      (hwl n (List.Mem.head _))
-      (FiniteHeight.height_mono _ _ (by assumption))
+  · refine Prod.Lex.left (rest ++ g.succOf n).length (n :: rest).length ?_
+    apply gfactHeight_decreases g outF n (outF n ⊔ nodeTransfer n.val newIn)
+    exact FiniteHeight.height_mono _ _ ‹newOut ≠ outF n›
 
-/-- computes the input fact for a given node `n`. if `n` is the entry of the
+/-- computes the input graph-indexed fact for a given node `n`. if `n` is the entry of the
     current graph, returns the initial entry fact; otherwise, computes the
     join of all incoming fact. -/
-def expectedIn {A : Type} [Bot A] [Max A]
+def expectedInOf {A : Type} [Bot A] [Max A]
     (g : CFG) (edgeTransfer : CFGEdge -> A -> A)
-    (entryInit : A) (outF : fact A) (n : CFGNode) : A :=
-  if n = g.entry then entryInit else joinPredEdges g edgeTransfer outF n
+    (entryInit : A) (outF : GFact g A) (n : NodeOf g) : A :=
+  if n.val = g.entry then entryInit else joinPredEdgesOf g edgeTransfer outF n
 
 /-- computes the full dataflow analysis, returning entry and exit metadata for
-    every node -/
-def runDataflow
+    every node, using graph-indexed facts. -/
+def runDataflowOf
     [DecidableEq CFGNode] {A : Type} [Bot A] [Max A] [DecidableEq A] [FiniteHeight A]
     (g : CFG) (nodeTransfer : CFGNode -> A -> A) (edgeTransfer : CFGEdge -> A -> A)
-    (entryInit : A) (out0 : fact A) (wl0 : List CFGNode)
-    (hwl0 : ∀ x ∈ wl0, x ∈ g.nodes) : fact A × fact A :=
-  let finalOut : fact A := worklistForwardEdge g nodeTransfer edgeTransfer entryInit out0 wl0 hwl0
-  let finalIn : fact A := fun n => expectedIn g edgeTransfer entryInit finalOut n
+    (entryInit : A) :
+    GFact g A × GFact g A :=
+  let finalOut : GFact g A := worklistForwardEdgeOf g nodeTransfer edgeTransfer entryInit
+  let finalIn : GFact g A := fun n => expectedInOf g edgeTransfer entryInit finalOut n
   ⟨finalIn, finalOut⟩
 end Dataflow
 

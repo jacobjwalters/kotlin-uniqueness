@@ -227,6 +227,13 @@ def CFG.pred (g : CFG) (n : CFGNode) : List CFGNode :=
 def CFG.nodes (g : CFG) : List CFGNode :=
   (g.edges.foldr (fun ed acc => ed.src :: ed.dst :: acc) [g.entry, g.exit]).eraseDups
 
+/-- Graph-indexed node wrapper used by the Node migration.
+    A `NodeOf g` is definitionally guaranteed to be in `g.nodes`. -/
+abbrev NodeOf (g : CFG) := { n : CFGNode // n ∈ g.nodes }
+
+def CFG.nodes_mem (g : CFG) : List (NodeOf g) :=
+  g.nodes.pmap (fun n hn => ⟨n, hn⟩) (fun _ h => h)
+
 private theorem mem_acc_mem_eraseDupsBy_loop {α : Type} (r : α → α → Bool)
     (as acc : List α) (a : α)
     (h : a ∈ acc) : a ∈ List.eraseDupsBy.loop r as acc := by
@@ -302,6 +309,42 @@ private lemma mem_foldr_edges_dst (edges : List CFGEdge) (init : List CFGNode) (
     | inl heq => subst heq; exact List.mem_cons_of_mem _ (List.Mem.head _)
     | inr hmem => exact List.mem_cons_of_mem _ (List.mem_cons_of_mem _ (ih hmem))
 
+private lemma mem_foldr_edges_src (edges : List CFGEdge) (init : List CFGNode) (e : CFGEdge)
+    (he : e ∈ edges) :
+    e.src ∈ edges.foldr (fun ed acc => ed.src :: ed.dst :: acc) init := by
+  induction edges with
+  | nil => contradiction
+  | cons h t ih =>
+    simp only [List.foldr_cons]
+    cases List.mem_cons.mp he with
+    | inl heq => subst heq; exact List.Mem.head _
+    | inr hmem => exact List.mem_cons_of_mem _ (List.mem_cons_of_mem _ (ih hmem))
+
+theorem CFG.entry_in_nodes (g : CFG) : g.entry ∈ g.nodes := by
+  unfold CFG.nodes
+  apply mem_of_mem_eraseDups
+  induction g.edges <;> grind
+
+theorem CFG.exit_in_nodes (g : CFG) : g.exit ∈ g.nodes := by
+  unfold CFG.nodes
+  apply mem_of_mem_eraseDups
+  induction g.edges <;> grind
+
+lemma CFG.inEdges_src_mem (g : CFG) (n : CFGNode) (e : CFGEdge)
+    (he : e ∈ g.inEdges n) : e.src ∈ g.nodes := by
+  simp only [CFG.nodes]
+  apply mem_of_mem_eraseDups
+  simp only [CFG.inEdges] at he
+  have := List.mem_filter.mp he
+  revert he this
+  induction g.edges with
+  | nil =>
+    intros; grind
+  | cons hd tl ih =>
+    intros he tmp
+    obtain ⟨hmem, hdec⟩ := tmp
+    cases hmem <;> grind
+
 lemma CFG.succ_subset_nodes (g : CFG) (n : CFGNode) :
     ∀ x ∈ g.succ n, x ∈ g.nodes := by
   intro x hx
@@ -312,6 +355,31 @@ lemma CFG.succ_subset_nodes (g : CFG) (n : CFGNode) :
   simp only [CFG.nodes]
   refine mem_of_mem_eraseDups (mem_foldr_edges_dst g.edges _ e ?_)
   grind
+
+lemma CFG.pred_subset_nodes (g : CFG) (n : CFGNode) :
+    ∀ x ∈ g.pred n, x ∈ g.nodes := by
+  intro x hx
+  simp only [CFG.pred, CFG.inEdges] at hx
+  have hx' := mem_eraseDups_of hx
+  obtain ⟨e, he_mem, he_src⟩ := List.mem_map.mp hx'
+  subst he_src
+  simp only [CFG.nodes]
+  refine mem_of_mem_eraseDups (mem_foldr_edges_src g.edges _ e ?_)
+  grind
+
+/-- Successor nodes indexed by membership in `g.nodes`. -/
+def CFG.succOf (g : CFG) (n : NodeOf g) : List (NodeOf g) :=
+  (g.succ n.1).pmap (fun x hx => ⟨x, hx⟩)
+    (by
+      intro x hx
+      exact g.succ_subset_nodes n.1 x hx)
+
+/-- Predecessor nodes indexed by membership in `g.nodes`. -/
+def CFG.predOf (g : CFG) (n : NodeOf g) : List (NodeOf g) :=
+  (g.pred n.1).pmap (fun x hx => ⟨x, hx⟩)
+    (by
+      intro x hx
+      exact g.pred_subset_nodes n.1 x hx)
 
 end AltCFG
 end LeanFormalisation
