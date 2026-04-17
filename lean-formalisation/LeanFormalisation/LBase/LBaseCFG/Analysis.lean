@@ -208,6 +208,20 @@ instance {n : Nat} {A : Type} [Bot A] : Bot (Domain n A) where
 instance {n : Nat} {A : Type} [Bot A] [Max A] : Max (Domain n A) where
   max := fun ρ₁ ρ₂ => fun i => ρ₁ i ⊔ ρ₂ i
 
+/-- the meet of ρ₁, ρ₂ in `Domain n A` is the pointwise join of their elements. -/
+instance {n : Nat} {A : Type} [Bot A] [Min A] : Min (Domain n A) where
+  min := fun ρ₁ ρ₂ => fun i => ρ₁ i ⊓ ρ₂ i
+
+lemma max_app {n A} [Bot A] [Max A] {x y : Domain n A} :
+    ∀ i, (x ⊔ y) i = (x i) ⊔ (y i) := by
+  intros i
+  rfl
+
+lemma min_app {n A} [Bot A] [Min A] {x y : Domain n A} :
+    ∀ i, (x ⊓ y) i = (x i) ⊓ (y i) := by
+  intros i
+  rfl
+
 /-- boolean equality on two domains of size n over a type `A` with decidable equality. -/
 private def domainBEq {n : Nat} {A : Type} [Bot A] [DecidableEq A] (ρ₁ ρ₂ : Domain n A) : Bool :=
   (List.finRange n).all (fun i => ρ₁ i = ρ₂ i)

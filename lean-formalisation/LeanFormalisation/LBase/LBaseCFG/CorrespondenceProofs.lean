@@ -849,7 +849,6 @@ def StmtBreaksBounded (bound : Nat) : Lang .Stmt -> Prop
   | .Do e => ExprBreaksBounded bound e
 end
 
-
 def CFGNodeStep (g : CFG) (n m : CFGNode) : Prop :=
   ∃ e ∈ g.edges, e.src = n ∧ e.dst = m
 
