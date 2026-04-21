@@ -1,3 +1,2 @@
 import LeanFormalisation.LBase.Theorems.TypeTheorems
-import LeanFormalisation.LBase.LBaseCFG.SampleProgram
 import LeanFormalisation.LBase.LBaseExamples

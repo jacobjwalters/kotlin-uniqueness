@@ -1,6 +1,6 @@
-import LeanFormalisation.LBaseCFG.alt.AltCFG
-import LeanFormalisation.LBaseCFG.alt.Analysis
-import LeanFormalisation.LBaseCFG.alt.AltCFGRepr
+import LeanFormalisation.LBase.LBaseCFG.AltCFG
+import LeanFormalisation.LBase.LBaseCFG.Analysis
+import LeanFormalisation.LBase.LBaseCFG.AltCFGRepr
 
 open LeanFormalisation AltCFG
 
@@ -87,7 +87,7 @@ instance : FiniteHeight Flat where
 
 end Flat
 
-abbrev FlatFact (n : Nat) := fact (Domain n Flat)
+abbrev FlatFact (n : Nat) (g : CFG) := GFact g (Domain n Flat)
 
 private def evalBinOpConst (op : BinOp) (v₁ v₂ : Value) : Flat :=
   match op, v₁, v₂ with
@@ -162,16 +162,19 @@ def transferConstNode {n : Nat} (node : CFGNode) (ρ : Domain n Flat) : Domain n
 def transferConstEdge {n : Nat} (e : CFGEdge) (ρ : Domain n Flat) : Domain n Flat :=
   transferBranchEdge refineCondConst e ρ
 
-def runConstProp (n : Nat) (g : CFG) (entryInit : Domain n Flat := ⊥) : FlatFact n × FlatFact n :=
-  let bot : fact (Domain n Flat) := fun _ => ⊥
-  runDataflow g transferConstNode transferConstEdge
-    entryInit bot g.nodes (fun _ h => h)
+def runConstProp (n : Nat) (g : CFG)
+    (entryInit : Domain n Flat := ⊥) : FlatFact n g × FlatFact n g :=
+  runDataflowOf g transferConstNode transferConstEdge entryInit
 
-def constOverlay {n : Nat} (inF outF : FlatFact n) : AltCFGRepr.DotOverlay :=
-  { nodeMeta := fun n =>
-      [ s!"in={repr (inF n)}"
-      , s!"out={repr (outF n)}"
-      ]
+def constOverlay {n : Nat} {g : CFG} (inF outF : FlatFact n g) : AltCFGRepr.DotOverlay :=
+  { nodeMeta := fun node =>
+      if h : node ∈ g.nodes then
+        let nd := (⟨node, h⟩ : NodeOf g)
+        [ s!"in={repr (inF nd)}"
+        , s!"out={repr (outF nd)}"
+        ]
+      else
+        [ "in=⊥", "out=⊥" ]
     edgeAttrs := fun e =>
       match e.kind with
       | .trueBranch => [("color", "darkgreen")]
@@ -181,7 +184,7 @@ def constOverlay {n : Nat} (inF outF : FlatFact n) : AltCFGRepr.DotOverlay :=
       | .normal => []
   }
 
-def printResult {n : Nat} (g : CFG) (inF outF : FlatFact n) : IO Unit := do
+def printResult {n : Nat} (g : CFG) (inF outF : FlatFact n g) : IO Unit := do
   IO.println (AltCFGRepr.toDotWith g (constOverlay inF outF))
 
 def main (_ : List String) : IO Unit := do

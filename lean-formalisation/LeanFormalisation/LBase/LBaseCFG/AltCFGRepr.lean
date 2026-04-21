@@ -1,5 +1,5 @@
-import LeanFormalisation.LBaseCFG.alt.AltCFG
-import LeanFormalisation.LBaseCFG.SampleProgram
+import LeanFormalisation.LBase.LBaseCFG.AltCFG
+import LeanFormalisation.LBase.LBaseCFG.SampleProgram
 
 open LeanFormalisation AltCFG
 namespace AltCFGRepr
