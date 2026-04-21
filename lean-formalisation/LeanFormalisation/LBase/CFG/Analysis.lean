@@ -1,4 +1,4 @@
-import LeanFormalisation.LBase.LBaseCFG.AltCFG
+import LeanFormalisation.LBase.CFG.AltCFG
 import Mathlib.Order.Notation
 import Mathlib.Logic.Basic
 
