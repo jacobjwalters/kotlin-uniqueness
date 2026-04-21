@@ -19,7 +19,7 @@ open LeanFormalisation.AltCFG.Internal
 namespace LeanFormalisation
 namespace AltCFGProofs
 
-section Translation
+section Helper
 
 /-!
 ## structural cfg obligations
@@ -83,8 +83,8 @@ Computes the kind of the exit node returned by `buildExpr`: it is always
 `exprExit expr`. Use: discharges the direct branch-edge cases in mutual proofs.
 -/
 theorem buildExpr_exit_kind
-    (breakTargets : List CFGNode) (nextId : Nat) (expr : Lang .Expr) :
-    (buildExpr breakTargets nextId expr).exit.kind = .exprExit expr := by
+    (bts : List CFGNode) (nextId : Nat) (expr : Lang .Expr) :
+    (buildExpr bts nextId expr).exit.kind = .exprExit expr := by
   cases expr <;> simp [buildExpr]
 
 /--
@@ -92,19 +92,23 @@ Computes the kind of the entry node returned by `buildExpr`: it is always
 `exprEntry expr`. Use: identifies the destination of `.back` edges in while.
 -/
 theorem buildExpr_entry_kind
-    (breakTargets : List CFGNode) (nextId : Nat) (expr : Lang .Expr) :
-    (buildExpr breakTargets nextId expr).entry.kind = .exprEntry expr := by
+    (bts : List CFGNode) (nextId : Nat) (expr : Lang .Expr) :
+    (buildExpr bts nextId expr).entry.kind = .exprEntry expr := by
   cases expr <;> simp [buildExpr]
 
 theorem buildStmt_entry_kind
-    (breakTargets : List CFGNode) (nextId : Nat) (stmt : Lang .Stmt) :
-    (buildStmt breakTargets nextId stmt).entry.kind = .stmtEntry stmt := by
+    (bts : List CFGNode) (nextId : Nat) (stmt : Lang .Stmt) :
+    (buildStmt bts nextId stmt).entry.kind = .stmtEntry stmt := by
   cases stmt <;> simp [buildStmt]
 
 theorem buildStmt_exit_kind
-    (breakTargets : List CFGNode) (nextId : Nat) (stmt : Lang .Stmt) :
-    (buildStmt breakTargets nextId stmt).exit.kind = .stmtExit stmt := by
+    (bts : List CFGNode) (nextId : Nat) (stmt : Lang .Stmt) :
+    (buildStmt bts nextId stmt).exit.kind = .stmtExit stmt := by
   cases stmt <;> simp [buildStmt]
+
+end Helper
+
+section Translation
 
 /-
 Mutual induction core: any `.trueBranch`/`.falseBranch` edge produced by
@@ -113,9 +117,9 @@ two public branch-shape theorems immediately below.
 -/
 mutual
 private theorem branch_src_exprExit_stmt
-    (breakTargets : List CFGNode) (nextId : Nat) (stmt : Lang .Stmt)
+    (bts : List CFGNode) (nextId : Nat) (stmt : Lang .Stmt)
     (ed : CFGEdge)
-    (hed : ed ∈ (buildStmt breakTargets nextId stmt).edges)
+    (hed : ed ∈ (buildStmt bts nextId stmt).edges)
     (hkind : ed.kind = .trueBranch ∨ ed.kind = .falseBranch) :
     ∃ cond, ed.src.kind = .exprExit cond := by
   cases stmt <;> simp only [buildStmt, List.cons_append,
@@ -132,9 +136,9 @@ private theorem branch_src_exprExit_stmt
     · exact (branch_src_exprExit_stmt _ _ _ _ h₃ hkind)
 
 private theorem branch_src_exprExit_expr
-    (breakTargets : List CFGNode) (nextId : Nat) (expr : Lang .Expr)
+    (bts : List CFGNode) (nextId : Nat) (expr : Lang .Expr)
     (ed : CFGEdge)
-    (hed : ed ∈ (buildExpr breakTargets nextId expr).edges)
+    (hed : ed ∈ (buildExpr bts nextId expr).edges)
     (hkind : ed.kind = .trueBranch ∨ ed.kind = .falseBranch) :
     ∃ cond, ed.src.kind = .exprExit cond := by
   cases expr <;> try
@@ -171,11 +175,11 @@ private theorem branch_src_exprExit_expr
     · subst ed
       refine ⟨cond, ?_⟩
       simpa [mkEdge] using
-        (buildExpr_exit_kind breakTargets (nextId + 2) cond)
+        (buildExpr_exit_kind bts (nextId + 2) cond)
     · subst ed
       refine ⟨cond, ?_⟩
       simpa [mkEdge] using
-        (buildExpr_exit_kind breakTargets (nextId + 2) cond)
+        (buildExpr_exit_kind bts (nextId + 2) cond)
     · subst ed
       simp [mkEdge] at hkind
     · subst ed
@@ -187,10 +191,10 @@ private theorem branch_src_exprExit_expr
       simp [mkEdge] at hkind
     · subst ed
       refine ⟨cond, ?_⟩
-      simpa [mkEdge] using buildExpr_exit_kind breakTargets (nextId + 2) cond
+      simpa [mkEdge] using buildExpr_exit_kind bts (nextId + 2) cond
     · subst ed
       refine ⟨cond, ?_⟩
-      simpa [mkEdge] using buildExpr_exit_kind breakTargets (nextId + 2) cond
+      simpa [mkEdge] using buildExpr_exit_kind bts (nextId + 2) cond
     · subst ed
       simp [mkEdge] at hkind
     · rcases h₅ with h | h <;> apply branch_src_exprExit_expr <;> assumption
@@ -213,14 +217,14 @@ private theorem branch_src_exprExit_expr
 end
 
 private theorem branch_src_exprExit_mutual :
-    (∀ (breakTargets : List CFGNode) (nextId : Nat) (stmt : Lang .Stmt)
+    (∀ (bts : List CFGNode) (nextId : Nat) (stmt : Lang .Stmt)
         (ed : CFGEdge),
-        ed ∈ (buildStmt breakTargets nextId stmt).edges ->
+        ed ∈ (buildStmt bts nextId stmt).edges ->
         ed.kind = .trueBranch ∨ ed.kind = .falseBranch ->
         ∃ cond, ed.src.kind = .exprExit cond) ∧
-    (∀ (breakTargets : List CFGNode) (nextId : Nat) (expr : Lang .Expr)
+    (∀ (bts : List CFGNode) (nextId : Nat) (expr : Lang .Expr)
         (ed : CFGEdge),
-        ed ∈ (buildExpr breakTargets nextId expr).edges ->
+        ed ∈ (buildExpr bts nextId expr).edges ->
         ed.kind = .trueBranch ∨ ed.kind = .falseBranch ->
         ∃ cond, ed.src.kind = .exprExit cond) :=
   ⟨branch_src_exprExit_stmt, branch_src_exprExit_expr⟩
@@ -230,24 +234,24 @@ Statement-builder specialization of `branch_src_exprExit_mutual`. Use: direct
 input to `stmtCFG_true_false_edges_from_exprExit` after unfolding `stmtCFG`.
 -/
 theorem buildStmt_branch_src_exprExit
-    (breakTargets : List CFGNode) (nextId : Nat) (stmt : Lang .Stmt) :
-    ∀ ed ∈ (buildStmt breakTargets nextId stmt).edges,
+    (bts : List CFGNode) (nextId : Nat) (stmt : Lang .Stmt) :
+    ∀ ed ∈ (buildStmt bts nextId stmt).edges,
     ed.kind = .trueBranch ∨ ed.kind = .falseBranch ->
     ∃ cond, ed.src.kind = .exprExit cond := by
   intro ed hed hkind
-  exact (branch_src_exprExit_mutual).1 breakTargets nextId stmt ed hed hkind
+  exact (branch_src_exprExit_mutual).1 bts nextId stmt ed hed hkind
 
 /--
 Expression-builder specialization of `branch_src_exprExit_mutual`. Use: reusable
 branch-edge invariant for later expression-local arguments.
 -/
 theorem buildExpr_branch_src_exprExit
-    (breakTargets : List CFGNode) (nextId : Nat) (expr : Lang .Expr) :
-    ∀ ed ∈ (buildExpr breakTargets nextId expr).edges,
+    (bts : List CFGNode) (nextId : Nat) (expr : Lang .Expr) :
+    ∀ ed ∈ (buildExpr bts nextId expr).edges,
     ed.kind = .trueBranch ∨ ed.kind = .falseBranch ->
     ∃ cond, ed.src.kind = .exprExit cond := by
   intro ed hed hkind
-  exact (branch_src_exprExit_mutual).2 breakTargets nextId expr ed hed hkind
+  exact (branch_src_exprExit_mutual).2 bts nextId expr ed hed hkind
 
 /-
 Mutual induction core for back edges: every `.back` edge produced by either
@@ -384,16 +388,16 @@ private theorem back_edge_shape_expr
 end
 
 private theorem back_edge_shape_mutual :
-    (∀ (breakTargets : List CFGNode) (nextId : Nat) (stmt : Lang .Stmt)
+    (∀ (bts : List CFGNode) (nextId : Nat) (stmt : Lang .Stmt)
         (ed : CFGEdge),
-        ed ∈ (buildStmt breakTargets nextId stmt).edges ->
+        ed ∈ (buildStmt bts nextId stmt).edges ->
         ed.kind = .back ->
         ∃ c body,
           ed.src.kind = .exprExit body ∧
           ed.dst.kind = .exprEntry c) ∧
-    (∀ (breakTargets : List CFGNode) (nextId : Nat) (expr : Lang .Expr)
+    (∀ (bts : List CFGNode) (nextId : Nat) (expr : Lang .Expr)
         (ed : CFGEdge),
-        ed ∈ (buildExpr breakTargets nextId expr).edges ->
+        ed ∈ (buildExpr bts nextId expr).edges ->
         ed.kind = .back ->
         ∃ c body,
           ed.src.kind = .exprExit body ∧
@@ -405,28 +409,28 @@ Statement-builder specialization of back-edge shape. Use: one-step bridge from
 builder internals to stmtCFG-level theorem `stmtCFG_back_edge_shape`.
 -/
 theorem buildStmt_back_edge_shape
-    (breakTargets : List CFGNode) (nextId : Nat) (stmt : Lang .Stmt) :
-    ∀ ed ∈ (buildStmt breakTargets nextId stmt).edges,
+    (bts : List CFGNode) (nextId : Nat) (stmt : Lang .Stmt) :
+    ∀ ed ∈ (buildStmt bts nextId stmt).edges,
       ed.kind = .back ->
       ∃ c body,
         ed.src.kind = .exprExit body ∧
         ed.dst.kind = .exprEntry c := by
   intro ed hed hkind
-  exact (back_edge_shape_mutual).1 breakTargets nextId stmt ed hed hkind
+  exact (back_edge_shape_mutual).1 bts nextId stmt ed hed hkind
 
 /--
 Expression-builder specialization of back-edge shape. Use: reusable local fact
 for expression-only analyses involving while-loop back edges.
 -/
 theorem buildExpr_back_edge_shape
-    (breakTargets : List CFGNode) (nextId : Nat) (expr : Lang .Expr) :
-    ∀ ed ∈ (buildExpr breakTargets nextId expr).edges,
+    (bts : List CFGNode) (nextId : Nat) (expr : Lang .Expr) :
+    ∀ ed ∈ (buildExpr bts nextId expr).edges,
       ed.kind = .back ->
       ∃ c body,
         ed.src.kind = .exprExit body ∧
         ed.dst.kind = .exprEntry c := by
   intro ed hed hkind
-  exact (back_edge_shape_mutual).2 breakTargets nextId expr ed hed hkind
+  exact (back_edge_shape_mutual).2 bts nextId expr ed hed hkind
 
 /--
 Lifts builder-level back-edge shape to full statement CFGs. Use: canonical
@@ -473,12 +477,12 @@ Specifies when a list of break targets is valid for proofs: every entry is an
 `exprExit` node of some loop expression. Use: invariant threaded through the
 mutual break-edge proof.
 -/
-private def BreakTargetsWellFormed : List CFGNode -> Prop
+def btsWellFormed : List CFGNode -> Prop
   | [] => True
-  | t :: ts => (∃ loopExpr, t.kind = .exprExit loopExpr) ∧ BreakTargetsWellFormed ts
+  | t :: ts => (∃ loopExpr, t.kind = .exprExit loopExpr) ∧ btsWellFormed ts
 
-private theorem BreakTargetsWellFormed.getIdx
-    {targets : List CFGNode} (hwf : BreakTargetsWellFormed targets)
+private theorem btsWellFormed.getIdx
+    {targets : List CFGNode} (hwf : btsWellFormed targets)
     {i : Nat} (hi : i < targets.length) :
     ∃ loopExpr, (targets[i]).kind = .exprExit loopExpr := by
   induction targets generalizing i with
@@ -496,10 +500,10 @@ every `.breakOut` edge points to an `exprExit _`. Use: shared engine for
 -/
 mutual
 private theorem break_edge_target_exprExit_stmt
-    (breakTargets : List CFGNode)
-    (hbt : BreakTargetsWellFormed breakTargets)
+    (bts : List CFGNode)
+    (hbt : btsWellFormed bts)
     (nextId : Nat) (stmt : Lang .Stmt) (ed : CFGEdge)
-    (hed : ed ∈ (buildStmt breakTargets nextId stmt).edges)
+    (hed : ed ∈ (buildStmt bts nextId stmt).edges)
     (hkind : ed.kind = .breakOut) :
     ∃ loopExpr, ed.dst.kind = .exprExit loopExpr := by
   cases stmt
@@ -511,14 +515,14 @@ private theorem break_edge_target_exprExit_stmt
       simp [mkEdge] at hkind
     · subst ed
       simp [mkEdge] at hkind
-    · exact break_edge_target_exprExit_expr breakTargets hbt _ _ _ h hkind
+    · exact break_edge_target_exprExit_expr bts hbt _ _ _ h hkind
   case Assign x rhs =>
     rcases hed with h | h | h
     · subst ed
       simp [mkEdge] at hkind
     · subst ed
       simp [mkEdge] at hkind
-    · exact break_edge_target_exprExit_expr breakTargets hbt _ _ _ h hkind
+    · exact break_edge_target_exprExit_expr bts hbt _ _ _ h hkind
   case Seq s₁ s₂ =>
     rcases hed with h | h | h | h
     · subst ed
@@ -528,21 +532,21 @@ private theorem break_edge_target_exprExit_stmt
     · subst ed
       simp [mkEdge] at hkind
     · rcases h with h | h
-      · exact break_edge_target_exprExit_stmt breakTargets hbt _ _ _ h hkind
-      · exact break_edge_target_exprExit_stmt breakTargets hbt _ _ _ h hkind
+      · exact break_edge_target_exprExit_stmt bts hbt _ _ _ h hkind
+      · exact break_edge_target_exprExit_stmt bts hbt _ _ _ h hkind
   case Do e =>
     rcases hed with h | h | h
     · subst ed
       simp [mkEdge] at hkind
     · subst ed
       simp [mkEdge] at hkind
-    · exact break_edge_target_exprExit_expr breakTargets hbt _ _ _ h hkind
+    · exact break_edge_target_exprExit_expr bts hbt _ _ _ h hkind
 
 private theorem break_edge_target_exprExit_expr
-    (breakTargets : List CFGNode)
-    (hbt : BreakTargetsWellFormed breakTargets)
+    (bts : List CFGNode)
+    (hbt : btsWellFormed bts)
     (nextId : Nat) (expr : Lang .Expr) (ed : CFGEdge)
-    (hed : ed ∈ (buildExpr breakTargets nextId expr).edges)
+    (hed : ed ∈ (buildExpr bts nextId expr).edges)
     (hkind : ed.kind = .breakOut) :
     ∃ loopExpr, ed.dst.kind = .exprExit loopExpr := by
   cases expr <;>
@@ -562,15 +566,15 @@ private theorem break_edge_target_exprExit_expr
       rcases h₃ with h₁ | (h₂ | h₃)
       · subst ed
         simp at hkind
-      · exact break_edge_target_exprExit_expr breakTargets hbt _ _ _ h₂ hkind
-      · exact break_edge_target_exprExit_expr breakTargets hbt _ _ _ h₃ hkind
+      · exact break_edge_target_exprExit_expr bts hbt _ _ _ h₂ hkind
+      · exact break_edge_target_exprExit_expr bts hbt _ _ _ h₃ hkind
   case UnOp a op =>
     rcases hed with h₁ | (h₂ | h₃)
     · cases h₁
       simp [mkEdge] at hkind
     · subst ed
       simp [mkEdge] at hkind
-    · exact break_edge_target_exprExit_expr breakTargets hbt _ _ _ h₃ hkind
+    · exact break_edge_target_exprExit_expr bts hbt _ _ _ h₃ hkind
   case If cond e₁ e₂ =>
     rcases hed with h₁ | h₂ | h₃ | h₄ | h₅ | h₆
     · subst ed
@@ -584,9 +588,9 @@ private theorem break_edge_target_exprExit_expr
     · subst ed
       simp [mkEdge] at hkind
     · rcases h₆ with h | h | h
-      · exact break_edge_target_exprExit_expr breakTargets hbt _ _ _ h hkind
-      · exact break_edge_target_exprExit_expr breakTargets hbt _ _ _ h hkind
-      · exact break_edge_target_exprExit_expr breakTargets hbt _ _ _ h hkind
+      · exact break_edge_target_exprExit_expr bts hbt _ _ _ h hkind
+      · exact break_edge_target_exprExit_expr bts hbt _ _ _ h hkind
+      · exact break_edge_target_exprExit_expr bts hbt _ _ _ h hkind
   case While cond body =>
     rcases hed with h₁ | h₂ | h₃ | h₄ | h₅
     · subst ed
@@ -598,9 +602,9 @@ private theorem break_edge_target_exprExit_expr
     · subst ed
       simp [mkEdge] at hkind
     · rcases h₅ with h | h
-      · exact break_edge_target_exprExit_expr breakTargets hbt _ _ _ h hkind
+      · exact break_edge_target_exprExit_expr bts hbt _ _ _ h hkind
       · exact break_edge_target_exprExit_expr
-          ({ id := nextId + 1, kind := .exprExit (.While cond body) } :: breakTargets)
+          ({ id := nextId + 1, kind := .exprExit (.While cond body) } :: bts)
           (by exact ⟨⟨.While cond body, rfl⟩, hbt⟩)
           _ _ _ h hkind
   case Break l =>
@@ -608,7 +612,7 @@ private theorem break_edge_target_exprExit_expr
     next h =>
       simp only [mkEdge, List.mem_cons, List.not_mem_nil, or_false] at hed
       subst ed
-      exact BreakTargetsWellFormed.getIdx hbt h
+      exact btsWellFormed.getIdx hbt h
     next h =>
       simp at hed
   case Scope s res =>
@@ -620,21 +624,21 @@ private theorem break_edge_target_exprExit_expr
     · subst ed
       simp [mkEdge] at hkind
     · rcases h₄ with h | h
-      · exact break_edge_target_exprExit_stmt breakTargets hbt _ _ _ h hkind
-      · exact break_edge_target_exprExit_expr breakTargets hbt _ _ _ h hkind
+      · exact break_edge_target_exprExit_stmt bts hbt _ _ _ h hkind
+      · exact break_edge_target_exprExit_expr bts hbt _ _ _ h hkind
 end
 
 private theorem break_edge_target_exprExit_mutual :
-      (∀ (breakTargets : List CFGNode),
-          BreakTargetsWellFormed breakTargets ->
+      (∀ (bts : List CFGNode),
+          btsWellFormed bts ->
           ∀ (nextId : Nat) (stmt : Lang .Stmt) (ed : CFGEdge),
-          ed ∈ (buildStmt breakTargets nextId stmt).edges ->
+          ed ∈ (buildStmt bts nextId stmt).edges ->
           ed.kind = .breakOut ->
           ∃ loopExpr, ed.dst.kind = .exprExit loopExpr) ∧
-      (∀ (breakTargets : List CFGNode),
-          BreakTargetsWellFormed breakTargets ->
+      (∀ (bts : List CFGNode),
+          btsWellFormed bts ->
           ∀ (nextId : Nat) (expr : Lang .Expr) (ed : CFGEdge),
-          ed ∈ (buildExpr breakTargets nextId expr).edges ->
+          ed ∈ (buildExpr bts nextId expr).edges ->
           ed.kind = .breakOut ->
           ∃ loopExpr, ed.dst.kind = .exprExit loopExpr) :=
   ⟨break_edge_target_exprExit_stmt, break_edge_target_exprExit_expr⟩
@@ -644,13 +648,13 @@ Statement-builder specialization of break-edge target shape, parameterized by a
 well-formed break target. Use: final step to derive the stmtCFG theorem below.
 -/
 theorem buildStmt_break_edge_target_exprExit
-    (breakTargets : List CFGNode) (nextId : Nat) (stmt : Lang .Stmt)
-    (hbt : BreakTargetsWellFormed breakTargets) :
-    ∀ ed ∈ (buildStmt breakTargets nextId stmt).edges,
+    (bts : List CFGNode) (nextId : Nat) (stmt : Lang .Stmt)
+    (hbt : btsWellFormed bts) :
+    ∀ ed ∈ (buildStmt bts nextId stmt).edges,
       ed.kind = .breakOut ->
       ∃ loopExpr, ed.dst.kind = .exprExit loopExpr := by
   intro ed hed hkind
-  exact break_edge_target_exprExit_mutual.1 breakTargets hbt nextId stmt ed hed hkind
+  exact break_edge_target_exprExit_mutual.1 bts hbt nextId stmt ed hed hkind
 
 /--
 User-facing break theorem: every `.breakOut` edge in a statement CFG targets a
@@ -663,65 +667,63 @@ theorem stmtCFG_break_edges_target_loop_exit (s : Lang .Stmt) :
   intros e he hkind
   unfold stmtCFG at he
   exact buildStmt_break_edge_target_exprExit [] 0 s
-    (by simp [BreakTargetsWellFormed]) e he hkind
+    (by simp [btsWellFormed]) e he hkind
 
 end Translation
 
 open Internal
 section BuilderEdgeLemmas
-
-
 /-- Literals and Var: entry -> exit (normal edge). -/
-theorem buildExpr_literal_edges (breakTargets : List CFGNode) (nextId : Nat)
+theorem buildExpr_literal_edges (bts : List CFGNode) (nextId : Nat)
     (e : Lang .Expr)
     (hlit : e = .True ∨ e = .False ∨ e = .Nat n ∨ e = .Unit) :
     let entry : CFGNode := { id := nextId, kind := .exprEntry e }
     let exit : CFGNode := { id := nextId + 1, kind := .exprExit e }
-    mkEdge entry exit ∈ (buildExpr breakTargets nextId e).edges := by
+    mkEdge entry exit ∈ (buildExpr bts nextId e).edges := by
   rcases hlit with (rfl | rfl | rfl | rfl) <;> simp [buildExpr]
 
-theorem buildExpr_var_edges (breakTargets : List CFGNode) (nextId : Nat)
+theorem buildExpr_var_edges (bts : List CFGNode) (nextId : Nat)
     (e : Lang .Expr)
     (hvar : e = .Var x) :
     let entry : CFGNode := { id := nextId, kind := .exprEntry e }
     let exit : CFGNode := { id := nextId + 1, kind := .exprExit e }
-    mkEdge entry exit ∈ (buildExpr breakTargets nextId e).edges := by
+    mkEdge entry exit ∈ (buildExpr bts nextId e).edges := by
   simp [buildExpr, hvar]
 
 /-- BinOp: entry -> r₁.entry, r₁.exit -> r₂.entry, r₂.exit -> exit. -/
-theorem buildExpr_binop_edges (breakTargets : List CFGNode) (nextId : Nat)
+theorem buildExpr_binop_edges (bts : List CFGNode) (nextId : Nat)
     (e₁ e₂ : Lang .Expr) (op : BinOp) :
-    let r := buildExpr breakTargets nextId (.BinOp e₁ e₂ op)
+    let r := buildExpr bts nextId (.BinOp e₁ e₂ op)
     let entry : CFGNode := { id := nextId, kind := .exprEntry (.BinOp e₁ e₂ op) }
     let exit : CFGNode := { id := nextId + 1, kind := .exprExit (.BinOp e₁ e₂ op) }
-    let r₁ := buildExpr breakTargets (nextId + 2) e₁
-    let r₂ := buildExpr breakTargets r₁.nextId e₂
+    let r₁ := buildExpr bts (nextId + 2) e₁
+    let r₂ := buildExpr bts r₁.nextId e₂
     mkEdge entry r₁.entry ∈ r.edges
     ∧ mkEdge r₁.exit r₂.entry ∈ r.edges
     ∧ mkEdge r₂.exit exit ∈ r.edges := by
   repeat apply And.intro <;> simp [buildExpr]
 
 /-- UnOp: entry -> r.entry, r.exit -> exit. -/
-theorem buildExpr_unop_edges (breakTargets : List CFGNode) (nextId : Nat)
+theorem buildExpr_unop_edges (bts : List CFGNode) (nextId : Nat)
     (arg : Lang .Expr) (op : UnOp) :
-    let r := buildExpr breakTargets nextId (.UnOp arg op)
+    let r := buildExpr bts nextId (.UnOp arg op)
     let entry : CFGNode := { id := nextId, kind := .exprEntry (.UnOp arg op) }
     let exit : CFGNode := { id := nextId + 1, kind := .exprExit (.UnOp arg op) }
-    let rArg := buildExpr breakTargets (nextId + 2) arg
+    let rArg := buildExpr bts (nextId + 2) arg
     mkEdge entry rArg.entry ∈ r.edges
     ∧ mkEdge rArg.exit exit ∈ r.edges := by
   repeat apply And.intro <;> simp [buildExpr]
 
 /-- If: entry -> c.entry, c.exit -> t.entry (trueBranch), c.exit -> f.entry (falseBranch),
     t.exit -> exit, f.exit -> exit. -/
-theorem buildExpr_if_edges (breakTargets : List CFGNode) (nextId : Nat)
+theorem buildExpr_if_edges (bts : List CFGNode) (nextId : Nat)
     (cond e₁ e₂ : Lang .Expr) :
-    let r := buildExpr breakTargets nextId (.If cond e₁ e₂)
+    let r := buildExpr bts nextId (.If cond e₁ e₂)
     let entry : CFGNode := { id := nextId, kind := .exprEntry (.If cond e₁ e₂) }
     let exit : CFGNode := { id := nextId + 1, kind := .exprExit (.If cond e₁ e₂) }
-    let c := buildExpr breakTargets (nextId + 2) cond
-    let t := buildExpr breakTargets c.nextId e₁
-    let f := buildExpr breakTargets t.nextId e₂
+    let c := buildExpr bts (nextId + 2) cond
+    let t := buildExpr bts c.nextId e₁
+    let f := buildExpr bts t.nextId e₂
     mkEdge entry c.entry ∈ r.edges
     ∧ mkEdge c.exit t.entry .trueBranch ∈ r.edges
     ∧ mkEdge c.exit f.entry .falseBranch ∈ r.edges
@@ -731,83 +733,83 @@ theorem buildExpr_if_edges (breakTargets : List CFGNode) (nextId : Nat)
 
 /-- While: entry -> c.entry, c.exit -> b.entry (trueBranch),
     c.exit -> exit (falseBranch), b.exit -> c.entry (back). -/
-theorem buildExpr_while_edges (breakTargets : List CFGNode) (nextId : Nat)
+theorem buildExpr_while_edges (bts : List CFGNode) (nextId : Nat)
     (cond body : Lang .Expr) :
-    let r := buildExpr breakTargets nextId (.While cond body)
+    let r := buildExpr bts nextId (.While cond body)
     let entry : CFGNode := { id := nextId, kind := .exprEntry (.While cond body) }
     let exit : CFGNode := { id := nextId + 1, kind := .exprExit (.While cond body) }
-    let c := buildExpr breakTargets (nextId + 2) cond
-    let b := buildExpr (exit :: breakTargets) c.nextId body
+    let c := buildExpr bts (nextId + 2) cond
+    let b := buildExpr (exit :: bts) c.nextId body
     mkEdge entry c.entry ∈ r.edges
     ∧ mkEdge c.exit b.entry .trueBranch ∈ r.edges
     ∧ mkEdge c.exit exit .falseBranch ∈ r.edges
     ∧ mkEdge b.exit c.entry .back ∈ r.edges := by
   repeat apply And.intro <;> simp [buildExpr]
 
-/-- Break l: if `l < breakTargets.length`, emits a breakOut edge
-    from entry to `breakTargets[l]`. -/
-theorem buildExpr_break_edges (breakTargets : List CFGNode) (nextId : Nat)
-    (l : Nat) (hl : l < breakTargets.length) :
-    let r := buildExpr breakTargets nextId (.Break l)
+/-- Break l: if `l < bts.length`, emits a breakOut edge
+    from entry to `bts[l]`. -/
+theorem buildExpr_break_edges (bts : List CFGNode) (nextId : Nat)
+    (l : Nat) (hl : l < bts.length) :
+    let r := buildExpr bts nextId (.Break l)
     let entry : CFGNode := { id := nextId, kind := .exprEntry (.Break l) }
-    mkEdge entry (breakTargets[l]) .breakOut ∈ r.edges := by
+    mkEdge entry (bts[l]) .breakOut ∈ r.edges := by
   grind [buildExpr, mkEdge]
 
 /-- Scope: entry -> sRes.entry, sRes.exit -> rRes.entry, rRes.exit -> exit. -/
-theorem buildExpr_scope_edges (breakTargets : List CFGNode) (nextId : Nat)
+theorem buildExpr_scope_edges (bts : List CFGNode) (nextId : Nat)
     (s : Lang .Stmt) (res : Lang .Expr) :
-    let r := buildExpr breakTargets nextId (.Scope s res)
+    let r := buildExpr bts nextId (.Scope s res)
     let entry : CFGNode := { id := nextId, kind := .exprEntry (.Scope s res) }
     let exit : CFGNode := { id := nextId + 1, kind := .exprExit (.Scope s res) }
-    let sRes := buildStmt breakTargets (nextId + 2) s
-    let rRes := buildExpr breakTargets sRes.nextId res
+    let sRes := buildStmt bts (nextId + 2) s
+    let rRes := buildExpr bts sRes.nextId res
     mkEdge entry sRes.entry ∈ r.edges
     ∧ mkEdge sRes.exit rRes.entry ∈ r.edges
     ∧ mkEdge rRes.exit exit ∈ r.edges := by
   repeat apply And.intro <;> simp [buildExpr]
 
 /-- Decl: entry -> r.entry, r.exit -> exit. -/
-theorem buildStmt_decl_edges (breakTargets : List CFGNode) (nextId : Nat)
+theorem buildStmt_decl_edges (bts : List CFGNode) (nextId : Nat)
     (ty : Ty) (init : Lang .Expr) :
-    let r := buildStmt breakTargets nextId (.Decl ty init)
+    let r := buildStmt bts nextId (.Decl ty init)
     let entry : CFGNode := { id := nextId, kind := .stmtEntry (.Decl ty init) }
     let exit : CFGNode := { id := nextId + 1, kind := .stmtExit (.Decl ty init) }
-    let rInit := buildExpr breakTargets (nextId + 2) init
+    let rInit := buildExpr bts (nextId + 2) init
     mkEdge entry rInit.entry ∈ r.edges
     ∧ mkEdge rInit.exit exit ∈ r.edges := by
   repeat apply And.intro <;> simp [buildStmt]
 
 /-- Assign: entry -> r.entry, r.exit -> exit. -/
-theorem buildStmt_assign_edges (breakTargets : List CFGNode) (nextId : Nat)
+theorem buildStmt_assign_edges (bts : List CFGNode) (nextId : Nat)
     (v : VarName) (rhs : Lang .Expr) :
-    let r := buildStmt breakTargets nextId (.Assign v rhs)
+    let r := buildStmt bts nextId (.Assign v rhs)
     let entry : CFGNode := { id := nextId, kind := .stmtEntry (.Assign v rhs) }
     let exit : CFGNode := { id := nextId + 1, kind := .stmtExit (.Assign v rhs) }
-    let rRhs := buildExpr breakTargets (nextId + 2) rhs
+    let rRhs := buildExpr bts (nextId + 2) rhs
     mkEdge entry rRhs.entry ∈ r.edges
     ∧ mkEdge rRhs.exit exit ∈ r.edges := by
   repeat apply And.intro <;> simp [buildStmt]
 
 /-- Seq: entry -> r₁.entry, r₁.exit -> r₂.entry, r₂.exit -> exit. -/
-theorem buildStmt_seq_edges (breakTargets : List CFGNode) (nextId : Nat)
+theorem buildStmt_seq_edges (bts : List CFGNode) (nextId : Nat)
     (s₁ s₂ : Lang .Stmt) :
-    let r := buildStmt breakTargets nextId (.Seq s₁ s₂)
+    let r := buildStmt bts nextId (.Seq s₁ s₂)
     let entry : CFGNode := { id := nextId, kind := .stmtEntry (.Seq s₁ s₂) }
     let exit : CFGNode := { id := nextId + 1, kind := .stmtExit (.Seq s₁ s₂) }
-    let r₁ := buildStmt breakTargets (nextId + 2) s₁
-    let r₂ := buildStmt breakTargets r₁.nextId s₂
+    let r₁ := buildStmt bts (nextId + 2) s₁
+    let r₂ := buildStmt bts r₁.nextId s₂
     mkEdge entry r₁.entry ∈ r.edges
     ∧ mkEdge r₁.exit r₂.entry ∈ r.edges
     ∧ mkEdge r₂.exit exit ∈ r.edges := by
   repeat apply And.intro <;> simp [buildStmt]
 
 /-- Do (ExprStmt): entry -> r.entry, r.exit -> exit. -/
-theorem buildStmt_do_edges (breakTargets : List CFGNode) (nextId : Nat)
+theorem buildStmt_do_edges (bts : List CFGNode) (nextId : Nat)
     (e : Lang .Expr) :
-    let r := buildStmt breakTargets nextId (.Do e)
+    let r := buildStmt bts nextId (.Do e)
     let entry : CFGNode := { id := nextId, kind := .stmtEntry (.Do e) }
     let exit : CFGNode := { id := nextId + 1, kind := .stmtExit (.Do e) }
-    let rExpr := buildExpr breakTargets (nextId + 2) e
+    let rExpr := buildExpr bts (nextId + 2) e
     mkEdge entry rExpr.entry ∈ r.edges
     ∧ mkEdge rExpr.exit exit ∈ r.edges := by
   repeat apply And.intro <;> simp [buildStmt]
@@ -868,28 +870,28 @@ mutual
 inductive ExprEntryEdgeInv (g : CFG) : List CFGNode -> Lang .Expr ->
     CFGNode -> CFGNode -> Prop where
   /-- Literal True: single edge entry -> exit. -/
-  | litTrue (breakTargets : List CFGNode) (n ex : CFGNode) :
+  | litTrue (bts : List CFGNode) (n ex : CFGNode) :
       CFGNodeStep g n ex ->
-      ExprEntryEdgeInv g breakTargets .True n ex
+      ExprEntryEdgeInv g bts .True n ex
   /-- Literal False: single edge entry -> exit. -/
-  | litFalse (breakTargets : List CFGNode) (n ex : CFGNode) :
+  | litFalse (bts : List CFGNode) (n ex : CFGNode) :
       CFGNodeStep g n ex ->
-      ExprEntryEdgeInv g breakTargets .False n ex
+      ExprEntryEdgeInv g bts .False n ex
   /-- Literal Nat: single edge entry -> exit. -/
-  | litNat (breakTargets : List CFGNode) (v : Nat) (n ex : CFGNode) :
+  | litNat (bts : List CFGNode) (v : Nat) (n ex : CFGNode) :
       CFGNodeStep g n ex ->
-      ExprEntryEdgeInv g breakTargets (.Nat v) n ex
+      ExprEntryEdgeInv g bts (.Nat v) n ex
   /-- Literal Unit: single edge entry -> exit. -/
-  | litUnit (breakTargets : List CFGNode) (n ex : CFGNode) :
+  | litUnit (bts : List CFGNode) (n ex : CFGNode) :
       CFGNodeStep g n ex ->
-      ExprEntryEdgeInv g breakTargets .Unit n ex
+      ExprEntryEdgeInv g bts .Unit n ex
   /-- Variable: single edge entry -> exit. -/
-  | var (breakTargets : List CFGNode) (x : VarName) (n ex : CFGNode) :
+  | var (bts : List CFGNode) (x : VarName) (n ex : CFGNode) :
       CFGNodeStep g n ex ->
-      ExprEntryEdgeInv g breakTargets (.Var x) n ex
+      ExprEntryEdgeInv g bts (.Var x) n ex
   /-- BinOp: entry -> e₁.entry; also stores e₁.exit -> e₂.entry, e₂.exit -> exit,
       plus child node kinds and membership for building ContCFGInv. -/
-  | binop (breakTargets : List CFGNode) (op : BinOp) (e₁ e₂ : Lang .Expr)
+  | binop (bts : List CFGNode) (op : BinOp) (e₁ e₂ : Lang .Expr)
       (n ex e₁en e₁ex e₂en e₂ex : CFGNode) :
       CFGNodeStep g n e₁en ->
       e₁en.kind = .exprEntry e₁ -> e₁ex.kind = .exprExit e₁ ->
@@ -897,19 +899,19 @@ inductive ExprEntryEdgeInv (g : CFG) : List CFGNode -> Lang .Expr ->
       CFGNodeStep g e₁ex e₂en -> CFGNodeStep g e₂ex ex ->
       e₁en ∈ g.nodes -> e₁ex ∈ g.nodes ->
       e₂en ∈ g.nodes -> e₂ex ∈ g.nodes ->
-      ExprEntryEdgeInv g breakTargets e₁ e₁en e₁ex ->
-      ExprEntryEdgeInv g breakTargets e₂ e₂en e₂ex ->
-      ExprEntryEdgeInv g breakTargets (.BinOp e₁ e₂ op) n ex
+      ExprEntryEdgeInv g bts e₁ e₁en e₁ex ->
+      ExprEntryEdgeInv g bts e₂ e₂en e₂ex ->
+      ExprEntryEdgeInv g bts (.BinOp e₁ e₂ op) n ex
   /-- UnOp: entry -> arg.entry; also stores arg.exit -> exit. -/
-  | unop (breakTargets : List CFGNode) (op : UnOp) (arg : Lang .Expr) (n ex aen aex : CFGNode) :
+  | unop (bts : List CFGNode) (op : UnOp) (arg : Lang .Expr) (n ex aen aex : CFGNode) :
       CFGNodeStep g n aen ->
       aen.kind = .exprEntry arg -> aex.kind = .exprExit arg ->
       CFGNodeStep g aex ex ->
       aen ∈ g.nodes -> aex ∈ g.nodes ->
-      ExprEntryEdgeInv g breakTargets arg aen aex ->
-      ExprEntryEdgeInv g breakTargets (.UnOp arg op) n ex
+      ExprEntryEdgeInv g bts arg aen aex ->
+      ExprEntryEdgeInv g bts (.UnOp arg op) n ex
   /-- If: entry -> cond.entry; stores cond.exit -> t/f entries, t/f exits -> exit. -/
-  | ife (breakTargets : List CFGNode) (cond e₁ e₂ : Lang .Expr)
+  | ife (bts : List CFGNode) (cond e₁ e₂ : Lang .Expr)
       (n ex cen cex e₁en e₁ex e₂en e₂ex : CFGNode) :
       CFGNodeStep g n cen ->
       cen.kind = .exprEntry cond -> cex.kind = .exprExit cond ->
@@ -920,12 +922,12 @@ inductive ExprEntryEdgeInv (g : CFG) : List CFGNode -> Lang .Expr ->
       cen ∈ g.nodes -> cex ∈ g.nodes ->
       e₁en ∈ g.nodes -> e₁ex ∈ g.nodes ->
       e₂en ∈ g.nodes -> e₂ex ∈ g.nodes ->
-      ExprEntryEdgeInv g breakTargets cond cen cex ->
-      ExprEntryEdgeInv g breakTargets e₁ e₁en e₁ex ->
-      ExprEntryEdgeInv g breakTargets e₂ e₂en e₂ex ->
-      ExprEntryEdgeInv g breakTargets (.If cond e₁ e₂) n ex
+      ExprEntryEdgeInv g bts cond cen cex ->
+      ExprEntryEdgeInv g bts e₁ e₁en e₁ex ->
+      ExprEntryEdgeInv g bts e₂ e₂en e₂ex ->
+      ExprEntryEdgeInv g bts (.If cond e₁ e₂) n ex
   /-- While: entry -> cond.entry; stores cond.exit -> body/exit, body.exit -> cond.entry. -/
-  | whil (breakTargets : List CFGNode) (cond body : Lang .Expr) (n ex cen cex ben bex : CFGNode) :
+  | whil (bts : List CFGNode) (cond body : Lang .Expr) (n ex cen cex ben bex : CFGNode) :
       CFGNodeStep g n cen ->
       cen.kind = .exprEntry cond -> cex.kind = .exprExit cond ->
       ben.kind = .exprEntry body -> bex.kind = .exprExit body ->
@@ -933,18 +935,18 @@ inductive ExprEntryEdgeInv (g : CFG) : List CFGNode -> Lang .Expr ->
       CFGNodeStep g bex cen ->
       cen ∈ g.nodes -> cex ∈ g.nodes ->
       ben ∈ g.nodes -> bex ∈ g.nodes ->
-      ExprEntryEdgeInv g breakTargets cond cen cex ->
-      ExprEntryEdgeInv g (ex :: breakTargets) body ben bex ->
-      ExprEntryEdgeInv g breakTargets (.While cond body) n ex
-  /-- Break l: entry -> breakTargets[l] (breakOut edge). -/
-  | brk (breakTargets : List CFGNode) (l : Nat) (n ex target : CFGNode)
-      (hl : l < breakTargets.length) (htarget : target = breakTargets[l])
+      ExprEntryEdgeInv g bts cond cen cex ->
+      ExprEntryEdgeInv g (ex :: bts) body ben bex ->
+      ExprEntryEdgeInv g bts (.While cond body) n ex
+  /-- Break l: entry -> bts[l] (breakOut edge). -/
+  | brk (bts : List CFGNode) (l : Nat) (n ex target : CFGNode)
+      (hl : l < bts.length) (htarget : target = bts[l])
       (hkind : ∃ loopExpr, target.kind = .exprExit loopExpr)
       (hmem : target ∈ g.nodes) :
       CFGNodeStep g n target ->
-      ExprEntryEdgeInv g breakTargets (.Break l) n ex
+      ExprEntryEdgeInv g bts (.Break l) n ex
   /-- Scope: entry -> s.entry; stores s.exit -> res.entry, res.exit -> exit. -/
-  | scope (breakTargets : List CFGNode) (st : Lang .Stmt) (res : Lang .Expr)
+  | scope (bts : List CFGNode) (st : Lang .Stmt) (res : Lang .Expr)
       (n ex sen sx ren rex : CFGNode) :
       CFGNodeStep g n sen ->
       sen.kind = .stmtEntry st -> sx.kind = .stmtExit st ->
@@ -952,47 +954,47 @@ inductive ExprEntryEdgeInv (g : CFG) : List CFGNode -> Lang .Expr ->
       CFGNodeStep g sx ren -> CFGNodeStep g rex ex ->
       sen ∈ g.nodes -> sx ∈ g.nodes ->
       ren ∈ g.nodes -> rex ∈ g.nodes ->
-      StmtEntryEdgeInv g breakTargets st sen sx ->
-      ExprEntryEdgeInv g breakTargets res ren rex ->
-      ExprEntryEdgeInv g breakTargets (.Scope st res) n ex
+      StmtEntryEdgeInv g bts st sen sx ->
+      ExprEntryEdgeInv g bts res ren rex ->
+      ExprEntryEdgeInv g bts (.Scope st res) n ex
 
 inductive StmtEntryEdgeInv (g : CFG) :
     List CFGNode -> Lang .Stmt -> CFGNode -> CFGNode -> Prop where
   /-- Decl: entry -> init.entry; stores init.exit -> exit. -/
-  | decl (breakTargets : List CFGNode) (ty : Ty) (init : Lang .Expr) (n ex ien iex : CFGNode) :
+  | decl (bts : List CFGNode) (ty : Ty) (init : Lang .Expr) (n ex ien iex : CFGNode) :
       CFGNodeStep g n ien ->
       ien.kind = .exprEntry init -> iex.kind = .exprExit init ->
       CFGNodeStep g iex ex ->
       ien ∈ g.nodes -> iex ∈ g.nodes ->
-      ExprEntryEdgeInv g breakTargets init ien iex ->
-      StmtEntryEdgeInv g breakTargets (.Decl ty init) n ex
+      ExprEntryEdgeInv g bts init ien iex ->
+      StmtEntryEdgeInv g bts (.Decl ty init) n ex
   /-- Assign: entry -> rhs.entry; stores rhs.exit -> exit. -/
-  | assign (breakTargets : List CFGNode) (v : VarName) (rhs : Lang .Expr) (n ex ren rex : CFGNode) :
+  | assign (bts : List CFGNode) (v : VarName) (rhs : Lang .Expr) (n ex ren rex : CFGNode) :
       CFGNodeStep g n ren ->
       ren.kind = .exprEntry rhs -> rex.kind = .exprExit rhs ->
       CFGNodeStep g rex ex ->
       ren ∈ g.nodes -> rex ∈ g.nodes ->
-      ExprEntryEdgeInv g breakTargets rhs ren rex ->
-      StmtEntryEdgeInv g breakTargets (.Assign v rhs) n ex
+      ExprEntryEdgeInv g bts rhs ren rex ->
+      StmtEntryEdgeInv g bts (.Assign v rhs) n ex
   /-- Seq: entry -> s₁.entry; stores s₁.exit -> s₂.entry, s₂.exit -> exit. -/
-  | seq (breakTargets : List CFGNode) (s₁ s₂ : Lang .Stmt) (n ex s₁en s₁ex s₂en s₂ex : CFGNode) :
+  | seq (bts : List CFGNode) (s₁ s₂ : Lang .Stmt) (n ex s₁en s₁ex s₂en s₂ex : CFGNode) :
       CFGNodeStep g n s₁en ->
       s₁en.kind = .stmtEntry s₁ -> s₁ex.kind = .stmtExit s₁ ->
       s₂en.kind = .stmtEntry s₂ -> s₂ex.kind = .stmtExit s₂ ->
       CFGNodeStep g s₁ex s₂en -> CFGNodeStep g s₂ex ex ->
       s₁en ∈ g.nodes -> s₁ex ∈ g.nodes ->
       s₂en ∈ g.nodes -> s₂ex ∈ g.nodes ->
-      StmtEntryEdgeInv g breakTargets s₁ s₁en s₁ex ->
-      StmtEntryEdgeInv g breakTargets s₂ s₂en s₂ex ->
-      StmtEntryEdgeInv g breakTargets (.Seq s₁ s₂) n ex
+      StmtEntryEdgeInv g bts s₁ s₁en s₁ex ->
+      StmtEntryEdgeInv g bts s₂ s₂en s₂ex ->
+      StmtEntryEdgeInv g bts (.Seq s₁ s₂) n ex
   /-- Do: entry -> e.entry; stores e.exit -> exit. -/
-  | do_ (breakTargets : List CFGNode) (e : Lang .Expr) (n ex een eex : CFGNode) :
+  | do_ (bts : List CFGNode) (e : Lang .Expr) (n ex een eex : CFGNode) :
       CFGNodeStep g n een ->
       een.kind = .exprEntry e -> eex.kind = .exprExit e ->
       CFGNodeStep g eex ex ->
       een ∈ g.nodes -> eex ∈ g.nodes ->
-      ExprEntryEdgeInv g breakTargets e een eex ->
-      StmtEntryEdgeInv g breakTargets (.Do e) n ex
+      ExprEntryEdgeInv g bts e een eex ->
+      StmtEntryEdgeInv g bts (.Do e) n ex
 end
 
 lemma CFG_subgraph_step {g₁ g₂ n₁ n₂} (hstep : CFGNodeStep g₁ n₁ n₂)
@@ -1087,12 +1089,12 @@ end
 
 mutual
 theorem buildExpr_entry_edge_inv
-    (breakTargets : List CFGNode) (nextId : Nat) (e : Lang .Expr)
-    (hwf : BreakTargetsWellFormed breakTargets)
-    (hbb : ExprBreaksBounded breakTargets.length e) :
-    let r := buildExpr breakTargets nextId e
+    (bts : List CFGNode) (nextId : Nat) (e : Lang .Expr)
+    (hwf : btsWellFormed bts)
+    (hbb : ExprBreaksBounded bts.length e) :
+    let r := buildExpr bts nextId e
     let g := CFG.mk r.entry r.exit r.edges
-    ExprEntryEdgeInv g breakTargets e r.entry r.exit := by
+    ExprEntryEdgeInv g bts e r.entry r.exit := by
   intros r g
   cases e with
   | Var
@@ -1107,8 +1109,8 @@ theorem buildExpr_entry_edge_inv
     simp [g, r, buildExpr, e]
   | BinOp a₁ a₂ o =>
     simp only [ExprBreaksBounded] at hbb
-    let r₁ := buildExpr breakTargets (nextId + 2) a₁
-    let r₂ := buildExpr breakTargets r₁.nextId a₂
+    let r₁ := buildExpr bts (nextId + 2) a₁
+    let r₂ := buildExpr bts r₁.nextId a₂
     have hs1 : CFGNodeStep g r.entry r₁.entry := by
       exists mkEdge r.entry r₁.entry
       grind [buildExpr, mkEdge]
@@ -1118,11 +1120,11 @@ theorem buildExpr_entry_edge_inv
     have hs3 : CFGNodeStep g r₂.exit r.exit := by
       exists mkEdge r₂.exit r.exit
       grind [buildExpr, mkEdge]
-    have he₁ := (buildExpr_entry_edge_inv breakTargets (nextId + 2) a₁ hwf hbb.1).mono
+    have he₁ := (buildExpr_entry_edge_inv bts (nextId + 2) a₁ hwf hbb.1).mono
                   (g₂ := g) (by grind [buildExpr])
-    have he₂ := (buildExpr_entry_edge_inv breakTargets r₁.nextId a₂ hwf hbb.2).mono
+    have he₂ := (buildExpr_entry_edge_inv bts r₁.nextId a₂ hwf hbb.2).mono
                   (g₂ := g) (by grind [buildExpr])
-    refine .binop breakTargets o a₁ a₂ _ _ r₁.entry r₁.exit r₂.entry r₂.exit
+    refine .binop bts o a₁ a₂ _ _ r₁.entry r₁.exit r₂.entry r₂.exit
       hs1
       ?_ ?_ ?_ ?_
       hs2 hs3
@@ -1134,16 +1136,16 @@ theorem buildExpr_entry_edge_inv
       | exact buildExpr_exit_kind ..)
   | UnOp a o =>
     simp only [ExprBreaksBounded] at hbb
-    let r' := buildExpr breakTargets (nextId + 2) a
+    let r' := buildExpr bts (nextId + 2) a
     have hs1 : CFGNodeStep g r.entry r'.entry := by
       exists mkEdge r.entry r'.entry
       grind [buildExpr, mkEdge]
     have hs2 : CFGNodeStep g r'.exit r.exit := by
       exists mkEdge r'.exit r.exit
       grind [buildExpr, mkEdge]
-    have he₁ := (buildExpr_entry_edge_inv breakTargets (nextId + 2) a hwf hbb).mono
+    have he₁ := (buildExpr_entry_edge_inv bts (nextId + 2) a hwf hbb).mono
                   (g₂ := g) (by grind [buildExpr])
-    refine .unop breakTargets o a _ _ r'.entry r'.exit
+    refine .unop bts o a _ _ r'.entry r'.exit
       hs1
       ?_ ?_
       hs2
@@ -1154,9 +1156,9 @@ theorem buildExpr_entry_edge_inv
       | exact buildExpr_exit_kind ..)
   | If c e₁ e₂ =>
     simp only [ExprBreaksBounded] at hbb
-    let rc := buildExpr breakTargets (nextId + 2) c
-    let rt := buildExpr breakTargets rc.nextId e₁
-    let rf := buildExpr breakTargets rt.nextId e₂
+    let rc := buildExpr bts (nextId + 2) c
+    let rt := buildExpr bts rc.nextId e₁
+    let rf := buildExpr bts rt.nextId e₂
     have hs1 : CFGNodeStep g r.entry rc.entry := by
       exists mkEdge r.entry rc.entry
       grind [buildExpr, mkEdge]
@@ -1175,13 +1177,13 @@ theorem buildExpr_entry_edge_inv
       exact ⟨mkEdge rf.exit r.exit,
         by simp [g, r, rc, rt, rf, buildExpr],
         by simp [mkEdge], by simp [mkEdge]⟩
-    have hec := (buildExpr_entry_edge_inv breakTargets (nextId + 2) c hwf hbb.1).mono
+    have hec := (buildExpr_entry_edge_inv bts (nextId + 2) c hwf hbb.1).mono
                   (g₂ := g) (by grind [buildExpr])
-    have het := (buildExpr_entry_edge_inv breakTargets rc.nextId e₁ hwf hbb.2.1).mono
+    have het := (buildExpr_entry_edge_inv bts rc.nextId e₁ hwf hbb.2.1).mono
                   (g₂ := g) (by grind [buildExpr])
-    have hef := (buildExpr_entry_edge_inv breakTargets rt.nextId e₂ hwf hbb.2.2).mono
+    have hef := (buildExpr_entry_edge_inv bts rt.nextId e₂ hwf hbb.2.2).mono
                   (g₂ := g) (by grind [buildExpr])
-    refine .ife breakTargets c e₁ e₂ _ _ rc.entry rc.exit
+    refine .ife bts c e₁ e₂ _ _ rc.entry rc.exit
       rt.entry rt.exit rf.entry rf.exit
       hs1
       ?_ ?_ ?_ ?_ ?_ ?_
@@ -1195,8 +1197,8 @@ theorem buildExpr_entry_edge_inv
       | exact buildExpr_exit_kind ..)
   | While cond body =>
     simp only [ExprBreaksBounded] at hbb
-    let rc := buildExpr breakTargets (nextId + 2) cond
-    let rb := buildExpr (r.exit :: breakTargets) rc.nextId body
+    let rc := buildExpr bts (nextId + 2) cond
+    let rb := buildExpr (r.exit :: bts) rc.nextId body
     have hs1 : CFGNodeStep g r.entry rc.entry := by
       exists mkEdge r.entry rc.entry
       grind [buildExpr, mkEdge]
@@ -1210,15 +1212,15 @@ theorem buildExpr_entry_edge_inv
       exact ⟨mkEdge rb.exit rc.entry .back,
         by simp [g, r, rc, rb, buildExpr],
         by simp [mkEdge], by simp [mkEdge]⟩
-    have hec := (buildExpr_entry_edge_inv breakTargets (nextId + 2) cond hwf
+    have hec := (buildExpr_entry_edge_inv bts (nextId + 2) cond hwf
                     (by exact hbb.1)).mono
                   (g₂ := g) (by grind [buildExpr])
     have heb :=
-      (buildExpr_entry_edge_inv (r.exit :: breakTargets) rc.nextId body
-        ⟨⟨.While cond body, buildExpr_exit_kind breakTargets nextId (.While cond body)⟩, hwf⟩
+      (buildExpr_entry_edge_inv (r.exit :: bts) rc.nextId body
+        ⟨⟨.While cond body, buildExpr_exit_kind bts nextId (.While cond body)⟩, hwf⟩
         (by exact hbb.2)).mono
         (g₂ := g) (by grind [buildExpr])
-    refine .whil breakTargets cond body _ _ rc.entry rc.exit rb.entry rb.exit
+    refine .whil bts cond body _ _ rc.entry rc.exit rb.entry rb.exit
       hs1
       ?_ ?_ ?_ ?_
       hs2 hs3 hs4
@@ -1230,17 +1232,17 @@ theorem buildExpr_entry_edge_inv
       | exact buildExpr_exit_kind ..)
   | Break l =>
     simp only [ExprBreaksBounded] at hbb
-    -- hbb : l < breakTargets.length
-    have hstep : CFGNodeStep g r.entry (breakTargets[l]) :=
-      ⟨mkEdge r.entry (breakTargets[l]) .breakOut,
+    -- hbb : l < bts.length
+    have hstep : CFGNodeStep g r.entry (bts[l]) :=
+      ⟨mkEdge r.entry (bts[l]) .breakOut,
        by simp [g, r, buildExpr, hbb],
        by simp [mkEdge], by simp [mkEdge]⟩
-    exact .brk breakTargets l _ _ (breakTargets[l]) hbb rfl
+    exact .brk bts l _ _ (bts[l]) hbb rfl
       (hwf.getIdx hbb) (CFGNodeStep_dst_mem_nodes hstep) hstep
   | Scope s res =>
     simp only [ExprBreaksBounded] at hbb
-    let sr := buildStmt breakTargets (nextId + 2) s
-    let rr := buildExpr breakTargets sr.nextId res
+    let sr := buildStmt bts (nextId + 2) s
+    let rr := buildExpr bts sr.nextId res
     have hs1 : CFGNodeStep g r.entry sr.entry := by
       exists mkEdge r.entry sr.entry
       grind [buildExpr, mkEdge]
@@ -1250,11 +1252,11 @@ theorem buildExpr_entry_edge_inv
     have hs3 : CFGNodeStep g rr.exit r.exit := by
       exists mkEdge rr.exit r.exit
       grind [buildExpr, mkEdge]
-    have hes := (buildStmt_entry_edge_inv breakTargets (nextId + 2) s hwf hbb.1).mono
+    have hes := (buildStmt_entry_edge_inv bts (nextId + 2) s hwf hbb.1).mono
                   (g₂ := g) (by grind [buildExpr])
-    have her := (buildExpr_entry_edge_inv breakTargets sr.nextId res hwf hbb.2).mono
+    have her := (buildExpr_entry_edge_inv bts sr.nextId res hwf hbb.2).mono
                   (g₂ := g) (by grind [buildExpr])
-    refine .scope breakTargets s res _ _ sr.entry sr.exit rr.entry rr.exit
+    refine .scope bts s res _ _ sr.entry sr.exit rr.entry rr.exit
       hs1
       ?_ ?_ ?_ ?_
       hs2 hs3
@@ -1267,26 +1269,26 @@ theorem buildExpr_entry_edge_inv
     · exact buildExpr_exit_kind ..
 
 theorem buildStmt_entry_edge_inv
-    (breakTargets : List CFGNode) (nextId : Nat) (s : Lang .Stmt)
-    (hwf : BreakTargetsWellFormed breakTargets)
-    (hbb : StmtBreaksBounded breakTargets.length s) :
-    let r := buildStmt breakTargets nextId s
+    (bts : List CFGNode) (nextId : Nat) (s : Lang .Stmt)
+    (hwf : btsWellFormed bts)
+    (hbb : StmtBreaksBounded bts.length s) :
+    let r := buildStmt bts nextId s
     let g := CFG.mk r.entry r.exit r.edges
-    StmtEntryEdgeInv g breakTargets s r.entry r.exit := by
+    StmtEntryEdgeInv g bts s r.entry r.exit := by
   intros r g
   cases s with
   | Decl ty init =>
     simp only [StmtBreaksBounded] at hbb
-    let ri := buildExpr breakTargets (nextId + 2) init
+    let ri := buildExpr bts (nextId + 2) init
     have hs1 : CFGNodeStep g r.entry ri.entry := by
       exists mkEdge r.entry ri.entry
       grind [buildStmt, mkEdge]
     have hs2 : CFGNodeStep g ri.exit r.exit := by
       exists mkEdge ri.exit r.exit
       grind [buildStmt, mkEdge]
-    have hei := (buildExpr_entry_edge_inv breakTargets (nextId + 2) init hwf hbb).mono
+    have hei := (buildExpr_entry_edge_inv bts (nextId + 2) init hwf hbb).mono
                   (g₂ := g) (by grind [buildStmt])
-    refine .decl breakTargets ty init _ _ ri.entry ri.exit
+    refine .decl bts ty init _ _ ri.entry ri.exit
       hs1
       ?_ ?_
       hs2
@@ -1297,16 +1299,16 @@ theorem buildStmt_entry_edge_inv
       | exact buildExpr_exit_kind ..)
   | Assign v rhs =>
     simp only [StmtBreaksBounded] at hbb
-    let ri := buildExpr breakTargets (nextId + 2) rhs
+    let ri := buildExpr bts (nextId + 2) rhs
     have hs1 : CFGNodeStep g r.entry ri.entry := by
       exists mkEdge r.entry ri.entry
       grind [buildStmt, mkEdge]
     have hs2 : CFGNodeStep g ri.exit r.exit := by
       exists mkEdge ri.exit r.exit
       grind [buildStmt, mkEdge]
-    have hei := (buildExpr_entry_edge_inv breakTargets (nextId + 2) rhs hwf hbb).mono
+    have hei := (buildExpr_entry_edge_inv bts (nextId + 2) rhs hwf hbb).mono
                   (g₂ := g) (by grind [buildStmt])
-    refine .assign breakTargets v rhs _ _ ri.entry ri.exit
+    refine .assign bts v rhs _ _ ri.entry ri.exit
       hs1
       ?_ ?_
       hs2
@@ -1317,8 +1319,8 @@ theorem buildStmt_entry_edge_inv
       | exact buildExpr_exit_kind ..)
   | Seq s₁ s₂ =>
     simp only [StmtBreaksBounded] at hbb
-    let r₁ := buildStmt breakTargets (nextId + 2) s₁
-    let r₂ := buildStmt breakTargets r₁.nextId s₂
+    let r₁ := buildStmt bts (nextId + 2) s₁
+    let r₂ := buildStmt bts r₁.nextId s₂
     have hs1 : CFGNodeStep g r.entry r₁.entry := by
       exists mkEdge r.entry r₁.entry
       grind [buildStmt, mkEdge]
@@ -1328,11 +1330,11 @@ theorem buildStmt_entry_edge_inv
     have hs3 : CFGNodeStep g r₂.exit r.exit := by
       exists mkEdge r₂.exit r.exit
       grind [buildStmt, mkEdge]
-    have he₁ := (buildStmt_entry_edge_inv breakTargets (nextId + 2) s₁ hwf hbb.1).mono
+    have he₁ := (buildStmt_entry_edge_inv bts (nextId + 2) s₁ hwf hbb.1).mono
                   (g₂ := g) (by grind [buildStmt])
-    have he₂ := (buildStmt_entry_edge_inv breakTargets r₁.nextId s₂ hwf hbb.2).mono
+    have he₂ := (buildStmt_entry_edge_inv bts r₁.nextId s₂ hwf hbb.2).mono
                   (g₂ := g) (by grind [buildStmt])
-    refine .seq breakTargets s₁ s₂ _ _ r₁.entry r₁.exit r₂.entry r₂.exit
+    refine .seq bts s₁ s₂ _ _ r₁.entry r₁.exit r₂.entry r₂.exit
       hs1
       ?_ ?_ ?_ ?_
       hs2 hs3
@@ -1344,16 +1346,16 @@ theorem buildStmt_entry_edge_inv
       | exact buildStmt_exit_kind ..)
   | Do e =>
     simp only [StmtBreaksBounded] at hbb
-    let re := buildExpr breakTargets (nextId + 2) e
+    let re := buildExpr bts (nextId + 2) e
     have hs1 : CFGNodeStep g r.entry re.entry := by
       exists mkEdge r.entry re.entry
       grind [buildStmt, mkEdge]
     have hs2 : CFGNodeStep g re.exit r.exit := by
       exists mkEdge re.exit r.exit
       grind [buildStmt, mkEdge]
-    have hei := (buildExpr_entry_edge_inv breakTargets (nextId + 2) e hwf hbb).mono
+    have hei := (buildExpr_entry_edge_inv bts (nextId + 2) e hwf hbb).mono
                   (g₂ := g) (by grind [buildStmt])
-    refine .do_ breakTargets e _ _ re.entry re.exit
+    refine .do_ bts e _ _ re.entry re.exit
       hs1
       ?_ ?_
       hs2
@@ -1374,10 +1376,10 @@ records the CFG nodes and edges that the frame implies.
 -/
 inductive ContCFGInv (g : CFG) : List Cont -> List CFGNode -> CFGNode -> Prop where
   /-- Empty stack: the current exit IS the top-level exit. -/
-  | halt : x = g.exit -> ContCFGInv g [] breakTargets x
+  | halt : x = g.exit -> ContCFGInv g [] bts x
   | step : CFGNodeStep g x y ->
-      ContCFGInv g K breakTargets y ->
-      ContCFGInv g K breakTargets x
+      ContCFGInv g K bts y ->
+      ContCFGInv g K bts x
   /-- Left operand of BinOp done -> edge to right operand entry,
       then right exit -> parent exit.
       Also stores `ExprEntryEdgeInv` for `e₂` so that the successor
@@ -1389,19 +1391,19 @@ inductive ContCFGInv (g : CFG) : List Cont -> List CFGNode -> CFGNode -> Prop wh
       pex.kind = .exprExit parent ->
       CFGNodeStep g x e₂en -> CFGNodeStep g e₂ex pex ->
       e₂en ∈ g.nodes -> e₂ex ∈ g.nodes ->
-      ExprEntryEdgeInv g breakTargets e₂ e₂en e₂ex ->
-      ContCFGInv g K breakTargets pex ->
-      ContCFGInv g (.binopLK op e₂ :: K) breakTargets x
+      ExprEntryEdgeInv g bts e₂ e₂en e₂ex ->
+      ContCFGInv g K bts pex ->
+      ContCFGInv g (.binopLK op e₂ :: K) bts x
   /-- Right operand of BinOp done -> edge to parent exit. -/
   | binopRK (op : BinOp) (v₁ : Value) (pex : CFGNode) (parent : Lang .Expr):
       pex.kind = .exprExit parent ->
-      CFGNodeStep g x pex -> ContCFGInv g K breakTargets pex ->
-      ContCFGInv g (.binopRK op v₁ :: K) breakTargets x
+      CFGNodeStep g x pex -> ContCFGInv g K bts pex ->
+      ContCFGInv g (.binopRK op v₁ :: K) bts x
   /-- Operand of UnOp done -> edge to parent exit. -/
   | unopK (op : UnOp) (pex : CFGNode) (parent : Lang .Expr) :
       pex.kind = .exprExit parent ->
-      CFGNodeStep g x pex -> ContCFGInv g K breakTargets pex ->
-      ContCFGInv g (.unopK op :: K) breakTargets x
+      CFGNodeStep g x pex -> ContCFGInv g K bts pex ->
+      ContCFGInv g (.unopK op :: K) bts x
   /-- Condition of If done -> trueBranch/falseBranch edges to branch
       entries, both branch exits -> parent exit.
       Stores `ExprEntryEdgeInv` for both branches. -/
@@ -1415,20 +1417,20 @@ inductive ContCFGInv (g : CFG) : List Cont -> List CFGNode -> CFGNode -> Prop wh
       CFGNodeStep g e₁ex pex -> CFGNodeStep g e₂ex pex ->
       e₁en ∈ g.nodes -> e₁ex ∈ g.nodes ->
       e₂en ∈ g.nodes -> e₂ex ∈ g.nodes ->
-      ExprEntryEdgeInv g breakTargets e₁ e₁en e₁ex ->
-      ExprEntryEdgeInv g breakTargets e₂ e₂en e₂ex ->
-      ContCFGInv g K breakTargets pex ->
-      ContCFGInv g (.ifCondK e₁ e₂ :: K) breakTargets x
+      ExprEntryEdgeInv g bts e₁ e₁en e₁ex ->
+      ExprEntryEdgeInv g bts e₂ e₂en e₂ex ->
+      ContCFGInv g K bts pex ->
+      ContCFGInv g (.ifCondK e₁ e₂ :: K) bts x
   /-- Init expr of Decl done -> edge to stmt exit. -/
   | declK (ty : Ty) (parent : Lang .Stmt) (sx : CFGNode) :
       sx.kind = .stmtExit parent ->
-      CFGNodeStep g x sx -> ContCFGInv g K breakTargets sx ->
-      ContCFGInv g (.declK ty :: K) breakTargets x
+      CFGNodeStep g x sx -> ContCFGInv g K bts sx ->
+      ContCFGInv g (.declK ty :: K) bts x
   /-- RHS of Assign done -> edge to stmt exit. -/
   | assignK (v : VarName) (sx : CFGNode) (parent : Lang .Stmt) :
       sx.kind = .stmtExit parent ->
-      CFGNodeStep g x sx -> ContCFGInv g K breakTargets sx ->
-      ContCFGInv g (.assignK v :: K) breakTargets x
+      CFGNodeStep g x sx -> ContCFGInv g K bts sx ->
+      ContCFGInv g (.assignK v :: K) bts x
   /-- First statement of Seq done -> edge to s₂ entry,
       then s₂ exit -> parent exit.
       Stores `StmtEntryEdgeInv` for `s₂`. -/
@@ -1437,14 +1439,14 @@ inductive ContCFGInv (g : CFG) : List Cont -> List CFGNode -> CFGNode -> Prop wh
       s₂ex.kind = .stmtExit s₂ ->
       CFGNodeStep g x s₂en -> CFGNodeStep g s₂ex pex ->
       s₂en ∈ g.nodes -> s₂ex ∈ g.nodes ->
-      StmtEntryEdgeInv g breakTargets s₂ s₂en s₂ex ->
-      ContCFGInv g K breakTargets pex ->
-      ContCFGInv g (.seqK s₂ :: K) breakTargets x
+      StmtEntryEdgeInv g bts s₂ s₂en s₂ex ->
+      ContCFGInv g K bts pex ->
+      ContCFGInv g (.seqK s₂ :: K) bts x
   /-- Expr of Do stmt done -> edge to stmt exit. -/
   | exprStmtK (parent : Lang .Stmt) (sx : CFGNode) :
       sx.kind = .stmtExit parent ->
-      CFGNodeStep g x sx -> ContCFGInv g K breakTargets sx ->
-      ContCFGInv g (.exprStmtK :: K) breakTargets x
+      CFGNodeStep g x sx -> ContCFGInv g K bts sx ->
+      ContCFGInv g (.exprStmtK :: K) bts x
   /-- Condition of While done (x = condExit).
       trueBranch -> bodyEntry, falseBranch -> whileExit,
       bodyExit -> condEntry (back edge).
@@ -1459,10 +1461,10 @@ inductive ContCFGInv (g : CFG) : List Cont -> List CFGNode -> CFGNode -> Prop wh
       CFGNodeStep g x ben -> CFGNodeStep g x pex ->
       CFGNodeStep g bex cen ->
       ben ∈ g.nodes -> bex ∈ g.nodes ->
-      ExprEntryEdgeInv g breakTargets c cen x ->
-      ExprEntryEdgeInv g (pex :: breakTargets) body ben bex ->
-      ContCFGInv g K breakTargets pex ->
-      ContCFGInv g (.loopK c body n :: K) breakTargets x
+      ExprEntryEdgeInv g bts c cen x ->
+      ExprEntryEdgeInv g (pex :: bts) body ben bex ->
+      ContCFGInv g K bts pex ->
+      ContCFGInv g (.loopK c body n :: K) bts x
   /-- Body of While done (x = bodyExit).
       back edge -> condEntry, then full loop structure from condExit.
       Stores `ExprEntryEdgeInv` for `c`. -/
@@ -1478,10 +1480,10 @@ inductive ContCFGInv (g : CFG) : List Cont -> List CFGNode -> CFGNode -> Prop wh
       CFGNodeStep g bex cen ->
       cen ∈ g.nodes -> cex ∈ g.nodes ->
       ben ∈ g.nodes -> bex ∈ g.nodes ->
-      ExprEntryEdgeInv g breakTargets c cen cex ->
-      ExprEntryEdgeInv g (pex :: breakTargets) body ben bex ->
-      ContCFGInv g K breakTargets pex ->
-      ContCFGInv g (.loopContK c body n :: K) (pex :: breakTargets) x
+      ExprEntryEdgeInv g bts c cen cex ->
+      ExprEntryEdgeInv g (pex :: bts) body ben bex ->
+      ContCFGInv g K bts pex ->
+      ContCFGInv g (.loopContK c body n :: K) (pex :: bts) x
   /-- Statement part of Scope done -> edge to result expr entry,
       then result exit -> parent exit.
       Stores `ExprEntryEdgeInv` for the result expression. -/
@@ -1492,22 +1494,22 @@ inductive ContCFGInv (g : CFG) : List Cont -> List CFGNode -> CFGNode -> Prop wh
       eex.kind = .exprExit e ->
       CFGNodeStep g x een -> CFGNodeStep g eex pex ->
       een ∈ g.nodes -> eex ∈ g.nodes ->
-      ExprEntryEdgeInv g breakTargets e een eex ->
-      ContCFGInv g K breakTargets pex ->
-      ContCFGInv g (.scopeBodyK e n :: K) breakTargets x
+      ExprEntryEdgeInv g bts e een eex ->
+      ContCFGInv g K bts pex ->
+      ContCFGInv g (.scopeBodyK e n :: K) bts x
   /-- Result expr of Scope done -> edge to parent exit. -/
   | scopeExitK (n : Nat) (pex : CFGNode) (parent : Lang .Expr) :
       pex.kind = .exprExit parent ->
-      CFGNodeStep g x pex -> ContCFGInv g K breakTargets pex ->
-      ContCFGInv g (.scopeExitK n :: K) breakTargets x
+      CFGNodeStep g x pex -> ContCFGInv g K bts pex ->
+      ContCFGInv g (.scopeExitK n :: K) bts x
 
 /-!
 ## Jump-context–CFG invariant
 
-`JCFGInv g J breakTargets` relates the CEK jump context `J` to the list of
+`JCFGInv g J bts` relates the CEK jump context `J` to the list of
 break-target CFG nodes threaded through the builder.  Each `J` entry's saved
 continuation `K` is valid (via `ContCFGInv`) at the corresponding while-exit
-node in `breakTargets`.
+node in `bts`.
 -/
 inductive JCFGInv (g : CFG) : JStackCtx -> List CFGNode -> Prop where
   /-- Empty jump context corresponds to no break targets. -/
@@ -1564,40 +1566,40 @@ so that `ContCFGInv` can be anchored there.
 -/
 inductive cfgcekRel (s : Lang .Stmt) : StateRel where
   | exprEntry (e : Lang .Expr) (E : Environment) (J : JStackCtx) (K : List Cont)
-      (breakTargets : List CFGNode) (n ex : CFGNode)
+      (bts : List CFGNode) (n ex : CFGNode)
       (hn : n ∈ (stmtCFG s).nodes) :
       n.kind = .exprEntry e ->
       ex.kind = .exprExit e ->
       ex ∈ (stmtCFG s).nodes ->
-      ExprEntryEdgeInv (stmtCFG s) breakTargets e n ex ->
-      ContCFGInv (stmtCFG s) K breakTargets ex ->
-      JCFGInv (stmtCFG s) J breakTargets ->
+      ExprEntryEdgeInv (stmtCFG s) bts e n ex ->
+      ContCFGInv (stmtCFG s) K bts ex ->
+      JCFGInv (stmtCFG s) J bts ->
       cfgcekRel s ⟨.sourceExpr e, E, J, K⟩ ⟨n, hn⟩
   | exprExit (e : Lang .Expr) (v : Value) (E : Environment)
       (J : JStackCtx) (K : List Cont)
-      (breakTargets : List CFGNode) (n : CFGNode)
+      (bts : List CFGNode) (n : CFGNode)
       (hn : n ∈ (stmtCFG s).nodes) :
       n.kind = .exprExit e ->
-      ContCFGInv (stmtCFG s) K breakTargets n ->
-      JCFGInv (stmtCFG s) J breakTargets ->
+      ContCFGInv (stmtCFG s) K bts n ->
+      JCFGInv (stmtCFG s) J bts ->
       cfgcekRel s ⟨.value v, E, J, K⟩ ⟨n, hn⟩
   | stmtEntry (st : Lang .Stmt) (E : Environment) (J : JStackCtx) (K : List Cont)
-      (breakTargets : List CFGNode) (n ex : CFGNode)
+      (bts : List CFGNode) (n ex : CFGNode)
       (hn : n ∈ (stmtCFG s).nodes) :
       n.kind = .stmtEntry st ->
       ex.kind = .stmtExit st ->
       ex ∈ (stmtCFG s).nodes ->
       (st = s ∧ E = [] ∧ J = [] ∧ K = [] → n = (stmtCFG s).entry) ->
-      StmtEntryEdgeInv (stmtCFG s) breakTargets st n ex ->
-      ContCFGInv (stmtCFG s) K breakTargets ex ->
-      JCFGInv (stmtCFG s) J breakTargets ->
+      StmtEntryEdgeInv (stmtCFG s) bts st n ex ->
+      ContCFGInv (stmtCFG s) K bts ex ->
+      JCFGInv (stmtCFG s) J bts ->
       cfgcekRel s ⟨.sourceStmt st, E, J, K⟩ ⟨n, hn⟩
   | stmtExit (st : Lang .Stmt) (E : Environment) (J : JStackCtx)
-      (K : List Cont) (breakTargets : List CFGNode) (n : CFGNode)
+      (K : List Cont) (bts : List CFGNode) (n : CFGNode)
       (hn : n ∈ (stmtCFG s).nodes) :
       n.kind = .stmtExit st ->
-      ContCFGInv (stmtCFG s) K breakTargets n ->
-      JCFGInv (stmtCFG s) J breakTargets ->
+      ContCFGInv (stmtCFG s) K bts n ->
+      JCFGInv (stmtCFG s) J bts ->
       cfgcekRel s ⟨.skip, E, J, K⟩ ⟨n, hn⟩
 
 noncomputable def cfgcekRelReq (s : Lang .Stmt)
@@ -1611,7 +1613,7 @@ noncomputable def cfgcekRelReq (s : Lang .Stmt)
       (buildStmt_exit_kind [] 0 s)
       (cfg_exit_in_nodes _)
       (by grind)
-      (by grind [stmtCFG, buildStmt_entry_edge_inv [] 0 s (by simp [BreakTargetsWellFormed])])
+      (by grind [stmtCFG, buildStmt_entry_edge_inv [] 0 s (by simp [btsWellFormed])])
       (ContCFGInv.halt rfl)
       JCFGInv.empty
   terminal_related := by

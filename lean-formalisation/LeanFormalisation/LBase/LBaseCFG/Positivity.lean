@@ -4,6 +4,7 @@ import LeanFormalisation.LBase.LBaseCFG.AltCFGRepr
 
 import LeanFormalisation.LBase.LBaseCFG.Framework
 import LeanFormalisation.LBase.LBaseCFG.CorrespondenceProofs
+import LeanFormalisation.LBase.LBaseCFG.Correspondence
 
 open LeanFormalisation AltCFG AltCFGProofs
 
@@ -199,8 +200,9 @@ set_option maxHeartbeats 240000 in
 -- and i cannot be arsed to optimize for a better one.
 lemma Sign.add_mono_right (a b c : Sign) (h : a ⊔ b = a) :
     a.add c ⊔ b.add c = a.add c := by
-  -- cases a <;> cases b <;> cases c <;> simp [max, Sign.sup] at h ⊢
-  sorry
+  cases a <;> cases b <;> cases c <;>
+    simp [max, Sign.sup, Sign.add, Sign.hasNeg, Sign.hasZero,
+      Sign.hasPos, Sign.fromAtomFlags] at h ⊢
 
 lemma Sign.add_mono (a b c d : Sign) (h₁ : a ⊔ b = a) (h₂ : c ⊔ d = c) :
     a.add c ⊔ b.add d = a.add c := by
@@ -220,15 +222,17 @@ set_option maxHeartbeats 240000 in
 -- et simile
 lemma Sign.sub_mono_right (a b c : Sign) (h : a ⊔ b = a) :
     a.sub c ⊔ b.sub c = a.sub c := by
-  -- cases a <;> cases b <;> cases c <;> simp [max, Sign.sup] at h ⊢
-  sorry
+  cases a <;> cases b <;> cases c <;>
+    simp [max, Sign.sup, Sign.sub, Sign.hasNeg, Sign.hasZero,
+      Sign.hasPos, Sign.fromAtomFlags] at h ⊢
 
 set_option maxHeartbeats 400000 in
 -- et simile
 lemma Sign.sub_mono_left (a b c : Sign) (h : c ⊔ b = c) :
     a.sub c ⊔ a.sub b = a.sub c := by
-  -- cases a <;> cases b <;> cases c <;> simp [max, Sign.sup] at h ⊢
-  sorry
+  cases a <;> cases b <;> cases c <;>
+    simp [max, Sign.sup, Sign.sub, Sign.hasNeg, Sign.hasZero,
+      Sign.hasPos, Sign.fromAtomFlags] at h ⊢
 
 set_option maxHeartbeats 1000000 in
 -- needs big simp
@@ -357,8 +361,6 @@ def runPositivity (n : Nat) (g : CFG)
     (entryInit : Domain n Sign := ⊥) : PosFact n g × PosFact n g :=
   runDataflowOf g transferPosNode transferPosEdge entryInit
 
-instance {s} : TranslationReq s (cfgcekRel s) := (cfgcekRelReq s (by sorry))
-
 def absPos : CEK -> Domain n Sign -> Prop := fun σ ρ =>
   σ.E.length ≤ n ∧
   ∀ x : Fin n,
@@ -393,7 +395,8 @@ lemma positivity_step_sound_core {s σ σ' nod nod'}
       (expectedInOf (stmtCFG s) transferPosEdge (fun _ => ⊥) hfact nod')) := by
   sorry
 
-instance : Framework (Domain n Sign) transferPosEdge transferPosNode s (cfgcekRel s) absPos where
+instance [TranslationReq s (cfgcekRel s)] :
+  Framework (Domain n Sign) transferPosEdge transferPosNode s (cfgcekRel s) absPos where
   join_comm := fun a b => by
     funext x
     simp only [max, Sign.sup, Sign.hasNeg, Sign.hasZero, Sign.hasPos]
@@ -587,7 +590,7 @@ instance : Framework (Domain n Sign) transferPosEdge transferPosNode s (cfgcekRe
   step_sound := by
     intros σ σ' nod nod' hrel hrel' heval hreach hfact hfp habs
     apply absPos_mono (hfp nod')
-    apply positivity_step_sound_core hrel <;> try assumption
+    apply positivity_step_sound_core hrel hrel' heval hreach hfact habs
 
 def positivityOverlay {n : Nat} {g : CFG} (inF outF : PosFact n g) : AltCFGRepr.DotOverlay :=
   { nodeMeta := fun node =>

@@ -50,10 +50,6 @@ class TranslationReq (s : Lang .Stmt) (R : StateRel) : Prop where
 /-!
 ## cfg translation correctness: two directions
 -/
-
-/--
-one side correspondence between reachability and relation
--/
 theorem translation_sound_reachability
       (s : Lang .Stmt) (R : StateRel) [tr : TranslationReq s R]
       {σ σ' : CEK} {n : NodeOf (stmtCFG s)}

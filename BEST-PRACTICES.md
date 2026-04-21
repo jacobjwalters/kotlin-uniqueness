@@ -97,6 +97,42 @@ A key invariant is that the runtime `Environment` matches the typing
 `Ctx` (each `E[i]` has the type `Γ[i]`). Define this as a predicate
 and maintain it across all evaluation rules.
 
+## CFG Correspondence Proofs
+
+### Use `CFGReach` bridge fields instead of transitive-closure constructors
+When relating a CEK machine to a CFG, avoid adding a "step" constructor to
+the continuation invariant (`ContCFGInv`) that allows shifting the anchor
+node to an arbitrary predecessor. This makes the relation non-functional
+(multiple nodes for the same CEK state), blocking `step_complete` proofs.
+
+Instead, store a `CFGReach` (reflexive-transitive closure) witness in the
+**entry-state** constructors of the relation, bridging from the child exit
+node to the `ContCFGInv` anchor. Exit-state constructors anchor `ContCFGInv`
+directly at the current node. This keeps the relation functional while
+providing the bridging edges needed for `step_sound`.
+
+### `WFCFG s` as the structural-invariant carrier
+Prefer stating new correspondence lemmas against `WFCFG s` (see
+`LBaseCFG/WFCFG.lean`) rather than threading `stmtCFG s` plus
+per-constructor `ExprEntryEdgeInv` / `StmtEntryEdgeInv` obligations.
+`WFCFG` bundles `CFG.OfStmt s g` once; `WFCFG.ofStmt s hbb` produces the
+canonical witness from `StmtBreaksBounded 0 s`. This is the Option C
+foundation that `cfgcekRel` should eventually migrate onto.
+
+### Option A: `CFGState'`-based relation for `step_complete`
+The projected relation `wfRel s` (see `LBaseCFG/WFCorrespondenceProofs.lean`)
+wraps `wfRelFull`, which relates a CEK state to a `CFGState'` carrying
+`pc + K + breakTargets + anchorNode + ContCFGInv + BreakTargetsWellFormed`.
+This makes the relation injective on the CFG side: given `Eval σ σ'` and
+`wfRelFull s σ' st'`, the pre-state `st` (and its pc) can be recovered from
+the continuation invariants, enabling `step_complete`. The `step_sound` proof
+mirrors `cfgcekRelReq.step_sound` from `CorrespondenceProofs.lean`.
+
+### Use `cases` not `induction` on `ContCFGInv` in exit→entry proofs
+With the `CFGReach` bridge design, continuation-pop cases in `step_sound`
+should use `cases hContInv` to directly extract the stored edges, rather
+than `induction hc` which was needed when a `step` constructor existed.
+
 ## Common Pitfalls
 
 ### `List.get?` does not exist — use bracket syntax
