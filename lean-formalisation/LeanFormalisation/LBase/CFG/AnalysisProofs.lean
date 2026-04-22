@@ -245,8 +245,7 @@ theorem worklistForwardEdgeOf_mono
 
 /-- Generic invariant propagation combinator for the worklist algorithm.
     If a predicate `P` on `(outF, wl)` holds initially and is preserved by
-    both the "unchanged" and "changed" branches, then `P (result, [])` holds.
-    This is the Lean analogue of CompCert's `iterate_prop`. -/
+    both the "unchanged" and "changed" branches, then `P (result, [])` holds. -/
 theorem worklistForwardEdgeOf_invariant
     {A : Type} [Bot A] [Max A] [DecidableEq A] [FiniteHeight A]
     (g : CFG) (nodeTransfer : CFGNode -> A -> A) (edgeTransfer : CFGEdge -> A -> A)
