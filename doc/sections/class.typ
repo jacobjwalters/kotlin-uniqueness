@@ -313,7 +313,7 @@ Method bodies are tracked globally when defined. We define a function $#body (m)
 - $#returnK (ell)$ waits for the return expression to evaluate to a value, then uses $J(ell)$ to jump to the method boundary, restoring the caller's environment and producing the return value.
 - $#assignK (x)$ waits for the RHS expression to evaluate to a value $v$, then updates the environment with $E[x |-> v]$.
 - $#fieldAssignLK (f, e)$ waits for the target path to evaluate to an address $a$, then begins evaluating the RHS $e$ with $#fieldAssignRK (f, a)$ on the stack.
-- $#fieldAssignRK (f, a)$ waits for the RHS to evaluate to a value $v$, then updates the store so that $S(a)$'s field $f$ is bound to $v$.
+- $#fieldAssignRK (f, a)$ waits for the RHS to evaluate to a value $v$, then writes $v$ into field $f$ of the object at address $a$ (leaving other fields of that object, and all other addresses, unchanged).
 - $#binopLK (plus.o, e_2)$ waits for the left operand to evaluate to $v_1$, then begins evaluating $e_2$ with $#binopRK (plus.o, v_1)$ on the stack.
 - $#binopRK (plus.o, v_1)$ waits for the right operand to evaluate to $v_2$, then computes $#delta (plus.o, v_1, v_2)$.
 - $#unopK (plus.o)$ waits for the operand to evaluate to $v$, then computes $#delta (plus.o, v)$.
@@ -370,9 +370,7 @@ $
 #ceskC($v$, $E$, $J$, $S$, $#declK (x : tau) dot.c K$) &~> #ceskC($#Skip$, $E, x := v$, $J$, $S$, $K$) && "VarDeclDone" \
 #ceskC($v$, $E$, $J$, $S$, $#assignK (x) dot.c K$) &~> #ceskC($#Skip$, $E[x |-> v]$, $J$, $S$, $K$) && "AssignDone" \
 #ceskC($a$, $E$, $J$, $S$, $#fieldAssignLK (f, e) dot.c K$) &~> #ceskE($e$, $E$, $J$, $S$, $#fieldAssignRK (f, a) dot.c K$) && "FieldAssignL" \
-#ceskC($v$, $E$, $J$, $S$, $#fieldAssignRK (f_i, a) dot.c K$) &~> #ceskC($#Skip$, $E$, $J$, $S'$, $K$) && "FieldAssignR" \
-& quad "where" S(a) = C(... f_i := v_i ...) \
-& quad S' = S[a |-> C(... f_i := v ...)] \
+#ceskC($v$, $E$, $J$, $S$, $#fieldAssignRK (f, a) dot.c K$) &~> #ceskC($#Skip$, $E$, $J$, $S[a.f |-> v]$, $K$) && "FieldAssignR" \
 #ceskC($v_1$, $E$, $J$, $S$, $#binopLK (plus.o, e_2) dot.c K$) &~> #ceskE($e_2$, $E$, $J$, $S$, $#binopRK (plus.o, v_1) dot.c K$) && "BinOpL" \
 #ceskC($v_2$, $E$, $J$, $S$, $#binopRK (plus.o, v_1) dot.c K$) &~> #ceskC($#delta (plus.o, v_1, v_2)$, $E$, $J$, $S$, $K$) && "BinOpR" \
 #ceskC($v$, $E$, $J$, $S$, $#unopK (plus.o) dot.c K$) &~> #ceskC($#delta (plus.o, v)$, $E$, $J$, $S$, $K$) && "UnOpDone" \
@@ -396,9 +394,9 @@ $
 #ceskC($#Skip$, $E$, $J_0$, $S$, $#callK (E') dot.c K'$) &~> #ceskC($#UnitVal$, $E'$, $J$, $S$, $K'$) && "ImplicitReturn" \
 & quad "where" J_0 = J, #Method (ell, E', K')
 $
-$E[x |-> v]$ updates the rightmost binding of $x$ in $E$. $S[a |-> C(...)]$ analogously updates the object stored at $a$ (replacing $S$'s existing mapping for $a$). BinOpL/BinOpR implement left-to-right evaluation of binary operators. IfTrue/IfFalse dispatch directly to the branch expression.
+$E[x |-> v]$ updates the rightmost binding of $x$ in $E$. $S[a.f |-> v]$ is the store that agrees with $S$ everywhere except at address $a$, where the object's field $f$ is replaced by $v$; all other fields of that object are unchanged. BinOpL/BinOpR implement left-to-right evaluation of binary operators. IfTrue/IfFalse dispatch directly to the branch expression.
 
-FieldAssign evaluates the target path first (left-to-right), then the RHS; FieldAssignR looks up the object at $a$ in $S$, updates the field $f_i$ to the new value $v$, and produces $#Skip$.
+FieldAssign evaluates the target path first (left-to-right), then the RHS; FieldAssignR writes the new value $v$ into field $f$ of the object at address $a$ and produces $#Skip$.
 
 LoopTrue pushes $#Loop (ell, |E|, K)$ onto $J$, recording the environment size at loop entry, then enters the body. LoopFalse produces $#UnitVal$; $J$ is unchanged since it was never pushed for this iteration. LoopCont pops the loop entry from $J$, truncates $E$ to the saved size $n$ (dropping any bindings the body introduced), and re-evaluates the condition.
 
