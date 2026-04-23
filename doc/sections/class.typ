@@ -32,6 +32,7 @@ e ::=& p && "Path Access" \
   |& #Scope brace.l s; e brace.r && "Scope Block" \
 s ::=& #Var x : tau = e && "(Mutable) Variable Declaration" \
   |& x = e && "Variable Assignment/Mutation" \
+  |& p.f = e && "Field Assignment" \
   |& s_1; s_2 && "Statement Sequencing" \
   |& #Do e && "Expression Statement" \
 $
@@ -146,6 +147,7 @@ Since statements may update their context, we use a "small-step" typing judgemen
 #mathpar(
   proof-tree(rule(name: "VarDecl", typeStmt($Delta$, $Gamma$, $#Var x : tau = e$, $Gamma, x : tau$), typeExpr($Gamma$, $Delta$, $e$, $tau$))),
   proof-tree(rule(name: "VarAssign", typeStmt($Delta$, $Gamma$, $x = e$, $Gamma$), $Gamma(x) = tau$, typeExpr($Gamma$, $Delta$, $e$, $tau$))),
+  proof-tree(rule(name: "FieldAssign", typeStmt($Delta$, $Gamma$, $p.f = e$, $Gamma$), typeExpr($Gamma$, $Delta$, $p$, $C$), $f : tau in #fields (C)$, typeExpr($Gamma$, $Delta$, $e$, $tau$))),
 
   proof-tree(rule(name: "Seq", typeStmt($Delta$, $Gamma$, $s_1; s_2$, $Gamma''$), typeStmt($Delta$, $Gamma$, $s_1$, $Gamma'$), typeStmt($Delta$, $Gamma'$, $s_2$, $Gamma''$))),
 
@@ -155,6 +157,8 @@ Since statements may update their context, we use a "small-step" typing judgemen
 Variable declarations check the initialiser expression against the declared type, then extend the context.
 
 Variable assignment requires that $x : tau$ is present in the context. The output context is $Gamma$ (unchanged). $e$ has access to $x$; this allows self mutation (such as $x = x + 1$).
+
+Field assignment $p.f = e$ types the target path $p$ at some class $C$, looks up $f : tau in #fields (C)$, and checks the RHS against $tau$. The output context is $Gamma$ (unchanged): field writes mutate the store, not the variable context.
 
 Sequencing threads $Gamma$ from the output of the first statement into the input of the second; $Delta$ is unchanged.
 
@@ -281,6 +285,8 @@ The continuation is a stack of frames that describes what to do after the curren
 $
 K ::=& #halt && "Program complete" \
   |& #fieldK (f) dot.c K && "After evaluating path, look up field" f \
+  |& #fieldAssignLK (f, e) dot.c K && "After evaluating path, evaluate RHS" e "to write field" f \
+  |& #fieldAssignRK (f, a) dot.c K && "After evaluating RHS, write field" f "at address" a \
   |& #ifCondK (e_1, e_2) dot.c K && "After evaluating condition, branch to expression" \
   |& #declK (x : tau) dot.c K && "After evaluating initialiser of type" tau ", bind" x "in" E \
   |& #returnK (ell) dot.c K && "After evaluating return expr, jump to method" ell \
@@ -306,6 +312,8 @@ Method bodies are tracked globally when defined. We define a function $#body (m)
 - $#declK (x : tau)$ waits for the initialiser expression to evaluate to a value $v$ of type $tau$, then extends the environment with $x := v$.
 - $#returnK (ell)$ waits for the return expression to evaluate to a value, then uses $J(ell)$ to jump to the method boundary, restoring the caller's environment and producing the return value.
 - $#assignK (x)$ waits for the RHS expression to evaluate to a value $v$, then updates the environment with $E[x |-> v]$.
+- $#fieldAssignLK (f, e)$ waits for the target path to evaluate to an address $a$, then begins evaluating the RHS $e$ with $#fieldAssignRK (f, a)$ on the stack.
+- $#fieldAssignRK (f, a)$ waits for the RHS to evaluate to a value $v$, then writes $v$ into field $f$ of the object at address $a$ (leaving other fields of that object, and all other addresses, unchanged).
 - $#binopLK (plus.o, e_2)$ waits for the left operand to evaluate to $v_1$, then begins evaluating $e_2$ with $#binopRK (plus.o, v_1)$ on the stack.
 - $#binopRK (plus.o, v_1)$ waits for the right operand to evaluate to $v_2$, then computes $#delta (plus.o, v_1, v_2)$.
 - $#unopK (plus.o)$ waits for the operand to evaluate to $v$, then computes $#delta (plus.o, v)$.
@@ -330,6 +338,7 @@ $
 #ceskE($#Return ell thin e$, $E$, $J$, $S$, $K$) &~> #ceskE($e$, $E$, $J$, $S$, $#returnK (ell) dot.c K$) && "Return" \
 #ceskE($#Var x : tau = e$, $E$, $J$, $S$, $K$) &~> #ceskE($e$, $E$, $J$, $S$, $#declK (x : tau) dot.c K$) && "VarDecl" \
 #ceskE($x = e$, $E$, $J$, $S$, $K$) &~> #ceskE($e$, $E$, $J$, $S$, $#assignK (x) dot.c K$) && "Assign" \
+#ceskE($p.f = e$, $E$, $J$, $S$, $K$) &~> #ceskE($p$, $E$, $J$, $S$, $#fieldAssignLK (f, e) dot.c K$) && "FieldAssign" \
 #ceskE($e_1 plus.o e_2$, $E$, $J$, $S$, $K$) &~> #ceskE($e_1$, $E$, $J$, $S$, $#binopLK (plus.o, e_2) dot.c K$) && "BinOp" \
 #ceskE($#IsZero (e)$, $E$, $J$, $S$, $K$) &~> #ceskE($e$, $E$, $J$, $S$, $#unopK (#IsZero) dot.c K$) && "UnOp" \
 #ceskE($s_1 ; s_2$, $E$, $J$, $S$, $K$) &~> #ceskE($s_1$, $E$, $J$, $S$, $#seqK (s_2) dot.c K$) && "Seq" \
@@ -360,6 +369,8 @@ $
 & quad "where" J(ell) = (E', K') \
 #ceskC($v$, $E$, $J$, $S$, $#declK (x : tau) dot.c K$) &~> #ceskC($#Skip$, $E, x := v$, $J$, $S$, $K$) && "VarDeclDone" \
 #ceskC($v$, $E$, $J$, $S$, $#assignK (x) dot.c K$) &~> #ceskC($#Skip$, $E[x |-> v]$, $J$, $S$, $K$) && "AssignDone" \
+#ceskC($a$, $E$, $J$, $S$, $#fieldAssignLK (f, e) dot.c K$) &~> #ceskE($e$, $E$, $J$, $S$, $#fieldAssignRK (f, a) dot.c K$) && "FieldAssignL" \
+#ceskC($v$, $E$, $J$, $S$, $#fieldAssignRK (f, a) dot.c K$) &~> #ceskC($#Skip$, $E$, $J$, $S[a.f |-> v]$, $K$) && "FieldAssignR" \
 #ceskC($v_1$, $E$, $J$, $S$, $#binopLK (plus.o, e_2) dot.c K$) &~> #ceskE($e_2$, $E$, $J$, $S$, $#binopRK (plus.o, v_1) dot.c K$) && "BinOpL" \
 #ceskC($v_2$, $E$, $J$, $S$, $#binopRK (plus.o, v_1) dot.c K$) &~> #ceskC($#delta (plus.o, v_1, v_2)$, $E$, $J$, $S$, $K$) && "BinOpR" \
 #ceskC($v$, $E$, $J$, $S$, $#unopK (plus.o) dot.c K$) &~> #ceskC($#delta (plus.o, v)$, $E$, $J$, $S$, $K$) && "UnOpDone" \
@@ -383,7 +394,9 @@ $
 #ceskC($#Skip$, $E$, $J_0$, $S$, $#callK (E') dot.c K'$) &~> #ceskC($#UnitVal$, $E'$, $J$, $S$, $K'$) && "ImplicitReturn" \
 & quad "where" J_0 = J, #Method (ell, E', K')
 $
-$E[x |-> v]$ updates the rightmost binding of $x$ in $E$. BinOpL/BinOpR implement left-to-right evaluation of binary operators. IfTrue/IfFalse dispatch directly to the branch expression.
+$E[x |-> v]$ updates the rightmost binding of $x$ in $E$. $S[a.f |-> v]$ is the store that agrees with $S$ everywhere except at address $a$, where the object's field $f$ is replaced by $v$; all other fields of that object are unchanged. BinOpL/BinOpR implement left-to-right evaluation of binary operators. IfTrue/IfFalse dispatch directly to the branch expression.
+
+FieldAssign evaluates the target path first (left-to-right), then the RHS; FieldAssignR writes the new value $v$ into field $f$ of the object at address $a$ and produces $#Skip$.
 
 LoopTrue pushes $#Loop (ell, |E|, K)$ onto $J$, recording the environment size at loop entry, then enters the body. LoopFalse produces $#UnitVal$; $J$ is unchanged since it was never pushed for this iteration. LoopCont pops the loop entry from $J$, truncates $E$ to the saved size $n$ (dropping any bindings the body introduced), and re-evaluates the condition.
 
@@ -419,6 +432,8 @@ Expression continuations (#typeContE($Gamma$, $Delta$, $K$, $tau$)) _consume_ a 
 
   proof-tree(rule(name: "ReturnK", typeContE($Gamma$, $Delta$, $#returnK (ell) dot.c K$, $sigma$), $Delta(ell) = #Method (ell, sigma)$)),
   proof-tree(rule(name: "FieldK", typeContE($Gamma$, $Delta$, $#fieldK (f) dot.c K$, $C$), $f : tau in #fields (C)$, typeContE($Gamma$, $Delta$, $K$, $tau$))),
+  proof-tree(rule(name: $#FieldAssignLK$, typeContE($Gamma$, $Delta$, $#fieldAssignLK (f, e) dot.c K$, $C$), $f : tau in #fields (C)$, typeExpr($Gamma$, $Delta$, $e$, $tau$), typeContC($Gamma$, $Delta$, $K$))),
+  proof-tree(rule(name: $#FieldAssignRK$, typeContE($Gamma$, $Delta$, $#fieldAssignRK (f, a) dot.c K$, $tau$), $tack.r a : C$, $f : tau in #fields (C)$, typeContC($Gamma$, $Delta$, $K$))),
   proof-tree(rule(name: "ArgK", typeContE($Gamma$, $Delta$, $#argK (m, overline(v), overline(e)) dot.c K$, $tau_i$), $m : (tau_1, ..., tau_n) : sigma_m$, $tack.r overline(v)_j : tau_j "for" j < i$, typeExpr($Gamma$, $Delta$, $overline(e)_k$, $tau_(i+k)$), typeContE($Gamma$, $Delta$, $K$, $sigma_m$))),
   proof-tree(rule(name: "NewK", typeContE($Gamma$, $Delta$, $#newK (C, overline(v), overline(e)) dot.c K$, $tau_i$), $#fields (C) = (f_1 : tau_1, ..., f_n : tau_n)$, $tack.r overline(v)_j : tau_j "for" j < i$, typeExpr($Gamma$, $Delta$, $overline(e)_k$, $tau_(i+k)$), typeContE($Gamma$, $Delta$, $K$, $C$))),
 
@@ -436,6 +451,8 @@ $#DeclK$ accepts a value of the declared type $tau$. $#AssignK$ accepts a value 
 For operators, the negative-position type threads through the evaluation chain: $#BinOpLK$ accepts $tau_1$, requires $e_2 : tau_2$, and the tail $K$ must accept $tau_3$. $#BinOpRK$ and $#UnOpK$ are similar.
 
 ReturnK accepts $sigma$ and requires $Delta(ell) = #Method (ell, sigma)$. It has no premises about the tail $K$ since return jumps past it via $J(ell)$. FieldK accepts a class type $C$, looks up $f : tau in #fields (C)$, and requires the tail $K$ to accept $tau$.
+
+$#FieldAssignLK$ accepts a class type $C$, requires the RHS $e$ to have type $tau$ (the field's declared type), and requires the tail $K$ to be a statement continuation (since the surrounding statement produces $#Skip$). $#FieldAssignRK$ accepts the RHS value of type $tau$, carries the receiver address $a : C$ with $f : tau in #fields (C)$, and likewise requires a statement continuation.
 
 ArgK accepts the type $tau_i$ of the current argument being evaluated and carries: the method signature, value typing for accumulated arguments, expression typing for remaining arguments, and an expression continuation for the tail accepting $sigma_m$ (the method's return type). The tail is an expression continuation because the method call is an expression producing $sigma_m$; ArgDone needs this to establish both JCohMethod and CallK. NewK is analogous for field initialisers.
 
