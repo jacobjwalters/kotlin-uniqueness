@@ -3,14 +3,6 @@ import Batteries.Tactic.Init
 import LeanFormalisation.LBase.LBaseDefs
 import LeanFormalisation.LBase.Theorems.Helpers
 
-theorem lang_det (Γ₁ : Ctx) (tg : Tag) (Γ₂ Γ₃ : TypR tg) (s : Lang tg) :
-  Typ tg Δ₁ Γ₁ s Γ₂ → Typ tg Δ₁ Γ₁ s Γ₃ → Γ₂ = Γ₃ := by
-    intro h1 h2
-    unhygienic induction h1 <;> try grind
-    all_goals
-    { cases h2
-      grind }
-
 theorem typ_permutation (Γ₁ Γ₂ : Ctx) (tg : Tag) (Γ₃ : TypR tg) (e : Lang tg) :
   (∀ tp x, (Γ₁(x) = tp) ↔ Γ₂(x) = tp) →
   Typ tg Δ₁ Γ₁ e Γ₃ → Typ tg Δ₁ Γ₂ e Γ₃ := by
@@ -92,7 +84,7 @@ theorem lang_extension (tg : Tag) (e : Lang tg) (res : TypR tg)
         simp only [List.map_cons, List.length_append,
           TypR.extR] at h ⊢
         exact h } }
-    { exact Typ.BreakExpr .unit _
+    { exact Typ.BreakExpr _ _
         (by rw [List.length_map]; exact a) }
     { solve_by_elim [Typ.ScopeExpr] }
     { rw [TypR.extR]
