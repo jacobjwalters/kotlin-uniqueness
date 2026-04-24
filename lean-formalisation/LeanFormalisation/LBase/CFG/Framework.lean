@@ -1,7 +1,7 @@
-import LeanFormalisation.LBase.LBaseCFG.AltCFG
-import LeanFormalisation.LBase.LBaseCFG.Analysis
-import LeanFormalisation.LBase.LBaseCFG.AnalysisProofs
-import LeanFormalisation.LBase.LBaseCFG.Correspondence
+import LeanFormalisation.LBase.CFG.AltCFG
+import LeanFormalisation.LBase.CFG.Analysis
+import LeanFormalisation.LBase.CFG.AnalysisProofs
+import LeanFormalisation.LBase.CFG.Correspondence
 
 open LeanFormalisation.AltCFG
 open LeanFormalisation.AltCFGProofs

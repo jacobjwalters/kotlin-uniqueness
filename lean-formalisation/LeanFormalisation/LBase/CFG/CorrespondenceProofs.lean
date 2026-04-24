@@ -10,7 +10,7 @@
   to whole-path correspondence via reflexive-transitive induction.
 -/
 
-import LeanFormalisation.LBase.LBaseCFG.Correspondence
+import LeanFormalisation.LBase.CFG.Correspondence
 
 open LeanFormalisation
 open LeanFormalisation.AltCFG

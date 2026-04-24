@@ -1,10 +1,10 @@
-import LeanFormalisation.LBase.LBaseCFG.AltCFG
-import LeanFormalisation.LBase.LBaseCFG.Analysis
-import LeanFormalisation.LBase.LBaseCFG.AltCFGRepr
+import LeanFormalisation.LBase.CFG.AltCFG
+import LeanFormalisation.LBase.CFG.Analysis
+import LeanFormalisation.LBase.CFG.AltCFGRepr
 
-import LeanFormalisation.LBase.LBaseCFG.Framework
-import LeanFormalisation.LBase.LBaseCFG.CorrespondenceProofs
-import LeanFormalisation.LBase.LBaseCFG.Correspondence
+import LeanFormalisation.LBase.CFG.Framework
+import LeanFormalisation.LBase.CFG.CorrespondenceProofs
+import LeanFormalisation.LBase.CFG.Correspondence
 
 open LeanFormalisation AltCFG AltCFGProofs
 
