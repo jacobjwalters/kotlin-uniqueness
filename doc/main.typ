@@ -33,6 +33,9 @@
 
 // Content
 #pagebreak()
+#include "sections/core.typ"
+
+#pagebreak()
 #include "sections/base.typ"
 
 #pagebreak()
