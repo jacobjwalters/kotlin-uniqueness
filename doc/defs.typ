@@ -3,6 +3,7 @@
 #import "@preview/curryst:0.3.0": proof-tree, rule
 
 // Language names
+#let Lcore = $cal(L)_sans("Core")$
 #let Lbase = $cal(L)_sans("Base")$
 #let Lclass = $cal(L)_sans("Class")$
 
@@ -53,6 +54,7 @@
 #let Nat = $sans("Nat")$
 #let Bool = $sans("Bool")$
 #let Unit = $sans("Unit")$
+#let Ref = $sans("Ref")$
 
 // Exprs
 #let Skip = $sans("skip")$
@@ -68,6 +70,9 @@
 #let True = $sans("true")$
 #let False = $sans("false")$
 #let IsZero = math.op("iszero")
+#let ref(e) = $sans("ref") med #e$
+#let get(i, e) = $sans("get") med #i med #e$
+#let Set(i, e1, e2) = $sans("set") med #i med #e1 med #e2$
 
 // Statements
 #let While = $sans("while")$
@@ -91,6 +96,12 @@
 #let argK = math.op("argK")
 #let callK = math.op("callK")
 #let newK = math.op("newK")
+#let appFunK = math.op("appFunK")
+#let appArgK = math.op("appArgK")
+#let refK = math.op("refK")
+#let getK = math.op("getK")
+#let setRefK = math.op("setRefK")
+#let setValK = math.op("setValK")
 #let binopLK = math.op("binopLK")
 #let binopRK = math.op("binopRK")
 #let unopK = math.op("unopK")
