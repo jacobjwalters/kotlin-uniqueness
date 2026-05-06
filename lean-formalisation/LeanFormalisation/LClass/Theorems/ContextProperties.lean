@@ -2,7 +2,7 @@ import Batteries.Tactic.Init
 import Mathlib.Data.Nat.Basic
 
 import LeanFormalisation.LClass.LClassDefs
-import LeanFormalisation.LClass.Theorems.Helpers
+import LeanFormalisation.LClass.Theorems.TypeProperties
 
 variable (cCnt : Nat) (defs : Defs cCnt)
 
@@ -60,55 +60,162 @@ lemma drop_suffix_prepend {α : Type} (Γ₁ Γ₂ : List α) (n : Nat)
   rw [h1, List.nil_append]
   congr 1; simp; omega
 
-lemma jcoh_ext (J : JStackCtx cCnt defs) (Γ Γ₁ : Ctx) :
-    JCoh cCnt defs J Γ Δ → JCoh cCnt defs J (Γ₁ ++ Γ) Δ := by
-    intro h
-    unhygienic induction h generalizing Γ₁
-    { exact JCoh.JCohEmp }
-    rename_i Γ₂
-    have hdrop := drop_suffix_prepend Γ₁ Γ₂ n a
-    apply JCoh.JCohLoop
-    { simp; omega }
-    { rw [hdrop]; assumption }
-    { rw [hdrop]; assumption }
+lemma map_fresh_addr {val : Type} (m : Map val) : ∃ n : Addr, n ∉ m := by
+  -- Treat the keys as Finset Nat (Addr = Nat definitionally) to access Nat instances
+  let ks : Finset Nat := m.keys
+  use ks.sup id + 1
+  intro h
+  have hk : ks.sup id + 1 ∈ ks := Finmap.mem_keys.mpr h
+  have hle := Finset.le_sup (f := id) hk
+  simp only [id_eq] at hle
+  omega
 
-lemma jcoh_sub (J : JStackCtx cCnt defs) (Γ : Ctx) :
-    JCoh cCnt defs J Γ Δ → ctx_limit n Δ →
-    JCoh cCnt defs J (Γ.drop (Γ.length - n)) Δ := by
-    intro h hc
-    unhygienic induction h generalizing n
-    { exact JCoh.JCohEmp }
-    apply JCoh.JCohLoop
-    { grind [ctx_limit] }
-    { simp at *
-      grind [ctx_limit] }
-    stop sorry
-    /- JCoh should not be related to a specific method. -/
+lemma entries_insert_ne (S : Store cCnt defs) (a : Addr) (s : Object cCnt defs)
+    (obj : Σ _ : Addr, Object cCnt defs) :
+    obj ∈ (S.insert a s).entries → obj.1 ≠ a → obj ∈ S.entries := by
+  intro hobj hne
+  have hmem := Finmap.mem_lookup_iff.mpr hobj
+  rw [Finmap.lookup_insert_of_ne S hne] at hmem
+  simpa [Sigma.eta] using Finmap.mem_lookup_iff.mp hmem
 
-lemma jcoh_drop (J : JStackCtx cCnt defs) (Γ : Ctx) (l : Nat) :
-    JCoh cCnt defs J Γ Δ →
-    JCoh cCnt defs (J.drop (l + 1))
-      (Γ.drop (Γ.length - J[l]!.1)) (Δ.drop (l + 1)) := by
-    intro hj
-    unhygienic induction l generalizing J Δ Γ
-    { cases hj
-      { grind [JCoh] }
+lemma coh_ext (E : Environment) (Γ : Ctx) (S : Store cCnt defs) :
+  Coh cCnt defs E S Γ →
+  a ∉ S →
+  Coh cCnt defs E (S.insert a s) Γ := by
+    intro hc ha
+    induction hc <;> grind [Coh, value_typ_ext]
+
+lemma store_ext (S : Store cCnt defs) (s : Object cCnt defs) :
+  S_ok cCnt defs S →
+  a ∉ S →
+  (∀ i, ValueTyp cCnt defs (s.values i) (defs.fieldsTy s.cls i) S) →
+  S_ok cCnt defs (S.insert a s) := by
+    intro hs ha hv
+    rw [S_ok] at *
+    intro obj hobj
+    have mem := Finmap.mem_lookup_iff.mpr hobj
+    by_cases heq : a = obj.fst
+    { apply ValueTyp.Cls
+      { rw [heq, Finmap.lookup_insert] }
+      { intro i
+        apply value_typ_ext
+        { apply hv i }
+        exact ha }
+      rw [heq, Finmap.lookup_insert] at mem
       grind }
-    unhygienic cases hj
-    { grind [JCoh] }
-    simp only [List.drop_succ_cons]
-    apply a
-    have : Γ = Γ.take (Γ.length - n_1) ++ (Γ.drop (Γ.length - n_1)) := by
-      clear a a_2
-      exact List.eq_take_drop Γ _
-    rw [this]
-    apply jcoh_ext
-    apply a_2
+    rw [Finmap.lookup_insert_of_ne] at mem
+    { simp only [Option.mem_def] at mem
+      apply ValueTyp.Cls
+      { rw [Finmap.lookup_insert_of_ne]
+        { exact mem }
+        grind }
+      { intro i
+        apply value_typ_ext
+        { unhygienic cases hs obj (by
+            apply Finmap.mem_lookup_iff.mp
+            grind)
+          have eq := Fin.eq_of_val_eq a_4
+          subst eq
+          rw [mem] at a_2
+          simp at a_2
+          have eq1 : vls = obj.2.values := by grind
+          subst eq1
+          grind }
+        grind }
+      { grind } }
+    grind
 
-lemma jcoh_ctx :
-  JCoh cCnt defs J Γ Δ → ctx_limit Γ.length Δ := by
-    intro hj
-    induction hj
-    { grind [ctx_limit] }
-    rw [ctx_limit]
+lemma coh_iff (E : Environment) (Γ : Ctx) (S : Store cCnt defs) :
+  Coh cCnt defs E S Γ ↔
+  (E.length = Γ.length ∧ ∀ i < E.length, ValueTyp cCnt defs E[i]! Γ[i]! S) := by
+    constructor
+    { intro hc
+      induction hc <;> grind }
+    intro hc
+    induction E generalizing Γ
+    { have gemp : Γ = [] := by grind
+      rw [gemp]
+      exact Coh.CohEmp }
+    have : ∃ g G', Γ = g :: G' := by cases Γ <;> grind
+    rcases this with ⟨g, G', hg⟩
+    rw [hg]
+    rename_i tail_ih
+    apply Coh.CohBind
+    { apply tail_ih
+      constructor
+      { grind }
+      intro i hi
+      have lm := hc.2 (i + 1) (by simp; omega)
+      grind }
+    rw [hg] at hc
+    have lmc := hc.2 0 (by simp)
+    grind
+
+lemma cont_type_ext (tg : Tag) (res : ContTypeRes tg) :
+  ContType cCnt defs tg Δ Γ S K res →
+  a ∉ S →
+  ContType cCnt defs tg Δ Γ (S.insert a s) K res := by
+    intro hc ha
+    unhygienic induction hc
+    all_goals try solve_by_elim
+    { apply ContType.FieldK <;> solve_by_elim }
+    { apply ContType.IfCondK <;> solve_by_elim }
+    { apply ContType.LoopContK Γ₁ e c cnts <;> try solve_by_elim
+      { intros
+        apply a_ih <;> try solve_by_elim }
+      { intros
+        apply a_ih_1 <;> try solve_by_elim } }
+    { apply ContType.BreakRestoreK Γ₁ cnts (Δ := Δ_1) (Δ₁ := Δ₁) <;> grind }
+    { apply ContType.ScopeExitK _ _ _ cnts <;> try solve_by_elim
+      { grind }
+      { grind } }
+    { apply ContType.ReturnJumpK <;> solve_by_elim }
+    { apply ContType.ReturnRestoreK (cnts := cnts) <;> try solve_by_elim
+      apply coh_ext <;> try solve_by_elim
+      { intros
+        apply a_ih <;> solve_by_elim }
+      { intros
+        apply a_ih_1 <;> solve_by_elim } }
+    { apply ContType.CallRestoreK (cnts := cnts) <;> try solve_by_elim
+      apply coh_ext <;> solve_by_elim
+      { intros
+        apply a_ih <;> solve_by_elim }
+      { intros
+        apply a_ih_1 <;> solve_by_elim } }
+    { apply ContType.ArgK <;> try solve_by_elim
+      intros
+      apply value_typ_ext <;> grind }
+    { apply ContType.NewK <;> try solve_by_elim
+      intros
+      apply value_typ_ext <;> grind }
+    { apply ContType.ScopeBodyK (cnts := cnts) <;> try solve_by_elim
+      { intros
+        apply a_ih <;> solve_by_elim }
+      { intros
+        apply a_ih_1 <;> solve_by_elim } }
+
+
+lemma cont_gen_method (type : Ty) :
+  (∃ E₁ J₁, K = Cont.returnRestoreK E₁ J₁ :: K') →
+  ContType cCnt defs Tag.Expr Δ₁ Γ₁ S K (ContTypeRes.Expr type) →
+  ContType cCnt defs Tag.Expr Δ₂ Γ₂ S K (ContTypeRes.Expr type) := by
+    intro hj hc
+    rcases hj with ⟨E, J, hj⟩
+    subst hj
+    unhygienic cases hc
+    apply ContType.ReturnRestoreK <;> solve_by_elim
+
+lemma cont_gen_loop (Γ₁ Γ₂ : Ctx) :
+  (K = Cont.breakRestoreK n1 J₁ :: K') →
+  n1 ≤ Γ₁.length → n1 ≤ Γ₂.length →
+  (Γ₁.drop (Γ₁.length - n1)) = Γ₂.drop (Γ₂.length - n1) →
+  ContType cCnt defs Tag.Expr Δ₁ Γ₁ S K (ContTypeRes.Expr Ty.unit) →
+  ContType cCnt defs Tag.Expr Δ₂ Γ₂ S K (ContTypeRes.Expr Ty.unit) := by
+    intro hj eq1 eq2 eq hc
+    subst hj
+    unhygienic cases hc
+    apply ContType.BreakRestoreK <;> try solve_by_elim
+    { grind }
+    { unhygienic intros
+      apply cont_gen_method <;> try solve_by_elim }
     grind

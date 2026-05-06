@@ -16,3 +16,13 @@ lemma List.eq_take_drop (Γ : List α) (n : Nat) :
     by_cases ∃ k, n = k + 1
     { grind }
     simp at *
+
+lemma suffix_eq (Γ₁ Γ₂ Γ₃ : List α) :
+  Γ₃ = Γ₁ ++ Γ₂ →
+  n ≤ Γ₂.length →
+  (Γ₂.drop (Γ₂.length - n)) = (Γ₃.drop (Γ₃.length - n)) := by
+    intro eq le
+    rw [eq, List.drop_append]
+    rw [List.drop_eq_nil_iff (l := Γ₁).mpr]
+    { grind }
+    grind
