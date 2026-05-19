@@ -169,7 +169,6 @@ lemma cont_type_ext (tg : Tag) (res : ContTypeRes tg) :
     { apply ContType.ScopeExitK _ _ _ cnts <;> try solve_by_elim
       { grind }
       { grind } }
-    { apply ContType.ReturnJumpK <;> solve_by_elim }
     { apply ContType.ReturnRestoreK (cnts := cnts) <;> try solve_by_elim
       apply coh_ext <;> try solve_by_elim
       { intros

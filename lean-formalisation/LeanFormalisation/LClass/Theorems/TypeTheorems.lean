@@ -335,9 +335,6 @@ theorem preservation (s : CEK cCnt defs m) (s' : CEK cCnt defs m') :
       rw [this, ←hg1]
       simp only [List.length_append, Nat.add_sub_cancel, List.drop_left']
       exact a_10 }
-    { cases a_3
-      apply Wt.WtExprE <;> try solve_by_elim
-      apply ContType.ReturnJumpK <;> solve_by_elim }
     { unhygienic cases a_4
       apply Wt.WtExprE (Δ := [.Method cls m_1]) (type := type) (cnts := [K])
       { apply Coh.CohEmp }
@@ -624,10 +621,11 @@ theorem preservation (s : CEK cCnt defs m) (s' : CEK cCnt defs m') :
       { assumption }
       { assumption }
       { assumption }
-      rcases a_10 l (by grind) cls m_1 a_13 with ⟨E₀, J₀, hk⟩
+      have ⟨hl, hΔl⟩ := method_jump_lookup cCnt defs cls m_1 a_12
+      rcases a_10 l (by grind) cls m_1 hΔl with ⟨E₀, J₀, hk⟩
       subst a
       rw [hk]
-      have lm := a_9 l (by grind) cls m_1 a_13
+      have lm := a_9 l (by grind) cls m_1 hΔl
       rw [hk] at lm
       cases lm
       apply ContType.ReturnRestoreK <;> try solve_by_elim

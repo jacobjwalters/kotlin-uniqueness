@@ -143,6 +143,20 @@ inductive LoopJump : JCtx cCnt defs → Nat → Prop
   LoopJump Δ (l - 1) →
   LoopJump (.Loop n :: Δ) l
 
+/--
+`MethodJump Δ l cls m` says position `l` of `Δ` is a `Method cls m` frame and
+every frame between 0 and l-1 is a `Loop`. It is the analogue of `LoopJump` for
+`Return`-expressions, replacing the awkward `(l = 0 ∨ LoopJump Δ (l - 1))`
+disjunct.
+-/
+inductive MethodJump : JCtx cCnt defs → Nat →
+    (cls : Fin cCnt) → Fin (defs.methodsCnt cls) → Prop
+| MethodBase (cls : Fin cCnt) (m : Fin (defs.methodsCnt cls)) :
+  MethodJump (.Method cls m :: Δ) 0 cls m
+| Loop (n : Nat) (l : Nat) (cls : Fin cCnt) (m : Fin (defs.methodsCnt cls)) :
+  MethodJump Δ l cls m →
+  MethodJump (.Loop n :: Δ) (l + 1) cls m
+
 inductive Typ :
   (tg : Tag) →
   JCtx cCnt defs → Ctx → Lang tg → TypR tg → Prop
@@ -196,9 +210,7 @@ inductive Typ :
   Typ .Expr Δ₁ Γ₁ (.Call m cls args) (.Expr ret)
 | Return (e : Lang .Expr) (l : Nat) (type : Ty)
   (cls : Fin cCnt) (m : Fin (defs.methodsCnt cls)) :
-  (hl : l < Δ₁.length) →
-  Δ₁[l]! = .Method cls m →
-  (l = 0 ∨ LoopJump cCnt defs Δ₁ (l - 1)) →
+  MethodJump cCnt defs Δ₁ l cls m →
   Typ .Expr Δ₁ Γ₁ e (.Expr (defs.methods cls m).ret) →
   Typ .Expr Δ₁ Γ₁ (.Return e l) (.Expr type)
 | IfExpr
@@ -704,10 +716,7 @@ inductive ContType : (tg : Tag) →
 | ReturnJumpK
   (cls : Fin cCnt) (m : Fin (defs.methodsCnt cls))
   (ret : Ty) (l : Nat) :
-  l < Δ₁.length →
-  Δ₁[l]! = .Method cls m →
-  -- is this one needed?
-  (l = 0 ∨ LoopJump cCnt defs Δ₁ (l - 1)) →
+  MethodJump cCnt defs Δ₁ l cls m →
   ret = (defs.methods cls m).ret →
   ContType .Expr Δ₁ Γ₁ S (.returnJumpK l :: K) (.Expr ret)
 | ReturnRestoreK (ty : Ty) (J₀ : JStackCtx cCnt defs)

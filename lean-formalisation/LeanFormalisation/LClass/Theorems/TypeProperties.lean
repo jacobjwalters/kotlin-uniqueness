@@ -109,6 +109,29 @@ lemma loop_jump_ext (Δ : JCtx cCnt defs) :
     rcases hall.2 (i + 1) (by omega)
     grind
 
+/-- `MethodJump Δ l cls m` implies position `l` of `Δ` is in range and
+contains exactly the `Method cls m` frame. -/
+lemma method_jump_lookup (cls : Fin cCnt) (m : Fin (defs.methodsCnt cls)) :
+    MethodJump cCnt defs Δ l cls m →
+    l < Δ.length ∧ Δ[l]! = .Method cls m := by
+  intro hj
+  induction hj <;> grind
+
+lemma method_jump_delta_ext (cls : Fin cCnt) (m : Fin (defs.methodsCnt cls)) :
+  MethodJump cCnt defs Δ l cls m → MethodJump cCnt defs (Δ ++ Δ₁) l cls m := by
+    intro hl
+    induction hl <;> grind [MethodJump]
+
+/-- `MethodJump` is preserved when every `Loop n` frame in `Δ` is replaced by
+`Loop (n + k)` for some constant `k`. Used in `lang_extension`. -/
+lemma method_jump_loop_map (cls : Fin cCnt) (m : Fin (defs.methodsCnt cls)) (k : Nat) :
+    MethodJump cCnt defs Δ l cls m →
+    MethodJump cCnt defs
+      (Δ.map (fun x => match x with | .Loop n => .Loop (n + k) | val => val))
+      l cls m := by
+  intro hj
+  induction hj <;> grind [MethodJump]
+
 theorem lang_extension
   (tg : Tag) (e : Lang tg) (res : TypR tg)
   (Γ₁ Γ₂ : Ctx) :
@@ -127,13 +150,8 @@ theorem lang_extension
     { apply Typ.FieldAccess <;> solve_by_elim }
     { apply Typ.Call <;> solve_by_elim }
     { apply Typ.Return <;> try solve_by_elim
-      { grind }
-      { grind }
-      rcases a_1
-      { grind }
-      right
-      rw [loop_jump_ext] at *
-      grind }
+      apply method_jump_loop_map
+      solve_by_elim }
     { apply Typ.WhileExpr
       { solve_by_elim }
       { -- map distributes over cons: map f (n :: Δ) = f n :: map f Δ
@@ -202,8 +220,7 @@ theorem lang_extension_delta
     { apply Typ.FieldAccess <;> solve_by_elim }
     { apply Typ.Call <;> solve_by_elim }
     { apply Typ.Return <;> try solve_by_elim
-      { grind }
-      { grind }
-      grind [loop_jump_delta_ext] }
+      apply method_jump_delta_ext
+      solve_by_elim }
     apply Typ.BreakExpr
     induction a <;> solve_by_elim
