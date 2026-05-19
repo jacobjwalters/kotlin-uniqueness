@@ -139,8 +139,10 @@ theorem progress (s : CEK cCnt defs m) (hwt : Wt cCnt defs m s) :
       | newK _ _ _ _ | breakRestoreK _ _ | scopeExitK _ _
       | returnRestoreK _ _ | callRestoreK _ _ => cases hK
 
-set_option maxHeartbeats 1000000
-
+set_option maxHeartbeats 1000000 in
+-- TODO(phase-2/step-5): split this proof into one helper lemma per `Eval`
+-- constructor so each case can be type-checked in isolation. Once that's
+-- done the 10× heartbeat budget above will no longer be needed.
 theorem preservation (s : CEK cCnt defs m) (s' : CEK cCnt defs m') :
   Wt cCnt defs m s → Eval cCnt defs m m' s s' → Wt cCnt defs m' s' := by
     intro hw he
