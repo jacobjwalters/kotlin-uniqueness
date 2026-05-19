@@ -159,7 +159,7 @@ inductive Typ : (tg : Tag) → JCtx → Ctx → Lang tg → TypR tg → Prop
   Typ .Expr Δ₁ Γ₁ (.While cond body) (.Expr .unit)
 | BreakExpr (type : Ty) (l : Nat) :
   l < Δ₁.length →
-  Typ .Expr Δ₁ Γ₁ (.Break l) (.Expr .unit)
+  Typ .Expr Δ₁ Γ₁ (.Break l) (.Expr type)
 | ScopeExpr (s : Lang .Stmt) (e : Lang .Expr) (type : Ty) :
   Typ .Stmt Δ₁ Γ₁ s (.Stmt Γ₂) →
   Typ .Expr Δ₁ Γ₂ e (.Expr type) →

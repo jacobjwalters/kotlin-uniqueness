@@ -79,6 +79,8 @@
 
 // CESK continuation frames
 #let fieldK = math.op("fieldK")
+#let fieldAssignLK = math.op("fieldAssignLK")
+#let fieldAssignRK = math.op("fieldAssignRK")
 #let ifCondK = math.op("ifCondK")
 #let jumpK = math.op("jumpK")
 #let declK = math.op("declK")
@@ -117,6 +119,8 @@
 #let HaltK = math.op("HaltK")
 #let SeqK = math.op("SeqK")
 #let ScopeBodyK = math.op("ScopeBodyK")
+#let FieldAssignLK = math.op("FieldAssignLK")
+#let FieldAssignRK = math.op("FieldAssignRK")
 
 // Meta-level operator application
 #let delta = $delta$
