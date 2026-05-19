@@ -3,220 +3,141 @@ import LeanFormalisation.LClass.Theorems.ContextProperties
 
 variable (cCnt : Nat) (defs : Defs cCnt)
 
--- do casing on Continuation
-theorem progress (s : CEK cCnt defs m) :
-  Wt cCnt defs m s →
-  (terminalState cCnt defs s) ∨ ∃ m' s', Eval cCnt defs m m' s s' := by
-    intro hwt
-    unhygienic induction s
-    { by_cases ht : terminalState cCnt defs (.Eval tg C E J S K)
-      { grind }
-      right
-      unhygienic cases hwt
-      { cases e
-        { eapply Exists.intro
-          eapply Exists.intro
-          apply Eval.Var }
-        { eapply Exists.intro
-          eapply Exists.intro
-          apply Eval.Field }
-        { eapply Exists.intro
-          eapply Exists.intro
-          eapply Eval.Val
-          solve_by_elim }
-        { eapply Exists.intro
-          eapply Exists.intro
-          eapply Eval.Val
-          solve_by_elim }
-        { eapply Exists.intro
-          eapply Exists.intro
-          eapply Eval.Val
-          solve_by_elim }
-        { eapply Exists.intro
-          eapply Exists.intro
-          eapply Eval.Val
-          solve_by_elim }
-        { eapply Exists.intro
-          eapply Exists.intro
-          apply Eval.BinOp }
-        { eapply Exists.intro
-          eapply Exists.intro
-          apply Eval.UnOp }
-        { cases a_3
-          rename_i cls args hc harg a
-          subst harg
-          by_cases hs : 0 = defs.fieldsCnt ⟨cls, hc⟩
-          { rcases map_fresh_addr S with ⟨a, ha⟩
-            eapply Exists.intro
-            eapply Exists.intro
-            apply Eval.New₀ (cCnt := cCnt) (defs := defs) ⟨cls, hc⟩ a args hs ha }
-          eapply Exists.intro
-          eapply Exists.intro
-          apply Eval.New ⟨cls, hc⟩
-          omega }
-        { cases a_3
-          rename_i m cls args hcls hm harg a hrt
-          by_cases hs : 0 = (defs.methods ⟨cls, hcls⟩ ⟨m, hm⟩).nArg
-          { eapply Exists.intro
-            eapply Exists.intro
-            subst harg
-            apply Eval.Call₀ (cCnt := cCnt) (defs := defs) ⟨cls, hcls⟩ ⟨m, hm⟩ args hs }
-          subst harg
-          eapply Exists.intro
-          eapply Exists.intro
-          apply Eval.Call ⟨cls, hcls⟩ ⟨m, hm⟩
-          omega }
-        { eapply Exists.intro
-          eapply Exists.intro
-          apply Eval.Return }
-        { eapply Exists.intro
-          eapply Exists.intro
-          apply Eval.If }
-        { eapply Exists.intro
-          eapply Exists.intro
-          apply Eval.While }
-        { cases a_3
-          rename_i l hlj
-          rw [loop_jump_ext] at hlj
-          rcases hlj.2 l (by omega) with ⟨res, hres⟩
-          rw [←loop_jump_ext] at hlj
-          eapply Exists.intro
-          eapply Exists.intro
-          apply Eval.Break }
-        eapply Exists.intro
-        eapply Exists.intro
-        apply Eval.Scope }
-      cases s
-      all_goals try
-      { eapply Exists.intro
-        eapply Exists.intro
-        solve_by_elim } }
-    by_cases ht : terminalState cCnt defs (.Cont res E J S K)
-    { grind }
+/-- Progress: any well-typed CEK state is either terminal or can step. -/
+theorem progress (s : CEK cCnt defs m) (hwt : Wt cCnt defs m s) :
+    terminalState cCnt defs s ∨ ∃ m' s', Eval cCnt defs m m' s s' := by
+  cases hwt with
+  | @WtExprE _ S _ _ _ _ e _ _ _ _ _ hTyp _ _ _ _ _ _ _ =>
     right
-    unhygienic cases hwt
-    { unhygienic cases K
-      { cases a_10
-        by_contra
-        apply ht
-        rw [terminalState]
-        trivial }
-      unhygienic cases head
-      all_goals try
-      { eapply Exists.intro
-        eapply Exists.intro
-        solve_by_elim }
-      all_goals try
-      { cases a_10 }
-      { cases a_10
-        cases a_3
-        rename_i cls ty hf fty hct cls1 addr vls ceq hlk hv
-        have eq : cls1 = cls := by
-          ext
-          omega
-        subst eq
-        eapply Exists.intro
-        eapply Exists.intro
-        exact Eval.FieldDone addr cls1 ⟨f, hf⟩ vls hlk }
-      { cases v <;> cases a_10
-        all_goals try grind [ValueTyp]
-        all_goals
-        { apply Exists.intro
-          eapply Exists.intro
-          solve_by_elim } }
-      { cases a_10
+    cases e with
+    | Var x => exact ⟨_, _, .Var x⟩
+    | Field f p => exact ⟨_, _, .Field f p⟩
+    | True => exact ⟨_, _, .Val .True .True .True⟩
+    | False => exact ⟨_, _, .Val .False .False .False⟩
+    | Nat n => exact ⟨_, _, .Val (.Nat n) (.Nat n) (.Nat n)⟩
+    | Unit => exact ⟨_, _, .Val .Unit .Unit .Unit⟩
+    | BinOp e₁ e₂ op => exact ⟨_, _, .BinOp e₁ e₂ op⟩
+    | UnOp e op => exact ⟨_, _, .UnOp e op⟩
+    | New cls args =>
+      cases hTyp with | New _ hc _ harg _ _ =>
+      subst harg
+      by_cases hs : 0 = defs.fieldsCnt ⟨cls, hc⟩
+      · rcases map_fresh_addr S with ⟨a, ha⟩
+        exact ⟨_, _, .New₀ ⟨cls, hc⟩ a args hs ha⟩
+      · exact ⟨_, _, .New ⟨cls, hc⟩ args (by omega)⟩
+    | Call m cls args =>
+      cases hTyp with | Call _ hcls _ hm _ harg _ _ _ _ =>
+      subst harg
+      by_cases hs : 0 = (defs.methods ⟨cls, hcls⟩ ⟨m, hm⟩).nArg
+      · exact ⟨_, _, .Call₀ ⟨cls, hcls⟩ ⟨m, hm⟩ args hs⟩
+      · exact ⟨_, _, .Call ⟨cls, hcls⟩ ⟨m, hm⟩ args (by omega)⟩
+    | Return e l => exact ⟨_, _, .Return e⟩
+    | If c e₁ e₂ => exact ⟨_, _, .If c e₁ e₂⟩
+    | While c body => exact ⟨_, _, .While c body⟩
+    | Break l => exact ⟨_, _, .Break l⟩
+    | Scope s e => exact ⟨_, _, .Scope s e⟩
+  | WtExprS s _ _ _ _ _ _ _ _ _ _ _ _ =>
+    right
+    cases s with
+    | Decl t e => exact ⟨_, _, .VarDecl t e⟩
+    | Assign x e => exact ⟨_, _, .Assign x e⟩
+    | Seq s₁ s₂ => exact ⟨_, _, .Seq s₁ s₂⟩
+    | Do e => exact ⟨_, _, .ExprStmt e⟩
+  | @WtContV E S _ _ _ K v _ _ _ _ _ hVT _ _ _ _ _ _ hK =>
+    cases K with
+    | nil => exact .inl trivial
+    | cons head K' =>
+      right
+      cases head with
+      | fieldK f =>
+        cases hK
+        rename_i cls _ hf _ _
+        cases hVT
+        rename_i cls' addr vls _ hlk _
+        have hcls : cls' = cls := by ext; omega
+        subst hcls
+        exact ⟨_, _, .FieldDone addr _ ⟨f, hf⟩ vls hlk⟩
+      | ifCondK _ _ =>
+        cases hVT <;> cases hK
+        · exact ⟨_, _, .IfTrue _ _⟩
+        · exact ⟨_, _, .IfFalse _ _⟩
+      | declK t => exact ⟨_, _, .VarDeclDone t v⟩
+      | assignK x => exact ⟨_, _, .AssignDone x v⟩
+      | seqK _ => cases hK
+      | exprStmtK => exact ⟨_, _, .ExprStmtDone v⟩
+      | binopLK op e₂ => exact ⟨_, _, .BinOpL op v e₂⟩
+      | binopRK op v₁ =>
+        cases hK
+        rename_i hsimp _
         cases op
-        all_goals try
-        { rw [BinOp.args] at *
-          cases v <;> try grind [simpleType, ValueTyp]
-          cases v_1 <;> try grind [simpleType, ValueTyp]
-          eapply Exists.intro
-          eapply Exists.intro
-          apply Eval.BinOpR
-          solve_by_elim }
-        { rw [BinOp.args] at *
-          rename_i v1 _
-          cases a_3
-          cases v1
-          rename_i m2 m1
-          by_cases hm : m2 = m1 <;>
-          { eapply Exists.intro
-            eapply Exists.intro
-            apply Eval.BinOpR
-            try rw [hm]
-            solve_by_elim } }
-        rw [BinOp.args] at *
-        rename_i v1 _
-        cases a_3 <;> cases v1
-        all_goals
-        { eapply Exists.intro
-          eapply Exists.intro
-          apply Eval.BinOpR <;> solve_by_elim } }
-      { cases a_10
+        · cases hsimp
+          cases hVT
+          exact ⟨_, _, .BinOpR _ _ _ _ (.add _ _)⟩
+        · cases hsimp
+          cases hVT
+          exact ⟨_, _, .BinOpR _ _ _ _ (.sub _ _)⟩
+        · cases hsimp
+          cases hVT
+          rename_i n m
+          by_cases heq : m = n
+          · subst heq
+            exact ⟨_, _, .BinOpR _ _ _ _ (.natEqTrue _)⟩
+          · exact ⟨_, _, .BinOpR _ _ _ _ (.natEqFalse _ _ (fun h => heq h.symm))⟩
+        · cases hsimp <;> cases hVT
+          · exact ⟨_, _, .BinOpR _ _ _ _ .boolEqTT⟩
+          · exact ⟨_, _, .BinOpR _ _ _ _ .boolEqTF⟩
+          · exact ⟨_, _, .BinOpR _ _ _ _ .boolEqFT⟩
+          · exact ⟨_, _, .BinOpR _ _ _ _ .boolEqFF⟩
+      | unopK op =>
+        cases hK
         cases op
-        cases a_3
+        cases hVT
         rename_i n
-        cases n
-        { eapply Exists.intro
-          eapply Exists.intro
-          apply Eval.UnOpDone
-          apply UnOp.step.isZeroTrue }
-        eapply Exists.intro
-        eapply Exists.intro
-        apply Eval.UnOpDone
-        apply UnOp.step.isZeroFalse
-        grind }
-      { cases a_10
-        cases a_3
-        all_goals
-        { eapply Exists.intro
-          eapply Exists.intro
-          solve_by_elim } }
-      { cases a_10
-        cases a_3
-        eapply Exists.intro
-        eapply Exists.intro
-        apply Eval.LoopCont }
-      { cases a_10
-        eapply Exists.intro
-        eapply Exists.intro
-        apply Eval.ReturnJump
-        rfl }
-      { cases a_10
-        by_cases hsep : sep + 1 = (defs.methods cls m_1).nArg
-        { eapply Exists.intro
-          eapply Exists.intro
-          apply Eval.ArgDone
-          exact hsep }
-        eapply Exists.intro
-        eapply Exists.intro
-        apply Eval.ArgNext
-        omega }
-      { cases a_10
-        by_cases hsep : sep + 1 = (defs.fieldsCnt cls)
-        { rcases map_fresh_addr S with ⟨addr, haddr⟩
-          eapply Exists.intro
-          eapply Exists.intro
-          apply Eval.NewDone (a := addr) <;> solve_by_elim }
-        eapply Exists.intro
-        eapply Exists.intro
-        apply Eval.NewNext
-        omega }
-      unhygienic cases a_10
-      eapply Exists.intro
-      eapply Exists.intro
-      cases a_3
-      apply Eval.BreakRestore }
-    unhygienic cases K
-    { cases a_9 }
-    unhygienic cases head
-    all_goals try
-    { cases a_9 }
-    all_goals try
-    { cases a_9
-      eapply Exists.intro
-      eapply Exists.intro
-      solve_by_elim }
+        match n with
+        | 0 => exact ⟨_, _, .UnOpDone _ _ _ .isZeroTrue⟩
+        | k + 1 => exact ⟨_, _, .UnOpDone _ _ _ (.isZeroFalse _ (by omega))⟩
+      | loopK c body =>
+        cases hK
+        cases hVT
+        · exact ⟨_, _, .LoopTrue body c⟩
+        · exact ⟨_, _, .LoopFalse body c E.length⟩
+      | loopContK c body n J₀ =>
+        cases hK
+        cases hVT
+        exact ⟨_, _, .LoopCont body c n⟩
+      | returnJumpK l => exact ⟨_, _, .ReturnJump v l rfl⟩
+      | argK cls m sep vals exprs =>
+        cases hK
+        by_cases hsep : sep + 1 = (defs.methods cls m).nArg
+        · exact ⟨_, _, .ArgDone v cls m sep vals exprs hsep⟩
+        · exact ⟨_, _, .ArgNext v cls m sep vals exprs (by omega)⟩
+      | newK cls sep vals exprs =>
+        cases hK
+        by_cases hsep : sep + 1 = defs.fieldsCnt cls
+        · rcases map_fresh_addr S with ⟨addr, haddr⟩
+          exact ⟨_, _, .NewDone v cls sep vals exprs hsep addr haddr⟩
+        · exact ⟨_, _, .NewNext v cls sep vals exprs (by omega)⟩
+      | breakRestoreK n J₀ =>
+        cases hK
+        cases hVT
+        exact ⟨_, _, .BreakRestore⟩
+      | scopeExitK n J₀ => exact ⟨_, _, .ScopeExit n v⟩
+      | returnRestoreK E₀ J₀ => exact ⟨_, _, .ReturnRestore v⟩
+      | callRestoreK E₀ J₀ => exact ⟨_, _, .CallRestore v⟩
+      | scopeBodyK _ _ _ => cases hK
+  | @WtContS _ _ _ _ _ K _ _ _ _ _ _ _ _ _ _ hK =>
+    cases K with
+    | nil => cases hK
+    | cons head _ =>
+      right
+      cases head with
+      | seqK s => exact ⟨_, _, .SeqDone s⟩
+      | scopeBodyK e n _ => exact ⟨_, _, .ScopeBody e n⟩
+      | fieldK _ | ifCondK _ _ | declK _ | assignK _ | exprStmtK
+      | binopLK _ _ | binopRK _ _ | unopK _ | loopK _ _
+      | loopContK _ _ _ _ | returnJumpK _ | argK _ _ _ _ _
+      | newK _ _ _ _ | breakRestoreK _ _ | scopeExitK _ _
+      | returnRestoreK _ _ | callRestoreK _ _ => cases hK
 
 set_option maxHeartbeats 1000000
 
