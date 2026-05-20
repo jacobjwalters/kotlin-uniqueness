@@ -289,7 +289,7 @@ K ::=& #halt && "Program complete" \
   |& #fieldAssignRK (f, a) dot.c K && "After evaluating RHS, write field" f "at address" a \
   |& #ifCondK (e_1, e_2) dot.c K && "After evaluating condition, branch to expression" \
   |& #declK (x : tau) dot.c K && "After evaluating initialiser of type" tau ", bind" x "in" E \
-  |& #returnK (ell) dot.c K && "After evaluating return expr, jump to method" ell \
+  |& #returnJumpK (ell) dot.c K && "After evaluating return expr, jump to method" ell \
   |& #assignK (x) dot.c K && "After evaluating RHS, assign to" x "in" E \
   |& #binopLK (plus.o, e_2) dot.c K && "After evaluating left operand of" plus.o", evaluate" e_2 \
   |& #binopRK (plus.o, v_1) dot.c K && "After evaluating right operand of" plus.o", apply to" v_1 \
@@ -310,7 +310,7 @@ Method bodies are tracked globally when defined. We define a function $#body (m)
 - $#halt$ signals that the program is finished; a terminal state is $#ceskC($#Skip$, $E$, $J$, $S$, $#halt$)$.
 - $#ifCondK (e_1, e_2)$ waits for the condition to evaluate, then dispatches to the appropriate branch expression.
 - $#declK (x : tau)$ waits for the initialiser expression to evaluate to a value $v$ of type $tau$, then extends the environment with $x := v$.
-- $#returnK (ell)$ waits for the return expression to evaluate to a value, then uses $J(ell)$ to jump to the method boundary, restoring the caller's environment and producing the return value.
+- $#returnJumpK (ell)$ waits for the return expression to evaluate to a value, then uses $J(ell)$ to jump to the method boundary, restoring the caller's environment and producing the return value.
 - $#assignK (x)$ waits for the RHS expression to evaluate to a value $v$, then updates the environment with $E[x |-> v]$.
 - $#fieldAssignLK (f, e)$ waits for the target path to evaluate to an address $a$, then begins evaluating the RHS $e$ with $#fieldAssignRK (f, a)$ on the stack.
 - $#fieldAssignRK (f, a)$ waits for the RHS to evaluate to a value $v$, then writes $v$ into field $f$ of the object at address $a$ (leaving other fields of that object, and all other addresses, unchanged).
@@ -335,7 +335,7 @@ $
 #ceskE($v$, $E$, $J$, $S$, $K$) &~> #ceskC($v$, $E$, $J$, $S$, $K$) && "Val" \
 #ceskE($x$, $E$, $J$, $S$, $K$) &~> #ceskC($E(x)$, $E$, $J$, $S$, $K$) && "Var" \
 #ceskE($p.f$, $E$, $J$, $S$, $K$) &~> #ceskE($p$, $E$, $J$, $S$, $#fieldK (f) dot.c K$) && "Field" \
-#ceskE($#Return ell thin e$, $E$, $J$, $S$, $K$) &~> #ceskE($e$, $E$, $J$, $S$, $#returnK (ell) dot.c K$) && "Return" \
+#ceskE($#Return ell thin e$, $E$, $J$, $S$, $K$) &~> #ceskE($e$, $E$, $J$, $S$, $#returnJumpK (ell) dot.c K$) && "Return" \
 #ceskE($#Var x : tau = e$, $E$, $J$, $S$, $K$) &~> #ceskE($e$, $E$, $J$, $S$, $#declK (x : tau) dot.c K$) && "VarDecl" \
 #ceskE($x = e$, $E$, $J$, $S$, $K$) &~> #ceskE($e$, $E$, $J$, $S$, $#assignK (x) dot.c K$) && "Assign" \
 #ceskE($p.f = e$, $E$, $J$, $S$, $K$) &~> #ceskE($p$, $E$, $J$, $S$, $#fieldAssignLK (f, e) dot.c K$) && "FieldAssign" \
@@ -365,7 +365,7 @@ $
 & quad S(a) = C(... f_i := v_i ...) \
 #ceskC($#True$, $E$, $J$, $S$, $#ifCondK (e_1, e_2) dot.c K$) &~> #ceskE($e_1$, $E$, $J$, $S$, $K$) && "IfTrue" \
 #ceskC($#False$, $E$, $J$, $S$, $#ifCondK (e_1, e_2) dot.c K$) &~> #ceskE($e_2$, $E$, $J$, $S$, $K$) && "IfFalse" \
-#ceskC($v$, $E$, $J$, $S$, $#returnK (ell) dot.c K$) &~> #ceskC($v$, $E'$, $J'$, $S$, $K'$) && "ReturnDone" \
+#ceskC($v$, $E$, $J$, $S$, $#returnJumpK (ell) dot.c K$) &~> #ceskC($v$, $E'$, $J'$, $S$, $K'$) && "ReturnDone" \
 & quad "where" J(ell) = (E', K') \
 #ceskC($v$, $E$, $J$, $S$, $#declK (x : tau) dot.c K$) &~> #ceskC($#Skip$, $E, x := v$, $J$, $S$, $K$) && "VarDeclDone" \
 #ceskC($v$, $E$, $J$, $S$, $#assignK (x) dot.c K$) &~> #ceskC($#Skip$, $E[x |-> v]$, $J$, $S$, $K$) && "AssignDone" \
@@ -400,7 +400,7 @@ FieldAssign evaluates the target path first (left-to-right), then the RHS; Field
 
 LoopTrue pushes $#Loop (ell, |E|, K)$ onto $J$, recording the environment size at loop entry, then enters the body. LoopFalse produces $#UnitVal$; $J$ is unchanged since it was never pushed for this iteration. LoopCont pops the loop entry from $J$, truncates $E$ to the saved size $n$ (dropping any bindings the body introduced), and re-evaluates the condition.
 
-Return evaluates its expression via $#returnK (ell)$, then ReturnDone uses $J(ell)$ to find the method boundary directly, restoring the caller's environment $E'$ and producing the return value $v$ to the caller's continuation $K'$. $J'$ is $J$ with the method entry and everything above it removed. ImplicitReturn handles the case where a method body completes normally with $#Skip$: it pops the method entry from $J$, restores the caller's environment, and produces $#UnitVal$.
+Return evaluates its expression via $#returnJumpK (ell)$, then ReturnDone uses $J(ell)$ to find the method boundary directly, restoring the caller's environment $E'$ and producing the return value $v$ to the caller's continuation $K'$. $J'$ is $J$ with the method entry and everything above it removed. ImplicitReturn handles the case where a method body completes normally with $#Skip$: it pops the method entry from $J$, restores the caller's environment, and produces $#UnitVal$.
 
 ScopeBody loads the trailing expression after the scope's statements complete. ScopeExit truncates $E$ to the saved size $n$, dropping scope-local bindings. $J$ is unaffected by scope blocks.
 
@@ -430,7 +430,7 @@ Expression continuations (#typeContE($Gamma$, $Delta$, $K$, $tau$)) _consume_ a 
   proof-tree(rule(name: $#BinOpRK$, typeContE($Gamma$, $Delta$, $#binopRK (plus.o, v_1) dot.c K$, $tau_2$), $plus.o : tau_1 times tau_2 -> tau_3$, $tack.r v_1 : tau_1$, typeContE($Gamma$, $Delta$, $K$, $tau_3$))),
   proof-tree(rule(name: $#UnOpK$, typeContE($Gamma$, $Delta$, $#unopK (plus.o) dot.c K$, $tau_1$), $plus.o : tau_1 -> tau_2$, typeContE($Gamma$, $Delta$, $K$, $tau_2$))),
 
-  proof-tree(rule(name: "ReturnK", typeContE($Gamma$, $Delta$, $#returnK (ell) dot.c K$, $sigma$), $Delta(ell) = #Method (ell, sigma)$)),
+  proof-tree(rule(name: "returnJumpK", typeContE($Gamma$, $Delta$, $#returnJumpK (ell) dot.c K$, $sigma$), $Delta(ell) = #Method (ell, sigma)$)),
   proof-tree(rule(name: "FieldK", typeContE($Gamma$, $Delta$, $#fieldK (f) dot.c K$, $C$), $f : tau in #fields (C)$, typeContE($Gamma$, $Delta$, $K$, $tau$))),
   proof-tree(rule(name: $#FieldAssignLK$, typeContE($Gamma$, $Delta$, $#fieldAssignLK (f, e) dot.c K$, $C$), $f : tau in #fields (C)$, typeExpr($Gamma$, $Delta$, $e$, $tau$), typeContC($Gamma$, $Delta$, $K$))),
   proof-tree(rule(name: $#FieldAssignRK$, typeContE($Gamma$, $Delta$, $#fieldAssignRK (f, a) dot.c K$, $tau$), $tack.r a : C$, $f : tau in #fields (C)$, typeContC($Gamma$, $Delta$, $K$))),
@@ -450,7 +450,7 @@ $#DeclK$ accepts a value of the declared type $tau$. $#AssignK$ accepts a value 
 
 For operators, the negative-position type threads through the evaluation chain: $#BinOpLK$ accepts $tau_1$, requires $e_2 : tau_2$, and the tail $K$ must accept $tau_3$. $#BinOpRK$ and $#UnOpK$ are similar.
 
-ReturnK accepts $sigma$ and requires $Delta(ell) = #Method (ell, sigma)$. It has no premises about the tail $K$ since return jumps past it via $J(ell)$. FieldK accepts a class type $C$, looks up $f : tau in #fields (C)$, and requires the tail $K$ to accept $tau$.
+returnJumpK accepts $sigma$ and requires $Delta(ell) = #Method (ell, sigma)$. It has no premises about the tail $K$ since return jumps past it via $J(ell)$. FieldK accepts a class type $C$, looks up $f : tau in #fields (C)$, and requires the tail $K$ to accept $tau$.
 
 $#FieldAssignLK$ accepts a class type $C$, requires the RHS $e$ to have type $tau$ (the field's declared type), and requires the tail $K$ to be a statement continuation (since the surrounding statement produces $#Skip$). $#FieldAssignRK$ accepts the RHS value of type $tau$, carries the receiver address $a : C$ with $f : tau in #fields (C)$, and likewise requires a statement continuation.
 
