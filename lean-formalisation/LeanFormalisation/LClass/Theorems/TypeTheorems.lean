@@ -500,7 +500,18 @@ private lemma preservation_BinOpL {E J S K} (op : BinOp) (v₁ : Value) (e₂ : 
   cases a_10
   apply Wt.WtExprE <;> try solve_by_elim
   apply ContType.BinOpRK
-  · cases op <;> grind [simpleType, ValueTyp, BinOp.args]
+  · -- The ValueTyp `a_3` constrains `v₁` to the shape demanded by `op.args.1`;
+    -- pick the matching `simpleType` witness per operator.
+    cases op
+    · cases a_3
+      exact .Nat _
+    · cases a_3
+      exact .Nat _
+    · cases a_3
+      exact .Nat _
+    · cases a_3
+      · exact .True
+      · exact .False
   solve_by_elim
 
 private lemma preservation_BinOpR {E J S K} (op : BinOp) (v₁ v₂ result : Value)
@@ -510,8 +521,17 @@ private lemma preservation_BinOpR {E J S K} (op : BinOp) (v₁ v₂ result : Val
   unhygienic cases hw
   cases a_10
   apply Wt.WtContV <;> try solve_by_elim
-  cases op <;>
-  { grind [simpleType, ValueTyp, BinOp.args, ValueTyp, BinOp.step] }
+  -- The `hstep : op.step v₁ v₂ result` constrains `result`'s shape;
+  -- pick the matching ValueTyp witness per `op.step` constructor.
+  cases hstep
+  · exact .Nat _
+  · exact .Nat _
+  · exact .True
+  · exact .False
+  · exact .True
+  · exact .True
+  · exact .False
+  · exact .False
 
 private lemma preservation_UnOpDone {E J S K} (op : UnOp) (v result : Value)
     (hstep : op.step v result)
